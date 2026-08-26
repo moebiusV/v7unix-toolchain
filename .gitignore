@@ -1,5 +1,16 @@
 # build artifacts
 *.o
-cc/host/c1
-cc/host/c0/c0
-cc/as/as
+# bison/yacc-generated parser (from modern/cpp/cpy.y)
+modern/cpp/cpy.c
+modern/cpp/y.tab.c
+modern/cpp/y.tab.h
+
+# built host binaries (all under modern/)
+modern/cpp/cpp
+modern/cc/cc
+modern/cc/c0/c0
+modern/cc/c1/c1
+modern/c2/c2
+modern/as/as
+modern/as/as2
+modern/ld/ld

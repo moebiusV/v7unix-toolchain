@@ -1,0 +1,36 @@
+cpp — V7's C preprocessor, host-ported
+=====================================
+
+This is John Reiser's 1978 preprocessor (V7 `/usr/src/cmd/cpp`), built to run
+on a modern 64-bit host.  It emits the same preprocessed C text the PDP-11
+version did, so it can front a cross-compiling `cc`.
+
+Sources
+-------
+
+V7 ships cpp as three files:
+
+  cpp.c     the preprocessor proper (macro expansion, #include, #define, ...)
+  cpy.y     a yacc grammar for `#if` expressions
+  yylex.c   the `#if` lexer, `#include`'d into the generated cpy.c
+
+Host-port changes (relative to c99/)
+
+  * cpy.y: V7-yacc wrote actions as `={ ... }`; the `=` is stripped so
+    bison -y accepts it, and a `%{ %}` prologue declares `yylex`/`yyerror`.
+  * cpp.c: `pperror`/`ppwarn` were K&R "generic argument" functions (a format
+    string plus two args that could be an int *or* a pointer, both 16-bit on
+    the PDP-11).  Rebuilt as real varargs (`vfprintf`).  `fout` is assigned in
+    `main()` (glibc's `stdout` is a runtime value), and the `_sobuf` stdio
+    buffer is a local static.
+  * Forward declarations of `lookup`/`slookup`/`strdex` were empty `()`; made
+    into proper prototypes (the empty `()` collides with `short`-typed params).
+
+Build and test
+--------------
+
+    make            # builds ./cpp
+    make check      # golden test: tests/test.i -> tests/test.expected
+
+The `-P` flag suppresses the `# line "file"` markers (the `# 12 "foo.c"` lines
+V7's cpp emits to preserve line numbers).

@@ -1,0 +1,12 @@
+
+
+
+int big = 100;
+
+
+int onunix;
+
+
+int onpdp11;
+
+int sq =  ((7)*(7));
