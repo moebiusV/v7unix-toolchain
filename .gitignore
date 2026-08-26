@@ -1,0 +1,5 @@
+# build artifacts
+*.o
+cc/host/c1
+cc/host/c0/c0
+cc/as/as

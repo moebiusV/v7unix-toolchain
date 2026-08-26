@@ -1,0 +1,21 @@
+Installing pdp11-as
+===================
+
+	./configure
+	make
+	make check
+	make install
+
+pdp11-as is plain C99 and has no dependencies beyond a C library.  It
+builds under pcc, gcc, clang and tcc.
+
+Targets: all, check, install, uninstall, clean, distclean, dist.
+
+Standard configure options apply; --prefix=DIR relocates the installation,
+and DESTDIR=DIR staging is honoured by `make install'.
+
+The two programs install to separate locations, mirroring the V7 layout
+(`as` in /bin, its pass-2 helper `as2` in /lib): `as` goes to $(bindir)
+and `as2` to $(libexecdir).  `as` finds `as2` at run time -- via $AS2, a
+sibling of the `as` it was invoked as, or the compiled-in $(libexecdir)
+default -- so co-located and nonstandard layouts both work.

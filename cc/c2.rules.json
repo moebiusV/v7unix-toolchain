@@ -1,0 +1,4 @@
+{
+  "rename": {"getline": "c2_getline", "abs": "c2_abs"},
+  "replace": [["optab[] {", "optab[] = {"], ["revbr[] {", "revbr[] = {"]]
+}

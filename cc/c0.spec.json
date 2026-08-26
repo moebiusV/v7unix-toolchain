@@ -1,0 +1,19 @@
+{
+  "struct_names": ["tnode", "cnode", "lnode", "fnode", "hshtab", "phshtab"],
+  "member_map": {
+    "op": "tnode", "type": "tnode", "subsp": "tnode", "strp": "tnode",
+    "tr1": "tnode", "tr2": "tnode",
+    "value": "cnode",
+    "lvalue": "lnode",
+    "cstr": "fnode",
+    "hclass": "hshtab", "hflag": "hshtab", "htype": "hshtab",
+    "hsubsp": "hshtab", "hstrp": "hshtab", "hoffset": "hshtab",
+    "hpdown": "hshtab", "hblklev": "hshtab", "name": "hshtab"
+  },
+  "wrap_inits": {
+    "funcblk": "tnode",
+    "areg": "tnode",
+    "hreg": "hshtab"
+  },
+  "intx": false
+}

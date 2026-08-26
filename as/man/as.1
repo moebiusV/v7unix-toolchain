@@ -1,0 +1,84 @@
+.TH AS 1
+.SH NAME
+as, as2 \- PDP-11 assembler, pass 1 and pass 2
+.SH SYNOPSIS
+.B as
+[
+.B \-
+] [
+.B \-u
+] [
+.BI \-o " objfile"
+]
+.I "file ..."
+.SH DESCRIPTION
+.I as
+is the V7 Unix PDP-11 assembler, translated from its original assembly
+sources
+.RI ( as11.s .. as19.s
+for pass 1,
+.IR as21.s .. as29.s
+for pass 2) into C so it runs host-side as a cross-assembler.
+The
+.B as
+command performs pass 1, then executes
+.B as2
+(pass 2) to write the object file; users normally invoke only
+.BR as .
+.PP
+Input is the historical V7
+.I as
+syntax: instructions and addressing modes are written as on the PDP-11,
+numbers are octal unless terminated by a decimal point, and strings are
+delimited by
+.BI < >\c
+\&.  The statements
+.BR .text ,
+.BR .data ,
+.BR .bss ,
+.BR .globl ,
+.BR .comm ,
+and
+.B .byte
+are recognised, as are numeric labels
+.RI ( n: ,
+.RI n f,
+.RI n b).
+.PP
+The output is a V7
+.I a.out
+file (magic 0407) with the standard 8-word header, text, data, relocation
+and symbol tables.
+.SH OPTIONS
+.TP
+.B \-
+.TP
+.B \-u
+Treat undefined symbols as external (global) rather than as errors.  The
+two spellings are equivalent.
+.TP
+.BI \-o " objfile"
+Name the output file
+.I objfile
+instead of
+.BR a.out .
+.SH FILES
+.TP
+.B a.out
+output object file
+.TP
+.B /tmp/atm1a /tmp/atm2a /tmp/atm3a
+intermediate files passed from pass 1 to pass 2
+.SH DIAGNOSTICS
+Diagnostics are written to the standard output, one per error, in the
+historical one-line form
+.RI ( "name? line" ).
+.SH HISTORY
+This is a faithful C translation of the V7 assembler, kept for use as a
+cross-assembler in the koitix toolchain.  The
+.B .s
+originals remain in the source tree as the conformance oracle.
+.SH SEE ALSO
+.IR ld (1),
+.IR nm (1),
+.IR a.out (5)

@@ -1,0 +1,5 @@
+David		faithful C translation (as1.c, as2.c) and host build
+
+The original pass-1 and pass-2 sources (as11.s..as29.s, sys.s) are the
+V7 Unix PDP-11 assembler, retained in-tree as the conformance oracle that
+the C translation is checked against.

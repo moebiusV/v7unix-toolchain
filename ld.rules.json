@@ -1,0 +1,4 @@
+{
+  "rename": {"putw": "ld_putw"},
+  "delete_lines": ["**lookup();", "**slookup();", "*lookloc();"]
+}

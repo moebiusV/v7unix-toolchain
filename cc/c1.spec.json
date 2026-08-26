@@ -1,0 +1,21 @@
+{
+  "struct_names": ["tnode", "tname", "xtname", "tconst", "lconst", "ftconst", "fasgn"],
+  "member_map": {
+    "degree": "tnode", "tr1": "tnode", "tr2": "tnode",
+    "class": "tname", "regno": "tname", "offset": "tname", "nloc": "tname",
+    "name": "xtname",
+    "value": "tconst",
+    "lvalue": "lconst",
+    "fvalue": "ftconst",
+    "mask": "fasgn"
+  },
+  "inits": [
+    ["struct node czero = { CON, INT, 0};",
+     "struct node czero = { CON, INT, { .tconst = { 0 } } };"],
+    ["struct node cone = { CON, INT, 1};",
+     "struct node cone = { CON, INT, { .tconst = { 1 } } };"],
+    ["struct node sfuncr = { NAME, STRUCT, STATIC, 0, 0, 0 };",
+     "struct node sfuncr = { NAME, STRUCT, { .tname = { STATIC, 0, 0, 0 } } };"]
+  ],
+  "intx": true
+}

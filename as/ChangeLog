@@ -1,0 +1,8 @@
+2026-08-25  David  <david@example.invalid>
+
+	* Release 0.1.
+	* as1.c: resolve the pass-2 path at run time ($AS2, then a sibling
+	  of argv[0], then the configured AS2_PATH) instead of hardcoding
+	  the V7-native /lib/as2.
+	* Add the host build (configure, Makefile.in), golden-output tests
+	  (tests/), a man page, and the standard GNU files.

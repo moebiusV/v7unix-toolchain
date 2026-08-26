@@ -1,0 +1,25 @@
+{
+  "rename": {
+    "const": "c1_const"
+  },
+  "replace": [
+    ["] {", "] = {"],
+    ["]\t\"", "] = \""],
+    ["czero {", "czero = {"],
+    ["cone  {", "cone = {"],
+    ["sfuncr {", "sfuncr = {"],
+    ["nreg\t3;", "nreg = 3;"],
+    ["isn\t10000;", "isn = 10000;"],
+
+    ["(*vp).u", "*(uint16_t *)vp"],
+
+    ["int tnode(", "struct tnode *tnode("],
+    ["char * match(", "struct optab *match("],
+    ["int tconst(", "struct tconst *tconst("],
+    ["int isconstant(", "struct tnode *isconstant("],
+    ["int unoptim(", "struct tnode *unoptim("],
+    ["int optim(", "struct tnode *optim("],
+    ["int getblk(", "void *getblk("]
+  ],
+  "delete_lines": ["struct {"]
+}

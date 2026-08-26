@@ -1,0 +1,11 @@
+Version 0.1
+	First release.
+
+	Faithful C translation of the V7 PDP-11 assembler: pass 1 (`as',
+	from as11.s..as19.s) and pass 2 (`as2', from as21.s..as29.s), with
+	the .s originals kept as the conformance oracle.  Runs host-side as
+	a cross-assembler, producing V7 a.out (0407 magic).
+
+	Pass 1 locates pass 2 at run time: $AS2, then a sibling of argv[0],
+	then the compiled-in install location (rather than the historical
+	hardcoded /lib/as2).

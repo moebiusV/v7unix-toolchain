@@ -1,0 +1,32 @@
+pdp11-as -- the V7 PDP-11 assembler, as C
+==========================================
+
+This is the V7 Unix PDP-11 assembler translated from PDP-11 assembly into
+C, so it runs host-side as a cross-assembler in the koitix toolchain.
+
+  as1.c     pass 1, the `as' command (from as11.s..as19.s)
+  as2.c     pass 2, the `as2' helper  (from as21.s..as29.s)
+  as??.s    the original V7 sources -- the conformance oracle, not built
+  sys.s     the syscall-number table both passes include
+
+The translation is *faithful*: same two passes, same tables, same
+behaviour and quirks as the V7 original.  The intermediate files
+(/tmp/atm1a, /tmp/atm2a, /tmp/atm3a) and the output a.out (magic 0407)
+are byte-identical to what the .s original produced.
+
+Input syntax is the historical V7 `as` syntax: octal default radix,
+`<...>` string delimiters, `'\e` = EOT, numeric labels (`n:`, `nf`,
+`nb`), and the usual `.text`/`.data`/`.bss`/`.globl`/`.comm`/`.byte`
+directives.
+
+Build
+-----
+
+	./configure && make && make check
+
+Pass 1 execs pass 2.  It locates `as2` at run time in this order: the
+`$AS2` environment variable, a sibling of the `as` binary it was invoked
+as (the build-tree case), then the compiled-in install location
+(`$(libexecdir)/as2`).  This replaces the V7-native hardcoded `/lib/as2`.
+
+See man/as.1 for the full manual page.
