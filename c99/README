@@ -1,0 +1,21 @@
+c99/ — the V7 toolchain, minimally modified to C99
+==================================================
+
+This tree mirrors the V7 source layout (`cmd/{cc,cpp,as,ld}`) and holds the
+V7 sources run through `knr2c99.py` *only* — enough for modern pcc to compile
+them for the PDP-11 target (`make CC="pcc --target=pdp11"`), but no further
+modernization.
+
+  cc/    c0 (c00-c05), c1 (c10-c13 + table.s), c2 (c20-c21), the cc driver
+  cpp/   the preprocessor (cpp.c)
+  as/    the assembler (self-hosted PDP-11 assembly, as11.s .. as29.s)
+  ld/    the linker (ld.c)
+
+The fully-modernized host ports — the same passes made to *run* on a modern
+Unix host while still emitting PDP-11 code — live in `cc/host/`, `c2/`, `as/`,
+and `ld/`.  That port needs `union-node` (member-access-by-name) and host
+fixes (sbrk→mmap, stdarg, pointer sizes) on top of what is here.
+
+The committed sources are `int`→`int16_t` / `long`→`int32_t`-rewritten (what
+knr2c99 emits for the v7 dialect) and require a `stdint.h` shim when compiled
+for the PDP-11 target; see `include/`.
