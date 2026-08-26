@@ -1,8 +1,8 @@
-.TH AS 1
+.TH V7AS 1
 .SH NAME
-as, as2 \- PDP-11 assembler, pass 1 and pass 2
+v7as, v7as2 \- PDP-11 assembler, pass 1 and pass 2
 .SH SYNOPSIS
-.B as
+.B v7as
 [
 .B \-
 ] [
@@ -20,11 +20,11 @@ for pass 1,
 .IR as21.s .. as29.s
 for pass 2) into C so it runs host-side as a cross-assembler.
 The
-.B as
+.B v7as
 command performs pass 1, then executes
-.B as2
+.B v7as2
 (pass 2) to write the object file; users normally invoke only
-.BR as .
+.BR v7as .
 .PP
 Input is the historical V7
 .I as
@@ -79,6 +79,6 @@ cross-assembler in the koitix toolchain.  The
 .B .s
 originals remain in the source tree as the conformance oracle.
 .SH SEE ALSO
-.IR ld (1),
+.IR v7ld (1),
 .IR nm (1),
 .IR a.out (5)
