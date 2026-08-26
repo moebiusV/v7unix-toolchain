@@ -50,10 +50,6 @@ uninstall:
 	      $(DESTDIR)$(PREFIX)/lib/pdp11-v7/fmcrt0.o \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7as.1 \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7cc.1 \
-	      $(DESTDIR)$(PREFIX)/share/man/man1/v7c0.1 \
-	      $(DESTDIR)$(PREFIX)/share/man/man1/v7c1.1 \
-	      $(DESTDIR)$(PREFIX)/share/man/man1/v7c2.1 \
-	      $(DESTDIR)$(PREFIX)/share/man/man1/v7cpp.1 \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7ld.1
 
 clean:

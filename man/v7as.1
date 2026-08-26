@@ -1,84 +1,107 @@
-.TH V7AS 1
+.TH V7AS 1 "August 2026" "V7 toolchain" "User Commands"
 .SH NAME
-v7as, v7as2 \- PDP-11 assembler, pass 1 and pass 2
+v7as, v7as2 \- V7 PDP-11 assembler, pass 1 and pass 2
 .SH SYNOPSIS
 .B v7as
 [
 .B \-
-] [
+|
 .B \-u
 ] [
-.BI \-o " objfile"
-]
-.I "file ..."
+.B \-o
+objfile
+] file ...
 .SH DESCRIPTION
-.I as
-is the V7 Unix PDP-11 assembler, translated from its original assembly
-sources
-.RI ( as11.s .. as19.s
-for pass 1,
-.IR as21.s .. as29.s
-for pass 2) into C so it runs host-side as a cross-assembler.
-The
-.B v7as
-command performs pass 1, then executes
+.I v7as
+assembles the concatenation of the named files.  It is the Seventh
+Edition Unix assembler, translated from its original assembly sources
+into C so it runs host-side as a cross-assembler.
+.PP
+The assembler is two passes.  Pass 1
+.RB ( v7as ,
+from
+.IR as11.s .. as19.s )
+builds the symbol table and assigns addresses; pass 2
+.RB ( v7as2 ,
+from
+.IR as21.s .. as29.s )
+emits the code and relocations and writes the object.
+.I v7as
+runs pass 1 and then itself executes
 .B v7as2
-(pass 2) to write the object file; users normally invoke only
-.BR v7as .
+(pass 2), locating it beside
+.B v7as
+or via the
+.B AS2
+environment variable.
 .PP
-Input is the historical V7
-.I as
-syntax: instructions and addressing modes are written as on the PDP-11,
-numbers are octal unless terminated by a decimal point, and strings are
-delimited by
-.BI < >\c
-\&.  The statements
-.BR .text ,
-.BR .data ,
-.BR .bss ,
-.BR .globl ,
-.BR .comm ,
-and
-.B .byte
-are recognised, as are numeric labels
-.RI ( n: ,
-.RI n f,
-.RI n b).
-.PP
-The output is a V7
-.I a.out
-file (magic 0407) with the standard 8-word header, text, data, relocation
-and symbol tables.
-.SH OPTIONS
-.TP
+If the optional argument
 .B \-
-.TP
-.B \-u
-Treat undefined symbols as external (global) rather than as errors.  The
-two spellings are equivalent.
-.TP
-.BI \-o " objfile"
-Name the output file
-.I objfile
-instead of
-.BR a.out .
-.SH FILES
-.TP
+(or its synonym
+.BR \-u )
+is used, all undefined symbols in the assembly are treated as global.
+.PP
+The output of the assembly is left on the file
+.IR objfile ;
+if that is omitted,
 .B a.out
-output object file
-.TP
-.B /tmp/atm1a /tmp/atm2a /tmp/atm3a
-intermediate files passed from pass 1 to pass 2
+is used.  It is executable if no errors occurred during the assembly, and
+if there were no unresolved external references.
+.SH FILES
+v7as2	pass 2 of the assembler (found beside v7as, or via $AS2)
+.br
+/tmp/atm[1-3]?	temporary
+.br
+a.out	object (magic 0407)
+.SH "SEE ALSO"
+v7ld(1),
+nm(1),
+adb(1),
+a.out(5)
+.br
+.I "UNIX Assembler Manual"
+by D. M. Ritchie
 .SH DIAGNOSTICS
-Diagnostics are written to the standard output, one per error, in the
-historical one-line form
-.RI ( "name? line" ).
-.SH HISTORY
-This is a faithful C translation of the V7 assembler, kept for use as a
-cross-assembler in the koitix toolchain.  The
-.B .s
-originals remain in the source tree as the conformance oracle.
-.SH SEE ALSO
-.IR v7ld (1),
-.IR nm (1),
-.IR a.out (5)
+When an input file cannot be read, its name followed by a question mark is
+typed and assembly ceases.  When syntactic or semantic errors occur, a
+single-character diagnostic is typed out together with the line number and
+the file name in which it occurred.  Errors in pass 1 cause cancellation of
+pass 2.  The possible errors are:
+.PP
+.ta 3
+)	Parentheses error
+.br
+]	Parentheses error
+.br
+<	String not terminated properly
+.br
+*	Indirection used illegally
+.br
+.li
+\fB.\fR	Illegal assignment to `\fB.\fR'
+.br
+a	Error in address
+.br
+b	Branch instruction is odd or too remote
+.br
+e	Error in expression
+.br
+f	Error in local (`f' or `b') type symbol
+.br
+g	Garbage (unknown) character
+.br
+i	End of file inside an if
+.br
+m	Multiply defined symbol as label
+.br
+o	Word quantity assembled at odd address
+.br
+p	`\fB.\fR' different in pass 1 and 2
+.br
+r	Relocation error
+.br
+u	Undefined symbol
+.br
+x	Syntax error
+.SH BUGS
+Syntax errors can cause incorrect line numbers in following diagnostics.

@@ -1,6 +1,6 @@
 .TH V7CC 1 "August 2026" "V7 toolchain" "User Commands"
 .SH NAME
-v7cc \- V7 PDP-11 C compiler driver (host-ported)
+v7cc, v7cpp, v7c0, v7c1, v7c2 \- V7 PDP-11 C compiler and its passes
 .SH SYNOPSIS
 .B v7cc
 [ option ] ... file ...
@@ -122,9 +122,7 @@ a.out	loaded output
 /usr/local/lib/pdp11-v7/libc.a	standard library
 .SH "SEE ALSO"
 .IR v7as (1),
-.IR v7ld (1),
-.IR v7cpp (1),
-.IR v7c2 (1)
+.IR v7ld (1)
 .SH DIAGNOSTICS
 Diagnostics from the C passes are intended to be self-explanatory;
 occasional messages may come from the assembler or loader.
