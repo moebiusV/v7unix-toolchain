@@ -35,7 +35,7 @@ install: all
 	install -m755 modern/as/as    $(DESTDIR)$(PREFIX)/bin/v7as
 	install -m755 modern/as/as2   $(DESTDIR)$(PREFIX)/bin/v7as2
 	install -m755 modern/ld/ld    $(DESTDIR)$(PREFIX)/bin/v7ld
-	install -m644 lib/crt0.o lib/fcrt0.o lib/mcrt0.o lib/fmcrt0.o \
+	install -m644 lib/crt0.o lib/fcrt0.o lib/mcrt0.o lib/fmcrt0.o lib/libc.a \
 	        $(DESTDIR)$(PREFIX)/lib/pdp11-v7/
 	install -m644 man/*.1 $(DESTDIR)$(PREFIX)/share/man/man1/
 
@@ -48,6 +48,7 @@ uninstall:
 	      $(DESTDIR)$(PREFIX)/lib/pdp11-v7/fcrt0.o \
 	      $(DESTDIR)$(PREFIX)/lib/pdp11-v7/mcrt0.o \
 	      $(DESTDIR)$(PREFIX)/lib/pdp11-v7/fmcrt0.o \
+	      $(DESTDIR)$(PREFIX)/lib/pdp11-v7/libc.a \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7as.1 \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7cc.1 \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7ld.1

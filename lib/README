@@ -1,0 +1,19 @@
+lib — PDP-11 target runtime
+===========================
+
+The object files the linker pulls in for a PDP-11 program: the C runtime
+startup and the C library.  They install to `/usr/local/lib/pdp11-v7/`.
+
+  crt0.s  fcrt0.s  mcrt0.s  fmcrt0.s   V7 /usr/src/libc/csu sources, kept
+                                       unmodified; `make` assembles them with
+                                       our own `as` into the .o files.  The
+                                       assembled .o are byte-identical to the
+                                       V7 disk image's (verified).
+  libc.a                              the prebuilt V7 C library, copied from
+                                       the V7 disk image (/lib/libc.a).  It
+                                       carries csv/cret/cerror, the arithmetic
+                                       helpers, printf, write, exit, ...
+
+libc.a is a stopgap: it is the *reference* library pulled off a real V7
+image so linking works today, pending a from-source build of V7's
+/usr/src/libc (orig -> c99 -> modern).  It is not assembled here.
