@@ -485,6 +485,7 @@ char * doincl(char *p){
 				|| **dirp=='\0') strcpy(nfil,filname);
 		else {
 			strcpy(nfil,*dirp);
+			strcat(nfil,"/");
 			strcat(nfil,filname);
 		}
 		if (0<(fins[ifno+1]=open(nfil,READ))) {
