@@ -18,6 +18,10 @@ The driver resolves each pass in this order:
    `/usr/local/bin/v7c0`, `/usr/local/bin/v7c1`, `/usr/local/bin/v7c2`,
    `/usr/local/bin/v7cpp`, `/usr/local/bin/v7as`, `/usr/local/bin/v7ld`.
 
+Target runtime files (startup object, libc) go in **`/usr/local/lib/pdp11/`**
+under v7-prefixed names — `v7crt0.o`, `v7fcrt0.o`, `v7mcrt0.o`, `v7fmcrt0.o`,
+and the C library.  `V7_CRT0` overrides the startup object.
+
 So a build-tree run looks like:
 
     V7_CPP=../cpp/cpp V7_C0=./c0/c0 V7_C1=./c1/c1 \

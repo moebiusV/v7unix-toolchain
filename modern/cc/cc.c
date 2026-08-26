@@ -52,7 +52,9 @@ char	pass2[PASSLEN] = "/usr/local/bin/v7c2";
 char	passp[PASSLEN] = "/usr/local/bin/v7cpp";
 char	asbin[PASSLEN] = "/usr/local/bin/v7as";
 char	ldbin[PASSLEN] = "/usr/local/bin/v7ld";
-char	*pref = "/usr/local/lib/crt0.o";
+/* Target runtime files live in /usr/local/lib/pdp11/ under v7-prefixed names
+   (v7crt0.o, ...); the tools are the only thing in /usr/local/bin. */
+char	*pref = "/usr/local/lib/pdp11/v7crt0.o";
 
 int16_t callsys(char f[], char *v[]);
 char * copy(char *as);
@@ -197,9 +199,9 @@ passa:
 			}
 		}
 	if (noflflag)
-		pref = proflag ? "/usr/local/lib/fmcrt0.o" : "/usr/local/lib/fcrt0.o";
+		pref = proflag ? "/usr/local/lib/pdp11/v7fmcrt0.o" : "/usr/local/lib/pdp11/v7fcrt0.o";
 	else if (proflag)
-		pref = "/usr/local/lib/mcrt0.o";
+		pref = "/usr/local/lib/pdp11/v7mcrt0.o";
 	/* host port: per-tool override so the driver can target a build tree or a
 	   non-default install without editing.  Applied last so it wins over -B. */
 	{
