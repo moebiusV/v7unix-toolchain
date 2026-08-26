@@ -42,11 +42,17 @@ char	*npassname ;
 /* host fix: V7 sized these at 20 bytes for its short /lib paths; a -B dir
    with a modern path would overflow them, so use a generous fixed size. */
 #define PASSLEN 512
-char	pass0[PASSLEN] = "/lib/c0";
-char	pass1[PASSLEN] = "/lib/c1";
-char	pass2[PASSLEN] = "/lib/c2";
-char	passp[PASSLEN] = "/lib/cpp";
-char	*pref = "/lib/crt0.o";
+/* Defaults are the *installed*, v7-prefixed names: `make install` renames
+   c0 -> v7c0, as -> v7as, etc. so they don't collide with the host's cc/as/ld.
+   In-tree the tools keep their original names; point the V7_* env vars (or
+   -B) at a build tree instead. */
+char	pass0[PASSLEN] = "/usr/local/bin/v7c0";
+char	pass1[PASSLEN] = "/usr/local/bin/v7c1";
+char	pass2[PASSLEN] = "/usr/local/bin/v7c2";
+char	passp[PASSLEN] = "/usr/local/bin/v7cpp";
+char	asbin[PASSLEN] = "/usr/local/bin/v7as";
+char	ldbin[PASSLEN] = "/usr/local/bin/v7ld";
+char	*pref = "/usr/local/lib/crt0.o";
 
 int16_t callsys(char f[], char *v[]);
 char * copy(char *as);
@@ -191,9 +197,21 @@ passa:
 			}
 		}
 	if (noflflag)
-		pref = proflag ? "/lib/fmcrt0.o" : "/lib/fcrt0.o";
+		pref = proflag ? "/usr/local/lib/fmcrt0.o" : "/usr/local/lib/fcrt0.o";
 	else if (proflag)
-		pref = "/lib/mcrt0.o";
+		pref = "/usr/local/lib/mcrt0.o";
+	/* host port: per-tool override so the driver can target a build tree or a
+	   non-default install without editing.  Applied last so it wins over -B. */
+	{
+		const char *e;
+		if ((e = getenv("V7_C0"))   && *e) strcpy(pass0, e);
+		if ((e = getenv("V7_C1"))   && *e) strcpy(pass1, e);
+		if ((e = getenv("V7_C2"))   && *e) strcpy(pass2, e);
+		if ((e = getenv("V7_CPP"))  && *e) strcpy(passp, e);
+		if ((e = getenv("V7_AS"))   && *e) strcpy(asbin, e);
+		if ((e = getenv("V7_LD"))   && *e) strcpy(ldbin, e);
+		if ((e = getenv("V7_CRT0")) && *e) pref = e;
+	}
 	if(nc==0)
 		goto nocom;
 	if (pflag==0) {
@@ -293,7 +311,9 @@ passa:
 		if (sflag)
 			continue;
 assemble:
-		av[0] = "as";
+		/* pass the full path as argv[0]: as1.c's as2locate() finds its pass-2
+		   sibling from argv[0], which a bare "as" would defeat */
+		av[0] = asbin;
 		av[1] = "-u";
 		av[2] = "-o";
 		av[3] = setsuf(clist[i], 'o');
@@ -302,7 +322,7 @@ assemble:
 		cunlink(tmp1);
 		cunlink(tmp2);
 		cunlink(tmp4);
-		if (callsys("/bin/as", av) > 1) {
+		if (callsys(asbin, av) > 1) {
 			cflag++;
 			eflag++;
 			continue;
@@ -331,7 +351,7 @@ nocom:
 			av[j++] = "-lc";
 		}
 		av[j++] = 0;
-		eflag |= callsys("/bin/ld", av);
+		eflag |= callsys(ldbin, av);
 		if (nc==1 && nxo==1 && eflag==0)
 			cunlink(setsuf(clist[0], 'o'));
 	}

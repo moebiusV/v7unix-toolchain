@@ -1,0 +1,47 @@
+cc — the V7 C compiler driver, host-ported
+==========================================
+
+This is the driver that strings the passes together: it forks/execs `cpp`,
+`c0`, `c1` (and `c2` under `-O`), then the assembler and linker.  It is the
+only piece the user invokes directly.
+
+Tool discovery
+--------------
+
+The driver resolves each pass in this order:
+
+1. **Environment** (`V7_C0`, `V7_C1`, `V7_C2`, `V7_CPP`, `V7_AS`, `V7_LD`,
+   `V7_CRT0`) — full paths to each tool.  Use these to point at a build tree
+   (where the tools keep their original names and live in different dirs).
+2. **`-B <dir>`** — V7's flag; appends `c0`/`c1`/`c2`/`cpp` to the dir.
+3. **Compiled-in defaults** — the *installed*, v7-prefixed names:
+   `/usr/local/bin/v7c0`, `/usr/local/bin/v7c1`, `/usr/local/bin/v7c2`,
+   `/usr/local/bin/v7cpp`, `/usr/local/bin/v7as`, `/usr/local/bin/v7ld`.
+
+So a build-tree run looks like:
+
+    V7_CPP=../cpp/cpp V7_C0=./c0/c0 V7_C1=./c1/c1 \
+    V7_C2=../../c2/c2 V7_AS=../../as/as V7_LD=../../ld/ld \
+        ./cc -c foo.c
+
+while an installed toolchain just runs `v7cc -c foo.c` (the defaults already
+point at the v7-prefixed names `make install` produced).
+
+Host-port changes
+-----------------
+
+* The pass paths were V7's short 20-byte buffers (`pass0[20] = "/lib/c0"`);
+  widened to 512 so a modern `-B`/`V7_*` path fits.
+* `/bin/as` and `/bin/ld` are no longer hardcoded — they are `v7as`/`v7ld`
+  (overridable), and the assembler is exec'd with its full path as argv[0] so
+  `as` can find its pass-2 sibling `as2`.
+* `fork()`/`wait()` operands widened from the PDP-11's 16-bit `int` to a host
+  `int` (otherwise `wait()` overflows a 2-byte status word).
+
+Not yet wired
+-------------
+
+Linking is the remaining gap: the driver passes `crt0.o` and `-lc` to the
+linker, but the PDP-11 `crt0.o` and `libc.a` are not built here yet.  Compile
+(`-c`) and assemble (`-S`) work end-to-end; full `v7cc foo.c` → `a.out` needs
+those target runtime files.
