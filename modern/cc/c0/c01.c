@@ -157,9 +157,10 @@ void build(int16_t op)
 		setype(p1, t, p2);
 		*cp++ = block(PLUS,t,p2->u.tnode.subsp,p2->u.tnode.strp,p1,cblock(p2->u.tnode.tr1->u.hshtab.hoffset));
 		build(STAR);
-		if (p2->u.tnode.tr1->u.hshtab.hflag&FFIELD)
+		if (p2->u.tnode.tr1->u.hshtab.hflag&FFIELD) {
 			p1 = *--cp;
 			*cp++ = block(FSEL,UNSIGN,NULL,NULL,p1,(struct node *)p2->u.tnode.tr1->u.hshtab.hstrp);
+		}
 		return;
 	}
 	if ((dope&LVALUE)!=0)
