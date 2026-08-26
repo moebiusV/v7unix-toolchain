@@ -1,0 +1,15 @@
+V7 toolchain — INSTALL
+======================
+
+Build the host-side cross-toolchain passes (a C99 compiler is required):
+
+    make            # builds cc/host/c0/c0, cc/host/c1, as/as, ld/ld
+    make check      # (see each subdir's check target)
+    make install    # installs the host binaries under PREFIX (default /usr/local)
+
+The pipeline:
+
+    cc/host/c0/c0 src.c t1 t2     # parser: C source -> intermediate tree
+    cc/host/c1 t1 t2 out.s        # code generator: tree -> PDP-11 assembly
+
+For full instructions on the port, see README.md and PORTING.md.

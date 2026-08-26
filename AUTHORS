@@ -1,0 +1,7 @@
+The Seventh Edition Unix C toolchain, PDP-11.
+
+  Dennis M. Ritchie  the C compiler: the c0/c1/c2 passes, the C language
+                     itself, and the machine-description table (table.s).
+  Ken Thompson       the assembler (as) and linker (ld).
+
+Modernization to a modern host: see ChangeLog and PORTING.md.

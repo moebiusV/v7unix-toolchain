@@ -1,0 +1,10 @@
+V7 toolchain NEWS
+=================
+
+0.1 (2026-08-26)
+  * c0 and c1 ported to host binaries (cc/host/c0/c0, cc/host/c1); the C ->
+    PDP-11 assembly pipeline runs end-to-end.
+  * Assembler translated from self-hosted PDP-11 assembly to C (as/as1.c,
+    as/as2.c).
+  * table.s reverse-engineered to C (cc/table2c.py -> cc/table.c).
+  * PORTING.md: the narrative of the port.

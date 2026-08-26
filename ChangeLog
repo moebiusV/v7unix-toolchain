@@ -1,0 +1,11 @@
+V7 toolchain ChangeLog
+======================
+
+The authoritative history is the git log (and that of the koitix-toolchain
+repo this was split from).  Summary:
+
+  2026-08-26  Split out of koitix-toolchain into an independent repo; added
+              PORTING.md (the port narrative).
+  2026-08-26  c0 ported; c0+c1 compile C to PDP-11 asm end-to-end; sbrk -> mmap
+              allocator; c1 delay() brace-placement bug fixed.
+  2026-08-25  c1 ported; table.s -> table.c; union-node refactor.
