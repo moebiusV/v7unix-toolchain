@@ -8,15 +8,20 @@ and `ld`, plus the `cc` driver.
 It is an independent toolchain project — not tied to any particular OS or
 emulation setup.
 
-## Components
+## Directory layout
 
-| dir       | what                                                            |
-|-----------|-----------------------------------------------------------------|
-| `cc/`     | the C compiler — `c00`-`c05` (first pass / parser), `c10`-`c13` (code generator), `c20`/`c21` (peephole), `table.s` (machine description) |
-| `as/`     | the PDP-11 assembler, originally self-hosted assembly (`as11.s`..`as29.s`), translated to C (`as1.c`/`as2.c`) |
-| `ld/`     | the PDP-11 linker (`ld.c`)                                      |
-| `cc.c`    | the `cc` driver (cpp → c0 → c1 → c2 → as → ld)                  |
-| `include/`| headers                                                         |
+The tree is three stages of the same sources, mirroring V7's `cmd/` layout
+(`cc`, `cpp`, `as`, `ld`, plus `adb` and `make`):
+
+| dir      | what                                                                 |
+|----------|----------------------------------------------------------------------|
+| `orig/`  | the original V7 sources, unmodified, with V7's own makefiles          |
+| `c99/`   | a copy of `orig/` run through `knr2c99.py` — just enough for pcc to compile it for the PDP-11 |
+| `modern/`| the port of `c99/` to run on a 64-bit host (union-node + host fixes), still emitting PDP-11 code |
+| `tools/` | the porting scripts (`knr2c99.py` glue, `union-node.py`, `build-host.py`, `c0-host.py`, `table2c.py`, rules/specs) |
+
+`orig → knr2c99 → c99 → union-node + host-fixes → modern`.  `adb` and `make`
+are fetched into `orig/` and `c99/` but not yet ported to `modern/`.
 
 ## Building the host tools
 
@@ -32,12 +37,12 @@ The generated, host-compilable output is committed under `cc/host/` and
 `cc/host/c0/`, so a plain `make` builds the binaries:
 
 ```
-make -C cc/host      # -> cc/host/c1  (code generator)
-make -C cc/host/c0   # -> cc/host/c0/c0  (parser)
+make -C modern/cc/c1  # -> c1  (code generator)
+make -C modern/cc/c0  # -> c0  (parser)
 ```
 
-End-to-end: `cc/host/c0/c0 src.c t1 t2` emits the intermediate tree; then
-`cc/host/c1 t1 t2 out.s` emits PDP-11 assembly.
+End-to-end: `modern/cc/c0/c0 src.c t1 t2` emits the intermediate tree; then
+`modern/cc/c1/c1 t1 t2 out.s` emits PDP-11 assembly.
 
 ## Notes on the port
 
