@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Emit a host-compilable cc2.c from the PDP-11-target cc2.pdp11.c.
+"""Emit a host-compilable c2.c from the PDP-11-target c2.c.
 
-cc2.pdp11.c is V7's c2 modernized for the PDP-11 target (int16_t, sbrk()).
+c2.c is V7's c2 modernized for the PDP-11 target (int16_t, sbrk()).
 The host build needs malloc() instead of sbrk(), and <stdarg.h> instead of the
 K&R `(&ap)[1]` varargs walk.  This is a mechanical transform, not a fork: the
-committed source stays the single cc2.pdp11.c.
+committed source stays the single c2.c.
 """
 import sys
 
@@ -113,7 +113,7 @@ def transform(src):
 
 def main():
     if len(sys.argv) != 2:
-        print("usage: build-host.py cc2.pdp11.c", file=sys.stderr)
+        print("usage: build-host.py c2.c", file=sys.stderr)
         return 1
     with open(sys.argv[1]) as f:
         src = f.read()

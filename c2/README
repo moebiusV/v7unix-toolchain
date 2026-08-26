@@ -1,4 +1,4 @@
-cc2 — Ritchie's c2 peephole optimizer, modernized
+c2 — Ritchie's c2 peephole optimizer, modernized
 =================================================
 
 This is V7's `cmd/c/c2` (c20.c + c21.c + c2.h), run through knr2c99.py to
@@ -9,18 +9,18 @@ No adaptation to pcc's output is needed.  pcc emits the same `jbr`/`jeq`/
 `jne`/... branch mnemonics that V7's own c1 emitted, and V7 as relaxes them
 natively: in as26.s the opl35/opl36 ("jump/branch type", opcode 035/036)
 handler converts a far branch to `jmp` (or an inverted-condition branch +
-`jmp` for a conditional).  cc2's optab is the original V7 table, which reads
+`jmp` for a conditional).  c2's optab is the original V7 table, which reads
 those j-mnemonics, so it passes them through unchanged while doing its normal
 peephole work (jump-to-jump elimination, literal elimination, etc.).
 
 The full cross-compile pipeline is:
 
     pcc -S foo.c -o foo.s    # emit PDP-11 assembly
-    cc2 foo.s foo.opt.s      # peephole optimization (optional)
+    c2 foo.s foo.opt.s      # peephole optimization (optional)
     as -u foo.opt.s          # assemble -> a.out (relaxes far branches)
     ld ...                   # link
 
-cc2 is optional: `pcc -S` output also assembles directly with `as -u`.
+c2 is optional: `pcc -S` output also assembles directly with `as -u`.
 
 The `-u` flag to as is **required**: pcc references libc symbols (`_printf`,
 `__iob`, ...) with no `.globl`, and V7 as treats an undeclared undefined as a

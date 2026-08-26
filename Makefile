@@ -1,6 +1,6 @@
 # V7 PDP-11 C toolchain, modernized for a modern host.
 PREFIX ?= /usr/local
-SUBDIRS = cc/host/c0 cc/host as ld
+SUBDIRS = cc/host/c0 cc/host c2 as ld
 
 all:
 	for d in $(SUBDIRS); do $(MAKE) -C $$d; done
@@ -10,7 +10,7 @@ check:
 
 install:
 	install -d $(DESTDIR)$(PREFIX)/bin
-	install -m755 cc/host/c0/c0 cc/host/c1 as/as ld/ld $(DESTDIR)$(PREFIX)/bin/
+	install -m755 cc/host/c0/c0 cc/host/c1 c2/c2 as/as ld/ld $(DESTDIR)$(PREFIX)/bin/
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/c0 $(DESTDIR)$(PREFIX)/bin/c1 \
