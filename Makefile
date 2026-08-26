@@ -37,8 +37,7 @@ install: all
 	install -m755 modern/ld/ld    $(DESTDIR)$(PREFIX)/bin/v7ld
 	install -m644 lib/crt0.o lib/fcrt0.o lib/mcrt0.o lib/fmcrt0.o \
 	        $(DESTDIR)$(PREFIX)/lib/pdp11-v7/
-	install -m644 man/v7as.1 man/v7c0.1 man/v7c1.1 \
-	        $(DESTDIR)$(PREFIX)/share/man/man1/
+	install -m644 man/*.1 $(DESTDIR)$(PREFIX)/share/man/man1/
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/v7cc $(DESTDIR)$(PREFIX)/bin/v7cpp \
@@ -50,8 +49,12 @@ uninstall:
 	      $(DESTDIR)$(PREFIX)/lib/pdp11-v7/mcrt0.o \
 	      $(DESTDIR)$(PREFIX)/lib/pdp11-v7/fmcrt0.o \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7as.1 \
+	      $(DESTDIR)$(PREFIX)/share/man/man1/v7cc.1 \
 	      $(DESTDIR)$(PREFIX)/share/man/man1/v7c0.1 \
-	      $(DESTDIR)$(PREFIX)/share/man/man1/v7c1.1
+	      $(DESTDIR)$(PREFIX)/share/man/man1/v7c1.1 \
+	      $(DESTDIR)$(PREFIX)/share/man/man1/v7c2.1 \
+	      $(DESTDIR)$(PREFIX)/share/man/man1/v7cpp.1 \
+	      $(DESTDIR)$(PREFIX)/share/man/man1/v7ld.1
 
 clean:
 	for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done

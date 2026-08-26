@@ -56,6 +56,7 @@ char	ldbin[PASSLEN] = "/usr/local/bin/v7ld";
    directory: /usr/local/lib/pdp11-v7/crt0.o, libc.a, ... — the directory is
    what keeps them apart from the host's, so -lc still finds libc.a. */
 char	*pref = "/usr/local/lib/pdp11-v7/crt0.o";
+char	*libdir = "/usr/local/lib/pdp11-v7";
 
 int16_t callsys(char f[], char *v[]);
 char * copy(char *as);
@@ -214,6 +215,7 @@ passa:
 		if ((e = getenv("V7_AS"))   && *e) strcpy(asbin, e);
 		if ((e = getenv("V7_LD"))   && *e) strcpy(ldbin, e);
 		if ((e = getenv("V7_CRT0")) && *e) pref = e;
+		if ((e = getenv("V7_LIB"))  && *e) libdir = e;
 	}
 	if(nc==0)
 		goto nocom;
@@ -348,6 +350,8 @@ nocom:
 		}
 		while(i<nl)
 			av[j++] = llist[i++];
+		av[j++] = "-L";
+		av[j++] = libdir;
 		if(f20)
 			av[j++] = "-l2";
 		else {

@@ -1,0 +1,116 @@
+.TH V7LD 1 "August 2026" "V7 toolchain" "User Commands"
+.SH NAME
+v7ld \- V7 PDP-11 loader (host-ported)
+.SH SYNOPSIS
+.B v7ld
+[ option ] file ...
+.SH DESCRIPTION
+.I v7ld
+combines several object programs into one, resolves external
+references, and searches libraries.  It produces a V7
+.I a.out
+(magic 0407).  In the simplest case several object files are given and
+combined into an executable; with
+.B \-r
+the result preserves relocation bits for a further
+.I v7ld
+run.
+.PP
+Arguments are concatenated in order; the entry point is the beginning
+of the first routine.  A library is searched exactly once, at the point
+it appears in the argument list; only the members defining an unresolved
+external are loaded.  If the first member is named
+.B __.SYMDEF
+it is used as a dictionary (as produced by
+.IR ranlib ).
+.PP
+The symbols
+.BR _etext ,
+.BR _edata
+and
+.BR _end
+are reserved and set to the end of text, initialized data, and all data
+respectively.
+.SH OPTIONS
+.TP
+.B \-s
+Strip the output (remove the symbol table and relocation bits).
+.TP
+.BI \-u " symbol"
+Enter
+.I symbol
+as undefined in the symbol table.
+.TP
+.BI \-l " x"
+Abbreviation for the library
+.RI lib x .a ;
+searched in each
+.B \-L
+directory, then
+.BR /lib ,
+then
+.BR /usr/lib .
+.TP
+.BI \-L " dir"
+Search
+.I dir
+for
+.B \-l
+libraries before the default directories.  (A host-port addition; V7's
+loader had no
+.BR \-L .)
+.TP
+.B \-x
+Do not preserve local (non-.globl) symbols in the output symbol table.
+.TP
+.B \-X
+Save local symbols except those beginning with
+.BR L .
+.TP
+.B \-r
+Generate relocation bits in the output; suppress undefined-symbol
+diagnostics.
+.TP
+.B \-d
+Force definition of common storage even with
+.BR \-r .
+.TP
+.B \-n
+Make the text read-only and shared (move data to the next 4K boundary).
+.TP
+.B \-i
+Separate I/D address spaces (data starts at location 0).
+.TP
+.BI \-o " name"
+Use
+.I name
+as the output file instead of
+.BR a.out .
+.TP
+.BI \-e " name"
+Set the entry point.
+.TP
+.B \-O
+Overlay file; only the text segment will be replaced by exec(2).
+.TP
+.BI \-D " num"
+Set the data segment size.
+.SH FILES
+.ta \w'/usr/local/lib/pdp11-v7/  'u
+/lib/lib*.a	searched libraries
+.br
+/usr/lib/lib*.a	more libraries
+.br
+/usr/local/lib/pdp11-v7/lib*.a	target libraries
+.br
+a.out	output file
+.SH "SEE ALSO"
+.IR v7as (1),
+.IR v7cc (1),
+.IR ar (1),
+.IR ranlib (1)
+.SH BUGS
+The library-name buffer is host-fixed at 512 bytes (V7 wrote into a
+read-only string literal, which segfaults on a modern host); very long
+.I name
+arguments are not supported.

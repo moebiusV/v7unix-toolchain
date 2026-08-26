@@ -1,0 +1,58 @@
+.TH V7CPP 1 "August 2026" "V7 toolchain" "User Commands"
+.SH NAME
+v7cpp \- V7 C preprocessor (host-ported)
+.SH SYNOPSIS
+.B v7cpp
+[ option ] ... [ file ... ]
+.SH DESCRIPTION
+.I v7cpp
+is the Seventh Edition Unix C preprocessor (John Reiser, 1978), run
+host-side.  It handles
+.BR #include ,
+.BR #define ,
+.BR #undef ,
+conditionals (
+.BR #if ,
+.BR #ifdef ,
+.BR #ifndef ,
+.BR #else ,
+.BR #endif )
+and
+.BR #line ,
+and expands function- and object-like macros.
+.SH OPTIONS
+.TP
+.B \-P
+Suppress the
+.B # "line" "file"
+markers it otherwise emits to preserve line numbers.
+.TP
+.B \-C
+Pass comments through rather than removing them.
+.TP
+.B \-R
+Allow macro recursion.
+.TP
+.BI \-D " name=def"
+Define
+.I name
+as if by
+.BR "#define name def" .
+.TP
+.BI \-U " name"
+Remove any initial definition of
+.IR name .
+.TP
+.BI \-I " dir"
+Search
+.I dir
+for
+.B #include
+files.
+.SH SEE ALSO
+.IR v7cc (1)
+.SH BUGS
+This is not a standalone user tool in the historical sense: V7 documents
+the preprocessor only as a pass of
+.IR cc (1),
+so it has no man page of its own; this page is provided for completeness.

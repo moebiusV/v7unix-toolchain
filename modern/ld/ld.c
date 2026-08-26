@@ -194,6 +194,11 @@ int16_t	ofilfnd;
 char	*ofilename = "l.out";
 int16_t	infil;
 char	*filname;
+/* Host port: -L search dirs (V7's ld had none — it hardcoded /lib and
+   /usr/lib).  Filled during pass 1, used by getfile() to resolve -lname. */
+#define	NLIBDIR	16
+char	*libdirs[NLIBDIR];
+int	nlibdir;
 
 /* cumulative sizes set in pass 1 */
 int16_t	tsize;
@@ -335,6 +340,15 @@ int16_t main(int16_t argc, char **argv)
 				dsize = num;
 				continue;
 
+			case 'L':
+				if (++c >= argc)
+					error(2, "-L: arg missing");
+				if (nlibdir < NLIBDIR)
+					libdirs[nlibdir++] = *p++;
+				else
+					p++;
+				continue;
+
 			case 'l':
 				save = ap[--i]; 
 				ap[i]='-';
@@ -423,11 +437,12 @@ int16_t endload(int16_t argc, char **argv)
 					if (rflag)
 						ld_putw(0, &droutb);
 				}
+			case 'L':
 			case 'u':
 			case 'e':
 			case 'o':
 			case 'v':
-				++c; 
+				++c;
 				++p;
 
 			default:
@@ -1101,22 +1116,28 @@ int16_t getfile(char *acp)
 	register int16_t c;
 	struct stat x;
 
-	cp = acp; 
+	cp = acp;
 	infil = -1;
 	archdr.aname[0] = '\0';
 	filname = cp;
 	if (cp[0]=='-' && cp[1]=='l') {
-		if(cp[2] == '\0')
-			cp = "-la";
-		filname = "/usr/lib/libxxxxxxxxxxxxxxx";
-		for(c=0; cp[c+2]; c++)
-			filname[c+12] = cp[c+2];
-		filname[c+12] = '.';
-		filname[c+13] = 'a';
-		filname[c+14] = '\0';
-		if ((infil = open(filname+4, 0)) >= 0) {
-			filname += 4;
+		static char pathbuf[512];	/* host fix: V7 wrote the string literal */
+		char *name = cp[2] ? cp+2 : "a";
+		/* resolve -lname against -L dirs, then V7's /lib and /usr/lib */
+		infil = -1;
+		for (c = 0; infil < 0 && c < nlibdir; c++) {
+			snprintf(pathbuf, sizeof pathbuf, "%s/lib%s.a", libdirs[c], name);
+			infil = open(pathbuf, 0);
 		}
+		if (infil < 0) {
+			snprintf(pathbuf, sizeof pathbuf, "/lib/lib%s.a", name);
+			infil = open(pathbuf, 0);
+		}
+		if (infil < 0) {
+			snprintf(pathbuf, sizeof pathbuf, "/usr/lib/lib%s.a", name);
+			infil = open(pathbuf, 0);
+		}
+		filname = pathbuf;
 	}
 	if (infil == -1 && (infil = open(filname, 0)) < 0)
 		error(2, "cannot open");
