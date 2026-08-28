@@ -1,13 +1,18 @@
 # The V7 PDP-11 C toolchain
 
-The Seventh Edition Unix C toolchain for the PDP-11, taken from the original
-V7 sources and modernized to build on a modern host so it can *cross-compile*
-PDP-11 code.  This is dmr's compiler: the `cc` driver, the `cpp`
-preprocessor, the `c0`/`c1`/`c2` passes (`c2` the peephole optimizer), the
-`as` assembler, and the `ld` linker.
+This project is two things.
 
-It is an independent toolchain project — not tied to any particular OS or
-emulation setup.
+First, a port of the Seventh Edition Unix C toolchain — dmr's `cc` driver, the
+`cpp` preprocessor, the `c0`/`c1`/`c2` passes (`c2` the peephole optimizer),
+the `as` assembler, and the `ld` linker — to a modern Unix host.  It
+cross-compiles ancient Unix source code, in the original C dialect, into
+PDP-11 binaries that run on ancient Unix.
+
+Second, a separate project in `c99/`: the original Unix source, modernized
+just enough (K&R C → C99) that the modern `pcc` compiler can compile it into
+binaries that still run properly on ancient Unix.  `c99/` is the staging area
+on the way to the full `modern/` port — every program passes through it first
+— and on its own terms it doubles as a stress test for pcc's C99 support.
 
 ## Directory layout
 
@@ -21,8 +26,11 @@ The tree is three stages of the same sources, mirroring V7's `cmd/` layout
 | `modern/` | the port of `c99/` to run on a 64-bit host (union-node + host fixes), still emitting PDP-11 code |
 | `tools/`  | the porting scripts (`union-node.py`, `build-host.py`, `c0-host.py`, `table2c.py`, rules/specs) |
 
-`orig → knr2c99 → c99 → union-node + host-fixes → modern`.  `adb`, `make`,
-`yacc` and `lex` are in `orig/` but not yet ported to `c99/`/`modern/`.
+`orig → knr2c99 → c99 → union-node + host-fixes → modern`.  `make`, `yacc` and
+`lex` are in `orig/` but not yet ported to `c99/`/`modern/`.  `adb` is
+target-resident: it will only ever be modernized to `c99/` (for pcc to
+cross-compile it), never ported to `modern/`.  `mkfs` and `fsck` will be
+ported to `modern/`, but ship with the filsys distribution rather than here.
 
 Layout invariant: `c99/` mirrors `orig/` exactly, differing only in the `.c` /
 `.h` files (the C99 modernization for pcc); `modern/` may additionally
