@@ -765,7 +765,15 @@ int16_t psoct(int16_t an)
 		n = -n;
 		sign = '-';
 	}
-	printf("%c%o", sign, n);
+	/*
+	 * V7's printf skips a NUL %c (doprnt.s: bic $!377,r0; beq), so
+	 * printing the sign unconditionally with "%c%o" would emit a NUL
+	 * byte for positive operands on a glibc host.  Emit the sign only
+	 * when it is real.
+	 */
+	if (sign)
+		putchar(sign);
+	printf("%o", n);
 }
 
 /*

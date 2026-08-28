@@ -216,6 +216,19 @@ another (`build()`'s `t1`, `getree()`'s `t`, `unoptim()`'s `p`), which worked
 when both were 16 bits and is a type error when a pointer is 64.  Each such
 register had to be split into two typed variables.
 
+### 4.5 V7's `printf` skips a NUL `%c`; glibc's doesn't
+
+`psoct()` in `c1` prints a signed octal with `printf("%c%o", sign, n)`, where
+`sign` is `'-'` for a negative number and NUL for a positive one.  V7's
+`doprnt.s` skips a NUL `%c` (`bic $!377,r0; beq`), so the NUL never reached the
+output.  glibc's `printf` has no such special case and emits the NUL byte, so a
+positive operand was prefixed with a stray NUL.  The port emits the sign only
+when it is real:
+
+    if (sign)
+            putchar(sign);
+    printf("%o", n);
+
 ## 5. What the port produced
 
 Both halves now build as host binaries:
