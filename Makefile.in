@@ -317,7 +317,16 @@ EXTRA_DIST = \
 	orig \
 	c99 \
 	tools \
-	dist \
+	dist/rpm \
+	dist/debian \
+	dist/arch \
+	dist/alpine \
+	dist/freebsd \
+	dist/openbsd \
+	dist/netbsd \
+	dist/gentoo \
+	dist/nixos \
+	dist/slackware \
 	modern/include \
 	PORTING.md \
 	README.md \

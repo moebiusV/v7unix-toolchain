@@ -2,8 +2,9 @@
 
 The Seventh Edition Unix C toolchain for the PDP-11, taken from the original
 V7 sources and modernized to build on a modern host so it can *cross-compile*
-PDP-11 code.  This is dmr's compiler: `cc` (the `c0`/`c1`/`c2` passes), `as`,
-and `ld`, plus the `cc` driver.
+PDP-11 code.  This is dmr's compiler: the `cc` driver, the `cpp`
+preprocessor, the `c0`/`c1`/`c2` passes (`c2` the peephole optimizer), the
+`as` assembler, and the `ld` linker.
 
 It is an independent toolchain project — not tied to any particular OS or
 emulation setup.
