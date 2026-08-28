@@ -36,3 +36,6 @@ aclocal.m4
 # editor/autoconf backups and dist tarballs
 *~
 *.tar.gz
+
+# keep the V7 reference .o files (orig/lib)
+!orig/lib/*.o

@@ -15,3 +15,5 @@ Remaining
   * Build V7 libc from source (orig/libc) to replace the shipped libc.a.
   * Ship V7 reference binaries (orig/bin, orig/lib) for byte-comparison.
   * Headers: install V7 target headers under $(includedir)/v7unix.
+  * Port mkfs and fsck to the modern host (shipped with the filsys
+    distribution, not this toolchain).
