@@ -1,0 +1,20 @@
+# Maintainer: maintainer <email>
+pkgname=v7unix-toolchain
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="V7 Unix PDP-11 C toolchain, modernized for a modern host"
+url="https://github.com/moebiusV/v7unix-toolchain"
+arch="x86_64"
+license="AncientUnix"
+makedepends="bison python3 build-base"
+source="https://github.com/moebiusV/v7unix-toolchain/archive/refs/tags/v$pkgver.tar.gz"
+sha512sums="SKIP"
+
+build() {
+	./configure --prefix=/usr --libexecdir=/usr/lib || return 1
+	make || return 1
+}
+
+package() {
+	make DESTDIR="$pkgdir" install || return 1
+}

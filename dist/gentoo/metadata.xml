@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>maintainer@example.com</email>
+		<name>maintainer</name>
+	</maintainer>
+	<upstream>
+		<remote-id type="github">moebiusV/v7unix-toolchain</remote-id>
+	</upstream>
+</pkgmetadata>

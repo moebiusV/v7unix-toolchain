@@ -1,18 +1,17 @@
 TODO
 
-Naming and packaging
+Packaging (done in 0.1.0)
+  * Package name v7unix-toolchain; GNU autotools (configure.ac + Makefile.am).
+  * Install layout: host binaries under $(libexecdir)/v7unix (original names);
+    v7cc/v7as/v7ld symlinks in $(bindir); target runtime in $(libdir)/v7unix;
+    manpages in a v7unix section; future headers in $(includedir)/v7unix.
+  * dist/ template tree + README.distributions for 10 distributions.
 
-  * Package name: v7unix-toolchain.
-
-  * User-facing binaries are prefixed `v7` and installed in the bin dir:
-        cc -> v7cc    as -> v7as    ld -> v7ld    make -> v7make    yacc -> v7yacc
-
-  * Internal binaries keep their original names (c0, c1, c2, as2, cpp), and
-    libraries keep theirs (crt0.o, ...).  They live under a `v7unix` directory
-    (not `v7unix-toolchain`), at the OS's standard filesystem locations:
-        /usr/libexec/v7unix/   internal executables (c0, c1, c2, as2, cpp, ...)
-        /usr/lib/v7unix/       libraries (crt0.o, libc.a, ...)
-        /usr/include/v7unix/   include files
-
-  * Package for the top 20 Linux and BSD distros with full GNU autotools
-    packaging (configure.ac, Makefile.in, install/uninstall/check/dist).
+Remaining
+  * Port lex, yacc, make to modern/ (source is in orig/; c99/ needs only the
+    .c/.h modernization — c99/ mirrors orig/ except .c/.h).
+  * adb: target-resident, never a host binary — modernize to the pcc/PDP-11
+    dialect only (PORTING.md §7 bucket 2).
+  * Build V7 libc from source (orig/libc) to replace the shipped libc.a.
+  * Ship V7 reference binaries (orig/bin, orig/lib) for byte-comparison.
+  * Headers: install V7 target headers under $(includedir)/v7unix.

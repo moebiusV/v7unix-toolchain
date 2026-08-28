@@ -1,15 +1,20 @@
-V7 toolchain — INSTALL
-======================
+v7unix-toolchain — INSTALL
+==========================
 
-Build the host-side cross-toolchain passes (a C99 compiler is required):
+The host-side cross-toolchain builds with the standard GNU autotools flow:
 
-    make            # builds cc/host/c0/c0, cc/host/c1, as/as, ld/ld
-    make check      # (see each subdir's check target)
-    make install    # installs the host binaries under PREFIX (default /usr/local)
+    ./configure && make && make check && make install
 
-The pipeline:
+`configure` is shipped, so autoconf/automake are not needed to build (only to
+regenerate from configure.ac / Makefile.am).  Build dependencies are a C99
+compiler (gcc, clang, or pcc), bison, and python3.
 
-    cc/host/c0/c0 src.c t1 t2     # parser: C source -> intermediate tree
-    cc/host/c1 t1 t2 out.s        # code generator: tree -> PDP-11 assembly
+Install layout (default prefix /usr/local; every directory configurable):
 
-For full instructions on the port, see README.md and PORTING.md.
+    $(libexecdir)/v7unix/   host binaries (cc, cpp, c0, c1, c2, as, as2, ld)
+    $(bindir)/              v7cc, v7as, v7ld (symlinks to the above)
+    $(libdir)/v7unix/       PDP-11 target runtime (crt0.o, libc.a)
+    $(mandir)/v7unix/man1/  V7 manual pages (cc.1, as.1, ...)
+
+Linux distros typically pass --prefix=/usr; the BSDs keep /usr/local.  For
+packaging guidance see README.distributions and the dist/ template tree.

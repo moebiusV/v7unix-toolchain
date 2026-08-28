@@ -13,6 +13,14 @@
 #include <unistd.h>
 #include <stdint.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#ifndef V7_LIBDIR
+#define V7_LIBDIR "/usr/local/lib/v7unix"
+#endif
+
 /*	Layout of a.out file :
  *
  *	header of 8 words	magic number 405, 407, 410, 411
@@ -1123,18 +1131,18 @@ int16_t getfile(char *acp)
 	if (cp[0]=='-' && cp[1]=='l') {
 		static char pathbuf[512];	/* host fix: V7 wrote the string literal */
 		char *name = cp[2] ? cp+2 : "a";
-		/* resolve -lname against -L dirs, then V7's /lib and /usr/lib */
+		/* resolve -lname against -L dirs, then the target lib dir */
 		infil = -1;
 		for (c = 0; infil < 0 && c < nlibdir; c++) {
 			snprintf(pathbuf, sizeof pathbuf, "%s/lib%s.a", libdirs[c], name);
 			infil = open(pathbuf, 0);
 		}
 		if (infil < 0) {
-			snprintf(pathbuf, sizeof pathbuf, "/lib/lib%s.a", name);
+			snprintf(pathbuf, sizeof pathbuf, V7_LIBDIR "/lib%s.a", name);
 			infil = open(pathbuf, 0);
 		}
 		if (infil < 0) {
-			snprintf(pathbuf, sizeof pathbuf, "/usr/lib/lib%s.a", name);
+			snprintf(pathbuf, sizeof pathbuf, V7_LIBDIR "/lib%s.a", name);
 			infil = open(pathbuf, 0);
 		}
 		filname = pathbuf;

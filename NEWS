@@ -1,9 +1,19 @@
 V7 toolchain NEWS
 =================
 
+0.1.0 (2026-08-28)
+  * GNU autotools packaging: ./configure && make && make check && make install.
+  * Install layout: host binaries in $(libexecdir)/v7unix, v7cc/v7as/v7ld
+    symlinks in $(bindir), target runtime in $(libdir)/v7unix.
+  * V7 manual pages in a v7unix man section (cc.1, as.1, ld.1, lex.1, yacc.1,
+    make.1, adb.1); v7cc.1/v7as.1/v7ld.1 as .so stubs.
+  * Added V7 lex source to orig/ (adb/make/yacc already present).
+  * COPYING replaced with the canonical Caldera "Ancient UNIX" license.
+  * dist/ template tree for 10 distributions + README.distributions.
+
 0.1 (2026-08-26)
-  * c0 and c1 ported to host binaries (cc/host/c0/c0, cc/host/c1); the C ->
-    PDP-11 assembly pipeline runs end-to-end.
+  * c0 and c1 ported to host binaries; the C -> PDP-11 assembly pipeline runs
+    end-to-end.
   * Assembler translated from self-hosted PDP-11 assembly to C (as/as1.c,
     as/as2.c).
   * table.s reverse-engineered to C (cc/table2c.py -> cc/table.c).

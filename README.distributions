@@ -1,0 +1,165 @@
+Packaging v7unix-toolchain for Distributions
+============================================
+
+This file is for distribution packagers who want to add v7unix-toolchain to
+their distro's package repository.  Template packaging files for several
+systems are provided under `dist/`.  Each is roughly 90% complete — the
+packager fills in maintainer details, changelog, and distro-specific
+adjustments.
+
+What v7unix-toolchain Is
+------------------------
+
+v7unix-toolchain is a modern-host port of the Seventh Edition (V7) Unix
+PDP-11 C toolchain — the `cc` driver, its `cpp`/`c0`/`c1`/`c2` passes, the
+`as`/`as2` assembler, and the `ld` linker — that cross-compiles PDP-11 code
+from a modern 64-bit host.  Distributed under the Caldera "Ancient UNIX"
+license (see `COPYING`).
+
+Dependencies
+------------
+
+Build-time (all in every distro's base toolchain):
+  - a C99 compiler — `gcc`, `clang`, or `pcc` (the `modern/` sources build
+    with all three)
+  - `bison` (for the `cpp` pass's `#if` grammar)
+  - `python3` (regenerates the `c2` pass from its single `c2.c` source)
+  - GNU `make`
+
+  `configure` is shipped, so `autoconf`/`automake` are **not** needed to build
+  — only to regenerate the build system from `configure.ac`/`Makefile.am`.
+
+Runtime:
+  - no shared libraries; the tools are standalone host binaries.
+  - the PDP-11 target runtime (`crt0.o`, `libc.a`) installs as plain data.
+
+How the Build Works
+-------------------
+
+Standard autotools:
+
+    ./configure --prefix=/usr [--libexecdir=... --libdir=...]
+    make
+    make install DESTDIR=...
+
+Install layout (every location configurable via the standard `./configure`
+flags; the three data dirs carry a `v7unix` suffix):
+
+    $(libexecdir)/v7unix/     the 8 host binaries (cc, cpp, c0, c1, c2, as,
+                              as2, ld) under their original V7 names
+    $(bindir)/                v7cc, v7as, v7ld — symlinks to the above
+    $(libdir)/v7unix/         the PDP-11 target runtime (crt0.o, libc.a)
+    $(mandir)/v7unix/man1/    the V7 manual pages (cc.1, as.1, ld.1, lex.1,
+                              yacc.1, make.1, adb.1)
+    $(mandir)/man1/           v7cc.1, v7as.1, v7ld.1 — `.so` stubs into v7unix
+
+The one cross-distro divergence is where "internal executables" live: the
+BSDs and Red Hat/Gentoo use a dedicated `libexec` dir; Debian and Arch do not
+and put package-private programs under `/usr/lib`.  Because the package ships
+no *host* libraries (everything under `$(libdir)/v7unix` is PDP-11 target
+data), the templates pin `--libdir` to a non-multiarch `/usr/lib`:
+
+    System                       --libexecdir          --libdir (x86_64)
+    ---------------------------  -------------------  -------------------
+    FreeBSD / OpenBSD / NetBSD   /usr/local/libexec    /usr/local/lib
+    Red Hat / Fedora / RHEL      /usr/libexec          /usr/lib64
+    Gentoo                       /usr/libexec          /usr/lib64
+    Debian / Ubuntu              /usr/lib/v7unix       /usr/lib
+    Arch                         /usr/lib/v7unix       /usr/lib
+    Alpine / Slackware           /usr/lib/v7unix       /usr/lib
+
+(The `v7unix` suffix is appended by `configure` to whatever `--libexecdir` /
+`--libdir` it is given, so `/usr/lib/v7unix` above is `--libexecdir=/usr/lib`.)
+
+Per-Distribution Notes
+======================
+
+RPM (Fedora / RHEL / CentOS)
+----------------------------
+
+  Files:  dist/rpm/v7unix-toolchain.spec
+
+  Customize: URL/Source0 if hosting your own tarball, the %changelog entry.
+  Build:  rpmbuild -ba dist/rpm/v7unix-toolchain.spec
+  Submit: Fedora Package Review process / EPEL.
+
+Debian / Ubuntu
+---------------
+
+  Files:  dist/debian/
+
+  Customize: debian/changelog, debian/control Maintainer field, debian/copyright.
+  Build:  dpkg-buildpackage -us -uc
+  Submit: File an ITP against wnpp.
+
+Arch Linux
+----------
+
+  Files:  dist/arch/PKGBUILD
+
+  Customize: Maintainer line, sha256sums (updpkgsums).
+  Build:  makepkg -si
+  Submit: AUR.
+
+Alpine Linux
+------------
+
+  Files:  dist/alpine/APKBUILD
+
+  Customize: Maintainer line, sha512sums (abuild checksum).
+  Build:  abuild -r
+  Submit: MR against aports.git.
+
+FreeBSD
+-------
+
+  Files:  dist/freebsd/
+
+  Customize: MAINTAINER email, distinfo (real SHA256/SIZE).
+  Build:  make -C dist/freebsd install (in a ports tree)
+  Submit: FreeBSD bug / send-pr, category "ports".
+
+OpenBSD
+-------
+
+  Files:  dist/openbsd/
+
+  Customize: MAINTAINER email, pkg/PLIST after a test install.
+  Build:  make -C dist/openbsd install (in a ports tree)
+  Submit: diff to ports@openbsd.org.
+
+NetBSD
+------
+
+  Files:  dist/netbsd/
+
+  Customize: MAINTAINER email, distinfo (make distinfo).
+  Build:  bmake install (in a pkgsrc tree)
+  Submit: diff to pkgsrc-wip / pkgsrc-changes.
+
+Gentoo
+------
+
+  Files:  dist/gentoo/
+
+  Customize: metadata.xml maintainer, ebuild SRC_URI, KEYWORDS.
+  Build:  ebuild dist/gentoo/v7unix-toolchain-0.1.0.ebuild manifest && emerge
+  Submit: bug at bugs.gentoo.org (category "Ebuild") or the GURU overlay.
+
+NixOS
+-----
+
+  Files:  dist/nixos/default.nix
+
+  Customize: fetchFromGitHub owner/hash, meta.maintainers.
+  Build:  nix-build -E 'with import <nixpkgs> {}; callPackage ./dist/nixos/default.nix {}'
+  Submit: PR against nixpkgs.
+
+Slackware
+---------
+
+  Files:  dist/slackware/
+
+  Customize: seatuya.SlackBuild copyright, seatuya.info MD5SUM/MAINTAINER, slack-desc URL.
+  Build:  source v7unix-toolchain.info && sh v7unix-toolchain.SlackBuild
+  Submit: SlackBuilds.org (SBo).

@@ -1,0 +1,12 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: v7unix-toolchain
+Source: https://github.com/moebiusV/v7unix-toolchain
+
+Files: *
+Copyright: 1979 Bell Telephone Laboratories, Inc.
+           2001-2002 Caldera International Inc.
+License: Ancient-Unix
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met.
+ See the COPYING file in the source for the full Caldera "Ancient UNIX"
+ license text (a permissive, BSD-style license with an advertising clause).

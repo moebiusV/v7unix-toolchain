@@ -1,0 +1,9 @@
+usr/lib/v7unix/*   usr/lib/v7unix/
+usr/lib/v7unix     usr/lib/
+usr/bin/v7cc       usr/bin/
+usr/bin/v7as       usr/bin/
+usr/bin/v7ld       usr/bin/
+usr/share/man/v7unix/man1/*   usr/share/man/v7unix/man1/
+usr/share/man/man1/v7cc.1     usr/share/man/man1/
+usr/share/man/man1/v7as.1     usr/share/man/man1/
+usr/share/man/man1/v7ld.1     usr/share/man/man1/

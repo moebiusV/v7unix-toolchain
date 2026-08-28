@@ -34,11 +34,19 @@
 #include <sys/stat.h>
 #include <stdint.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 /* Where pass 2 lives.  The original hardcodes `/lib/as2` (as11.s go:); a
- * host cross-assembler cannot, so the Makefile overrides this with the
- * install location and as2locate() prefers a sibling of the running `as`. */
+ * host cross-assembler cannot, so the compiled-in default is the install
+ * location (V7_LIBEXECDIR) and as2locate() prefers a sibling of the running
+ * `as` (build tree) or $AS2. */
+#ifndef V7_LIBEXECDIR
+#define V7_LIBEXECDIR "/usr/local/libexec/v7unix"
+#endif
 #ifndef AS2_PATH
-#define AS2_PATH "/lib/as2"
+#define AS2_PATH V7_LIBEXECDIR "/as2"
 #endif
 
 /* the original's working registers (expression evaluator, token scanner).

@@ -1,0 +1,6 @@
+A modern-host port of the Seventh Edition (V7) Unix PDP-11 C toolchain
+(cc, cpp/c0/c1/c2, as/as2, ld) that cross-compiles PDP-11 code.
+
+The 8 host binaries install to %%PREFIX%%/libexec/v7unix under their
+original V7 names; %%PREFIX%%/bin/v7cc, v7as and v7ld are symlinks to them.
+The PDP-11 target runtime (crt0.o, libc.a) installs to %%PREFIX%%/lib/v7unix.

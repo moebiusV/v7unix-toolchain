@@ -9,6 +9,17 @@
 #include <stdint.h>
 #include <sys/wait.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#ifndef V7_LIBEXECDIR
+#define V7_LIBEXECDIR "/usr/local/libexec/v7unix"
+#endif
+#ifndef V7_LIBDIR
+#define V7_LIBDIR "/usr/local/lib/v7unix"
+#endif
+
 /* cc command */
 
 # define MAXINC 10
@@ -42,21 +53,22 @@ char	*npassname ;
 /* host fix: V7 sized these at 20 bytes for its short /lib paths; a -B dir
    with a modern path would overflow them, so use a generous fixed size. */
 #define PASSLEN 512
-/* Defaults are the *installed*, v7-prefixed names: `make install` renames
-   c0 -> v7c0, as -> v7as, etc. so they don't collide with the host's cc/as/ld.
-   In-tree the tools keep their original names; point the V7_* env vars (or
-   -B) at a build tree instead. */
-char	pass0[PASSLEN] = "/usr/local/bin/v7c0";
-char	pass1[PASSLEN] = "/usr/local/bin/v7c1";
-char	pass2[PASSLEN] = "/usr/local/bin/v7c2";
-char	passp[PASSLEN] = "/usr/local/bin/v7cpp";
-char	asbin[PASSLEN] = "/usr/local/bin/v7as";
-char	ldbin[PASSLEN] = "/usr/local/bin/v7ld";
-/* Target runtime files keep their original names but live in a pdp11-v7
-   directory: /usr/local/lib/pdp11-v7/crt0.o, libc.a, ... — the directory is
-   what keeps them apart from the host's, so -lc still finds libc.a. */
-char	*pref = "/usr/local/lib/pdp11-v7/crt0.o";
-char	*libdir = "/usr/local/lib/pdp11-v7";
+/* Defaults are the *installed* locations: every binary (the passes and the
+   driver alike) lives under V7_LIBEXECDIR with its original V7 name, and the
+   target runtime under V7_LIBDIR.  configure bakes these in via config.h; the
+   #ifndef fallbacks above keep a bare `make -C modern/cc` build working, and
+   the V7_* env vars (or -B) still point at a build tree. */
+char	pass0[PASSLEN] = V7_LIBEXECDIR "/c0";
+char	pass1[PASSLEN] = V7_LIBEXECDIR "/c1";
+char	pass2[PASSLEN] = V7_LIBEXECDIR "/c2";
+char	passp[PASSLEN] = V7_LIBEXECDIR "/cpp";
+char	asbin[PASSLEN] = V7_LIBEXECDIR "/as";
+char	ldbin[PASSLEN] = V7_LIBEXECDIR "/ld";
+/* Target runtime files keep their original names but live under V7_LIBDIR
+   (crt0.o, libc.a, ...) — the directory keeps them apart from the host's,
+   so -lc still finds libc.a. */
+char	*pref = V7_LIBDIR "/crt0.o";
+char	*libdir = V7_LIBDIR;
 
 int16_t callsys(char f[], char *v[]);
 char * copy(char *as);
@@ -201,9 +213,9 @@ passa:
 			}
 		}
 	if (noflflag)
-		pref = proflag ? "/usr/local/lib/pdp11-v7/fmcrt0.o" : "/usr/local/lib/pdp11-v7/fcrt0.o";
+		pref = proflag ? V7_LIBDIR "/fmcrt0.o" : V7_LIBDIR "/fcrt0.o";
 	else if (proflag)
-		pref = "/usr/local/lib/pdp11-v7/mcrt0.o";
+		pref = V7_LIBDIR "/mcrt0.o";
 	/* host port: per-tool override so the driver can target a build tree or a
 	   non-default install without editing.  Applied last so it wins over -B. */
 	{

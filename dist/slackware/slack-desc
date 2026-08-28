@@ -1,0 +1,17 @@
+# HOW TO EDIT THIS FILE:
+# Line up the first '|' above the ':' following the base package name, and
+# the '|' on the right side marks the last column you can put a character in.
+# You must make exactly 11 lines for the formatting to be correct.
+
+      |-----handy-ruler------------------------------------------------------|
+v7unix-toolchain: v7unix-toolchain (V7 Unix PDP-11 C toolchain)
+v7unix-toolchain:
+v7unix-toolchain: A modern-host port of the Seventh Edition (V7) Unix PDP-11
+v7unix-toolchain: C toolchain (cc, cpp/c0/c1/c2, as/as2, ld) that
+v7unix-toolchain: cross-compiles PDP-11 code from a modern 64-bit host.
+v7unix-toolchain:
+v7unix-toolchain: Homepage: https://github.com/moebiusV/v7unix-toolchain
+v7unix-toolchain:
+v7unix-toolchain:
+v7unix-toolchain:
+v7unix-toolchain:
