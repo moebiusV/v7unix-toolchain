@@ -267,6 +267,7 @@ v7unix_libexecdir = @v7unix_libexecdir@
 AM_CFLAGS = -std=c99 -O2
 nodist_c2_SOURCES = c2.host.c
 BUILT_SOURCES = c2.host.c
+CLEANFILES = c2.host.c
 EXTRA_DIST = c2.c build-host.py README tests
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
@@ -497,6 +498,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-$(am__rm_f) $(CLEANFILES)
 
 distclean-generic:
 	-$(am__rm_f) $(CONFIG_CLEAN_FILES)

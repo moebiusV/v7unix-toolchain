@@ -12,6 +12,7 @@ v7unix_libexec_PROGRAMS = cpp
 cpp_SOURCES = cpp.c
 nodist_cpp_SOURCES = cpy.c
 BUILT_SOURCES = cpy.c
+CLEANFILES = cpy.c y.tab.c y.tab.h
 
 # bison -y writes y.tab.c; rename to cpy.c so yylex.c's "# include" resolves.
 cpy.c: $(srcdir)/cpy.y $(srcdir)/yylex.c

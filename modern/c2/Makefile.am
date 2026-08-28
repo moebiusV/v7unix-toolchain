@@ -9,6 +9,7 @@ AM_CFLAGS = -std=c99 -O2
 v7unix_libexec_PROGRAMS = c2
 nodist_c2_SOURCES = c2.host.c
 BUILT_SOURCES = c2.host.c
+CLEANFILES = c2.host.c
 
 c2.host.c: $(srcdir)/c2.c $(srcdir)/build-host.py
 	$(PYTHON3) $(srcdir)/build-host.py $(srcdir)/c2.c > $@

@@ -271,6 +271,7 @@ AM_CFLAGS = -std=c99 -O1
 cpp_SOURCES = cpp.c
 nodist_cpp_SOURCES = cpy.c
 BUILT_SOURCES = cpy.c
+CLEANFILES = cpy.c y.tab.c y.tab.h
 EXTRA_DIST = cpy.y yylex.c README tests
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
@@ -502,6 +503,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-$(am__rm_f) $(CLEANFILES)
 
 distclean-generic:
 	-$(am__rm_f) $(CONFIG_CLEAN_FILES)
