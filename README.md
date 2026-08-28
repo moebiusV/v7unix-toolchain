@@ -2,17 +2,17 @@
 
 This project is two things.
 
-First, a port of the Seventh Edition Unix C toolchain — dmr's `cc` driver, the
+First, a port of the Seventh Edition Unix C toolchain (dmr's `cc` driver, the
 `cpp` preprocessor, the `c0`/`c1`/`c2` passes (`c2` the peephole optimizer),
-the `as` assembler, and the `ld` linker — to a modern Unix host.  It
+the `as` assembler, and the `ld` linker) to a modern Unix host.  It
 cross-compiles ancient Unix source code, in the original C dialect, into
 PDP-11 binaries that run on ancient Unix.
 
 Second, a separate project in `c99/`: the original Unix source, modernized
 just enough (K&R C → C99) that the modern `pcc` compiler can compile it into
 binaries that still run properly on ancient Unix.  `c99/` is the staging area
-on the way to the full `modern/` port — every program passes through it first
-— and on its own terms it doubles as a stress test for pcc's C99 support.
+on the way to the full `modern/` port (every program passes through it first),
+and on its own terms it doubles as a stress test for pcc's PDP-11 support.
 
 ## Directory layout
 
@@ -22,7 +22,7 @@ The tree is three stages of the same sources, mirroring V7's `cmd/` layout
 | dir       | what                                                                  |
 |-----------|-----------------------------------------------------------------------|
 | `orig/`   | the original V7 sources, unmodified, with V7's own makefiles           |
-| `c99/`    | `orig/` run through `knr2c99.py` — just enough for pcc to compile it for the PDP-11 |
+| `c99/`    | `orig/` run through `knr2c99.py`, just enough for pcc to compile it for the PDP-11 |
 | `modern/` | the port of `c99/` to run on a 64-bit host (union-node + host fixes), still emitting PDP-11 code |
 | `tools/`  | the porting scripts (`union-node.py`, `build-host.py`, `c0-host.py`, `table2c.py`, rules/specs) |
 
@@ -30,7 +30,7 @@ The tree is three stages of the same sources, mirroring V7's `cmd/` layout
 `lex` are in `orig/` but not yet ported to `c99/`/`modern/`.  `adb` is
 target-resident: it will only ever be modernized to `c99/` (for pcc to
 cross-compile it), never ported to `modern/`.  `mkfs` and `fsck` will be
-ported to `modern/`, but ship with the filsys distribution rather than here.
+ported to `modern/`, but ship with the filsys FUSE driver rather than here.
 
 Layout invariant: `c99/` mirrors `orig/` exactly, differing only in the `.c` /
 `.h` files (the C99 modernization for pcc); `modern/` may additionally
@@ -51,11 +51,11 @@ the standard `./configure` flags):
 
     $(libexecdir)/v7unix/   the 8 host binaries (cc, cpp, c0, c1, c2, as, as2,
                             ld) under their original V7 names
-    $(bindir)/              v7cc, v7as, v7ld — symlinks to the above
+    $(bindir)/              v7cc, v7as, v7ld (symlinks to the above)
     $(libdir)/v7unix/       the PDP-11 target runtime (crt0.o, libc.a)
     $(mandir)/v7unix/man1/  the V7 manual pages (cc.1, as.1, ld.1, lex.1,
                             yacc.1, make.1, adb.1)
-    $(mandir)/man1/         v7cc.1, v7as.1, v7ld.1 — .so stubs into v7unix
+    $(mandir)/man1/         v7cc.1, v7as.1, v7ld.1 (.so stubs into v7unix)
 
 The default prefix is `/usr/local` (the BSD convention); Linux distros pass
 `--prefix=/usr`.  Cross-compile a PDP-11 program with:
