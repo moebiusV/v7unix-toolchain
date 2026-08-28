@@ -1,0 +1,18 @@
+TODO
+
+Naming and packaging
+
+  * Package name: v7unix-toolchain.
+
+  * User-facing binaries are prefixed `v7` and installed in the bin dir:
+        cc -> v7cc    as -> v7as    ld -> v7ld    make -> v7make    yacc -> v7yacc
+
+  * Internal binaries keep their original names (c0, c1, c2, as2, cpp), and
+    libraries keep theirs (crt0.o, ...).  They live under a `v7unix` directory
+    (not `v7unix-toolchain`), at the OS's standard filesystem locations:
+        /usr/libexec/v7unix/   internal executables (c0, c1, c2, as2, cpp, ...)
+        /usr/lib/v7unix/       libraries (crt0.o, libc.a, ...)
+        /usr/include/v7unix/   include files
+
+  * Package for the top 20 Linux and BSD distros with full GNU autotools
+    packaging (configure.ac, Makefile.in, install/uninstall/check/dist).
