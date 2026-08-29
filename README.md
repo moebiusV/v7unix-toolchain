@@ -30,7 +30,7 @@ The tree is three stages of the same sources, mirroring V7's `cmd/` layout
 `lex` are in `orig/` but not yet ported to `c99/`/`modern/`.  `adb` is
 target-resident: it will only ever be modernized to `c99/` (for pcc to
 cross-compile it), never ported to `modern/`.  `mkfs` and `fsck` will be
-ported to `modern/`, but ship with the filsys FUSE driver rather than here.
+ported to `modern/` here; filsys depends on this repo for them.
 
 Layout invariant: `c99/` mirrors `orig/` exactly, differing only in the `.c` /
 `.h` files (the C99 modernization for pcc); `modern/` may additionally
