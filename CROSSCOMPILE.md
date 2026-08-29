@@ -103,37 +103,29 @@ mostly solved: the `cc` driver execs its passes by compiled-in absolute paths
 root (or `jail` on FreeBSD, `mount_nullfs` binds on the BSDs) maps the table
 above; a no-root fallback is `proot -b` with the same bind set.
 
-## 5. What the full-tree build actually needs (investigate)
+## 5. What the full-tree build actually needs
 
-The dependencies are not symmetric, and the list grows as the tree's shape
-becomes clear:
+Verified against `unixtree/V7/usr/src` (42 makefiles). External commands the
+build invokes, with makefile counts:
 
-- **`make` - confirmed required.** The V7 userland is driven by makefiles and
-  `run` command files; there is no full-tree build without it.
-- **`ar` - full-tree only, not the toolchain.** The toolchain makefiles never
-  invoke `ar` (its one use was lex's own `libln.a`, and lex is deferred); it is
-  needed to assemble `libc.a` and the other libraries, which belongs to the
-  larger full-tree (prebsd) build, not this repo.
-- **`cpio` - add to the port list.** Needed to unpack the source archives and to
-  assemble/extract the root image; schedule it with the other archive tools.
-- **`sh` - likely required, investigate the size.** V7 sh is large because each
-  builtin (`echo`, `test`, and friends) lives in its own C file, so porting it
-  means porting many small translation units. Audit the makefiles first to
-  confirm whether the original-tree path needs `v7sh` at all, or whether the
-  modernized `c99/`/`modern/` trees can use the host POSIX shell.
-- **`yacc` - confirmed required.** `cpp` builds `cpy.y` and `make` builds
-  `gram.y`, so a grammar regenerator is needed.
-- **`lex` - not needed.** No `.l` files exist anywhere in the toolchain; defer
-  it to the larger prebsd plan.
-- **Basic utilities - port them, not host equivalents.** The makefiles invoke
-  `rm`, `cp`, `cmp`, `touch`, `ls`, `diff` (the full tree adds `mv`, `ln`,
-  `mkdir`, `chmod`, `chown`, `cat`, `echo`, `pr`). Port each with original V7
-  behavior for a faithful build.
+`cc`(157) `cp`(109) `rm`(102) `cmp`(93) `as`(39) `make`(31) `mv`(29)
+`echo`(23) `yacc`(17) `lex`(16) `cat`(13) `ar`(13) `tp`(12) `sed`(12)
+`tar`(11) `size`(8) `ld`(8) `touch`(7) `install`(7) `pr`(6) `diff`(6)
+`strip`(5) `mkdir`(3) `grep`(3) `chown`(3) `chmod`(3) `ls`(2) `du`(2) —
+plus `sh` (every recipe runs under `/bin/sh`).
 
-Decision: port every command the build invokes, with original V7 behavior:
-`make`, `yacc`, the `cc`/`as`/`ld` passes (done), and the basic utilities
-(`rm`, `cp`, `cmp`, `touch`, `ls`, `diff`, ...). `sh`, `cpio`, and `ar` follow
-from the full-tree audit; `lex` is out of scope.
+- **`make` - required.** The build driver.
+- **`yacc` - required.** 12 grammars: awk, bc, egrep, expr, eqn, neqn, struct,
+  m4, mip, cpp, make, lex.
+- **`lex` - required.** 2 scanners: awk (`awk.lx.l`) and struct (`lextab.l`).
+- **`ar` - required.** 13 uses (libc.a, libm.a, libplot.a, libdbm.a, ...).
+- **`sh` - required.** The shell that runs every recipe.
+- **`cpio` - not used.** V7 archives with `tar` (11) and `tp` (12), never cpio.
+
+Decision: port the whole build toolset with original V7 behavior: `make`,
+`yacc`, `lex`, `ar`, `sh`, the `cc`/`as`/`ld` passes (done), and the utilities
+`cp`, `rm`, `cmp`, `mv`, `echo`, `cat`, `sed`, `tar`, `tp`, `size`, `touch`,
+`install`, `pr`, `diff`, `strip`, `mkdir`, `grep`, `chown`, `chmod`, `ls`, `du`.
 
 ## 6. `binfmt_misc`: rejected
 
@@ -147,12 +139,12 @@ by translating the first line or invoking through a wrapper, not by kernel magic
 ## 7. Sequencing
 
 1. **`v7env`** - ship it (PATH + env, no deps); document explicit vs immersive.
-2. **Port `make` and `yacc`** - the toolchain's hard dependencies (`cpp` and
-   `make` need `yacc` for their grammars); `ar` waits for the full-tree libc
-   build.
-3. **Investigate `sh` and `cpio`** - audit original-vs-modern makefiles for
-   shell invocations and archive handling; port each only if the audit proves
-   it necessary.
+2. **Port the toolchain first** - `make`, `yacc`, and the `cc`/`as`/`ld`
+   passes (done).
+3. **Port the whole-tree toolset** - `lex`, `ar`, `sh`, and the utilities
+   (`cp`, `rm`, `cmp`, `mv`, `echo`, `cat`, `sed`, `tar`, `tp`, `size`,
+   `touch`, `install`, `pr`, `diff`, `strip`, `mkdir`, `grep`, `chown`,
+   `chmod`, `ls`, `du`) with original V7 behavior.
 4. **Isolation chamber on `fakeroot`** - keep the toolchain binaries
    dynamically linked (the default) so `libfakeroot` can preload and fake
    `chown`/`mknod` for image `mkfs` and packaging; use the `cc` driver's

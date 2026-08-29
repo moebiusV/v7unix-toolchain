@@ -13,8 +13,8 @@ Remaining
   * Port the basic build utilities too (rm, cp, cmp, touch, ls, diff, mv, ln,
     mkdir, chmod, chown, cat, echo, pr) with original V7 behavior, not host
     equivalents.
-  * lex: not needed here (no .l files in the toolchain); deferred to the
-    larger prebsd plan.
+  * lex: not needed for the toolchain itself (orig/ has no .l files); needed
+    for the whole tree (awk + struct) — see CROSSCOMPILE.md §5.
   * adb: target-resident, never a host binary — modernize to the pcc/PDP-11
     dialect only (PORTING.md §7 bucket 2).
   * Build V7 libc from source (orig/libc) to replace the shipped libc.a.
