@@ -8,8 +8,10 @@ Packaging (done in 0.1.0)
   * dist/ template tree + README.distributions for 10 distributions.
 
 Remaining
-  * Port lex, yacc, make to modern/ (source is in orig/; c99/ needs only the
+  * Port yacc, make to modern/ (source is in orig/; c99/ needs only the
     .c/.h modernization — c99/ mirrors orig/ except .c/.h).
+  * lex: not needed here (no .l files in the toolchain); deferred to the
+    larger prebsd plan.
   * adb: target-resident, never a host binary — modernize to the pcc/PDP-11
     dialect only (PORTING.md §7 bucket 2).
   * Build V7 libc from source (orig/libc) to replace the shipped libc.a.

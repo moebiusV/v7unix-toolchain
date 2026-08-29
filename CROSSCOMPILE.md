@@ -120,13 +120,13 @@ becomes clear:
   means porting many small translation units. Audit the makefiles first to
   confirm whether the original-tree path needs `v7sh` at all, or whether the
   modernized `c99/`/`modern/` trees can use the host POSIX shell.
-- **`yacc` - may not be needed.** Only if a makefile regenerates a grammar.
-- **`lex` - may not be needed.** Only if a makefile regenerates a scanner from
-  a `.l` file.
+- **`yacc` - confirmed required.** `cpp` builds `cpy.y` and `make` builds
+  `gram.y`, so a grammar regenerator is needed.
+- **`lex` - not needed.** No `.l` files exist anywhere in the toolchain; defer
+  it to the larger prebsd plan.
 
-Decision: port `make` and `ar` first (the hard dependencies), then settle `sh`
-from the makefile audit; `yacc`, `lex`, and `cpio` follow only if the audit
-proves them necessary.
+Decision: port `make`, `ar`, and `yacc` first (the hard dependencies), then
+settle `sh` and `cpio` from the makefile audit; `lex` is out of scope here.
 
 ## 6. `binfmt_misc`: rejected
 
@@ -140,11 +140,11 @@ by translating the first line or invoking through a wrapper, not by kernel magic
 ## 7. Sequencing
 
 1. **`v7env`** - ship it (PATH + env, no deps); document explicit vs immersive.
-2. **Port `make` and `ar`** - the confirmed full-tree dependencies (libc.a needs
-   `ar`).
-3. **Investigate `sh` (and `yacc`/`lex`/`cpio`)** - audit original-vs-modern
-   makefiles for shell invocations, grammar/scanner regeneration, and archive
-   handling; port each only if the audit proves it necessary.
+2. **Port `make`, `ar`, and `yacc`** - the confirmed full-tree dependencies
+   (libc.a needs `ar`; `cpp` and `make` need `yacc` for their grammars).
+3. **Investigate `sh` and `cpio`** - audit original-vs-modern makefiles for
+   shell invocations and archive handling; port each only if the audit proves
+   it necessary.
 4. **Isolation chamber on `fakeroot`** - keep the toolchain binaries
    dynamically linked (the default) so `libfakeroot` can preload and fake
    `chown`/`mknod` for image `mkfs` and packaging; use the `cc` driver's

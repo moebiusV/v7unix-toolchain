@@ -26,8 +26,8 @@ The tree is three stages of the same sources, mirroring V7's `cmd/` layout
 | `modern/` | the port of `c99/` to run on a 64-bit host (union-node + host fixes), still emitting PDP-11 code |
 | `tools/`  | the porting scripts (`union-node.py`, `build-host.py`, `c0-host.py`, `table2c.py`, rules/specs) |
 
-`orig → knr2c99 → c99 → union-node + host-fixes → modern`.  `make`, `yacc` and
-`lex` are in `orig/` but not yet ported to `c99/`/`modern/`.  `adb` is
+`orig → knr2c99 → c99 → union-node + host-fixes → modern`.  `make` and `yacc` are in `orig/` but not yet ported to
+`c99/`/`modern/`; `lex` is not needed here.  `adb` is
 target-resident: it will only ever be modernized to `c99/` (for pcc to
 cross-compile it), never ported to `modern/`.  `mkfs` and `fsck` will be
 ported to `modern/` here; filsys depends on this repo for them.
