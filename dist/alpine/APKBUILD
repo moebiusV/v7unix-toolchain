@@ -7,7 +7,7 @@ url="https://github.com/moebiusV/v7unix-toolchain"
 arch="x86_64"
 license="AncientUnix"
 makedepends="bison python3 build-base"
-# recommended (optional): filsys prebsd simh
+# recommended (optional): filsys prebsd
 source="https://github.com/moebiusV/v7unix-toolchain/archive/refs/tags/v$pkgver.tar.gz"
 sha512sums="SKIP"
 

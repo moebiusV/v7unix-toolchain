@@ -11,5 +11,5 @@ LICENSE=	caldera-license
 GNU_CONFIGURE=	yes
 USE_TOOLS+=	gmake
 
-# recommended (optional): ../../sysutils/filsys, ../../emulators/prebsd, ../../emulators/simh
+# recommended (optional): ../../sysutils/filsys, ../../emulators/prebsd
 .include "../../mk/bsd.pkg.mk"

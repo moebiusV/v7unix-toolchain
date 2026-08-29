@@ -12,7 +12,6 @@ BuildRequires:  python3
 
 Recommends:     filsys
 Recommends:     prebsd
-Recommends:     simh
 
 %description
 A modern-host port of the Seventh Edition (V7) Unix PDP-11 C toolchain
