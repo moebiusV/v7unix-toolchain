@@ -139,20 +139,21 @@ by translating the first line or invoking through a wrapper, not by kernel magic
 ## 7. Sequencing
 
 1. **`v7env`** - ship it (PATH + env, no deps); document explicit vs immersive.
-2. **Step 1: build the toolchain** - port `make`, `yacc`, and the utilities
-   the toolchain makefiles invoke (`cp`, `rm`, `cmp`, `touch`, `ls`, `diff`),
-   on top of the done `cc`/`cpp`/`c0`/`c1`/`c2`/`as`/`as2`/`ld` passes. (`ar`
-   and `lex` are not needed for the toolchain itself.)
-3. **Port the whole-tree toolset** - `lex`, `ar`, `sh`, and the utilities
-   (`cp`, `rm`, `cmp`, `mv`, `echo`, `cat`, `sed`, `tar`, `tp`, `size`,
-   `touch`, `install`, `pr`, `diff`, `strip`, `mkdir`, `grep`, `chown`,
-   `chmod`, `ls`, `du`) with original V7 behavior.
-4. **Isolation chamber on `fakeroot`** - keep the toolchain binaries
+2. **Step 1: build the toolchain, pure C** - `make`, `yacc`, `cp`, `rm`,
+   `cmp`, `touch`, `ls`, `diff` (all pure C; the `cc`/`as`/`ld` passes are
+   done).
+3. **Step 2: toolchain `.s`** - none; no toolchain-build tool has assembly.
+4. **Step 3: whole tree, pure C** - `lex`, `ar`, `sh`, `sed`, `tar`, `tp`,
+   `grep`, `mv`, `ln`, `mkdir`, `chmod`, `chown`, `cat`, `echo`, `pr`,
+   `strip`, `size`, `install`, `du`, and the rest, with original V7 behavior.
+5. **Step 4: whole tree, assembly** - `factor`, `primes`, `bas`, `roff`,
+   `standalone`.
+6. **Isolation chamber on `fakeroot`** - keep the toolchain binaries
    dynamically linked (the default) so `libfakeroot` can preload and fake
    `chown`/`mknod` for image `mkfs` and packaging; use the `cc` driver's
    compiled-in paths plus a `chroot`/`jail` (or `proot -b`) only for the
    absolute-path stragglers, driven by a helper script.
-5. **`v7crosscompile`** - the full-tree wrapper; first milestone is building one
+7. **`v7crosscompile`** - the full-tree wrapper; first milestone is building one
    V7 tool from `orig/` source, not `make`-ing the whole userland, because the
    `c99/` staging area exists precisely because the source does not compile
    as-is.
