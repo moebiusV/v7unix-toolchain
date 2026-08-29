@@ -8,6 +8,10 @@ Packaging (done in 0.1.0)
   * dist/ template tree + README.distributions for 10 distributions.
 
 Remaining
+  Step 1 — build the toolchain: port make, yacc, and the utilities its
+  makefiles invoke (cp, rm, cmp, touch, ls, diff).  cc/cpp/c0/c1/c2/as/as2/ld
+  are already done; everything else is the whole-tree build, later.
+
   * Port yacc, make to modern/ (source is in orig/; c99/ needs only the
     .c/.h modernization — c99/ mirrors orig/ except .c/.h).
   * Port the basic build utilities too (rm, cp, cmp, touch, ls, diff, mv, ln,
@@ -22,3 +26,6 @@ Remaining
   * Headers: install V7 target headers under $(includedir)/v7unix.
   * Port mkfs and fsck to the modern host (kept in this repo; filsys depends
     on it for them).
+  * Scope rule: port to modern/ (host C) only what *executes* on the host.
+    crt0.o / fcrt0.o / mcrt0.o / fmcrt0.o / libc.a are linked, never run
+    standalone, and stay as PDP-11 assembler/objects.

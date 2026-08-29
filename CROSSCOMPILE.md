@@ -139,8 +139,10 @@ by translating the first line or invoking through a wrapper, not by kernel magic
 ## 7. Sequencing
 
 1. **`v7env`** - ship it (PATH + env, no deps); document explicit vs immersive.
-2. **Port the toolchain first** - `make`, `yacc`, and the `cc`/`as`/`ld`
-   passes (done).
+2. **Step 1: build the toolchain** - port `make`, `yacc`, and the utilities
+   the toolchain makefiles invoke (`cp`, `rm`, `cmp`, `touch`, `ls`, `diff`),
+   on top of the done `cc`/`cpp`/`c0`/`c1`/`c2`/`as`/`as2`/`ld` passes. (`ar`
+   and `lex` are not needed for the toolchain itself.)
 3. **Port the whole-tree toolset** - `lex`, `ar`, `sh`, and the utilities
    (`cp`, `rm`, `cmp`, `mv`, `echo`, `cat`, `sed`, `tar`, `tp`, `size`,
    `touch`, `install`, `pr`, `diff`, `strip`, `mkdir`, `grep`, `chown`,
