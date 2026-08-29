@@ -10,9 +10,9 @@ BuildRequires:  gcc
 BuildRequires:  bison
 BuildRequires:  python3
 
-Suggests:       filsys
-Suggests:       prebsd
-Suggests:       simh
+Recommends:     filsys
+Recommends:     prebsd
+Recommends:     simh
 
 %description
 A modern-host port of the Seventh Edition (V7) Unix PDP-11 C toolchain
