@@ -125,10 +125,15 @@ becomes clear:
   `gram.y`, so a grammar regenerator is needed.
 - **`lex` - not needed.** No `.l` files exist anywhere in the toolchain; defer
   it to the larger prebsd plan.
+- **Basic utilities - port them, not host equivalents.** The makefiles invoke
+  `rm`, `cp`, `cmp`, `touch`, `ls`, `diff` (the full tree adds `mv`, `ln`,
+  `mkdir`, `chmod`, `chown`, `cat`, `echo`, `pr`). Port each with original V7
+  behavior for a faithful build.
 
-Decision: port `make` and `yacc` first (the toolchain's hard dependencies),
-then settle `sh`, `cpio`, and `ar` from the full-tree audit; `lex` is out of
-scope here.
+Decision: port every command the build invokes, with original V7 behavior:
+`make`, `yacc`, the `cc`/`as`/`ld` passes (done), and the basic utilities
+(`rm`, `cp`, `cmp`, `touch`, `ls`, `diff`, ...). `sh`, `cpio`, and `ar` follow
+from the full-tree audit; `lex` is out of scope.
 
 ## 6. `binfmt_misc`: rejected
 
