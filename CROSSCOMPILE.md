@@ -110,9 +110,10 @@ becomes clear:
 
 - **`make` - confirmed required.** The V7 userland is driven by makefiles and
   `run` command files; there is no full-tree build without it.
-- **`ar` - confirmed required.** libc.a and the other libraries are assembled
-  from `.o` members by `ar`; a full-tree build cannot produce its libraries
-  without an archiver.
+- **`ar` - full-tree only, not the toolchain.** The toolchain makefiles never
+  invoke `ar` (its one use was lex's own `libln.a`, and lex is deferred); it is
+  needed to assemble `libc.a` and the other libraries, which belongs to the
+  larger full-tree (prebsd) build, not this repo.
 - **`cpio` - add to the port list.** Needed to unpack the source archives and to
   assemble/extract the root image; schedule it with the other archive tools.
 - **`sh` - likely required, investigate the size.** V7 sh is large because each
@@ -125,8 +126,9 @@ becomes clear:
 - **`lex` - not needed.** No `.l` files exist anywhere in the toolchain; defer
   it to the larger prebsd plan.
 
-Decision: port `make`, `ar`, and `yacc` first (the hard dependencies), then
-settle `sh` and `cpio` from the makefile audit; `lex` is out of scope here.
+Decision: port `make` and `yacc` first (the toolchain's hard dependencies),
+then settle `sh`, `cpio`, and `ar` from the full-tree audit; `lex` is out of
+scope here.
 
 ## 6. `binfmt_misc`: rejected
 
@@ -140,8 +142,9 @@ by translating the first line or invoking through a wrapper, not by kernel magic
 ## 7. Sequencing
 
 1. **`v7env`** - ship it (PATH + env, no deps); document explicit vs immersive.
-2. **Port `make`, `ar`, and `yacc`** - the confirmed full-tree dependencies
-   (libc.a needs `ar`; `cpp` and `make` need `yacc` for their grammars).
+2. **Port `make` and `yacc`** - the toolchain's hard dependencies (`cpp` and
+   `make` need `yacc` for their grammars); `ar` waits for the full-tree libc
+   build.
 3. **Investigate `sh` and `cpio`** - audit original-vs-modern makefiles for
    shell invocations and archive handling; port each only if the audit proves
    it necessary.
