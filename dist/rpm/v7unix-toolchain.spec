@@ -10,6 +10,10 @@ BuildRequires:  gcc
 BuildRequires:  bison
 BuildRequires:  python3
 
+Suggests:       filsys
+Suggests:       prebsd
+Suggests:       simh
+
 %description
 A modern-host port of the Seventh Edition (V7) Unix PDP-11 C toolchain
 (cc, cpp/c0/c1/c2, as/as2, ld) that cross-compiles PDP-11 code.

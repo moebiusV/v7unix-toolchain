@@ -12,4 +12,5 @@ PERMIT_PACKAGE =	Yes
 USE_GMAKE =	Yes
 CONFIGURE_STYLE =	gnu
 
+# recommended (optional): sysutils/filsys, emulators/prebsd, emulators/simh
 .include <bsd.port.mk>

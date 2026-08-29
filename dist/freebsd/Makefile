@@ -12,4 +12,5 @@ LICENSE=	AncientUnix
 USES=		gmake
 GNU_CONFIGURE=	yes
 
+# recommended (optional): sysutils/filsys, emulators/prebsd, emulators/simh
 .include <bsd.port.mk>

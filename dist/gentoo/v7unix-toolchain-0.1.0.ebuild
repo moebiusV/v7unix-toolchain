@@ -11,6 +11,7 @@ SLOT="0"
 KEYWORDS="~amd64"
 
 BDEPEND="sys-devel/bison dev-lang/python"
+# recommended (optional): sys-fs/filsys, app-emulation/prebsd, app-emulation/simh
 
 src_configure() {
 	econf --libexecdir=/usr/libexec

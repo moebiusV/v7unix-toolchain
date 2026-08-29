@@ -12,6 +12,7 @@ stdenv.mkDerivation rec {
   };
 
   nativeBuildInputs = [ bison python3 ];
+  # recommended (optional): filsys, prebsd, simh
 
   meta = with lib; {
     description = "V7 Unix PDP-11 C toolchain, modernized for a modern host";

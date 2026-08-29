@@ -9,6 +9,7 @@ Homepage: https://github.com/moebiusV/v7unix-toolchain
 Package: v7unix-toolchain
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Suggests: filsys, prebsd, simh
 Description: V7 Unix PDP-11 C toolchain, modernized for a modern host
  A modern-host port of the Seventh Edition (V7) Unix PDP-11 C toolchain
  (cc, cpp/c0/c1/c2, as/as2, ld) that cross-compiles PDP-11 code.
