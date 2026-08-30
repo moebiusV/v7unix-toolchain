@@ -49,7 +49,10 @@ void build(int16_t op)
 	dope = opdope[op];
 	if ((dope&BINARY)!=0) {
 		p2 = chkfun(disarray(*--cp));
-		t2 = p2->u.tnode.type;
+		/* p2 can be the NULL "empty arglist" marker that MCALL pushes (c00.c).
+		   On the PDP-11 reading address 0 was harmless garbage; x86-64 faults on
+		   the NULL page, so guard it.  t2 is unused for CALL, so 0 is safe. */
+		t2 = (p2 == NULL) ? 0 : p2->u.tnode.type;
 	}
 	p1 = *--cp;
 	/*
@@ -320,6 +323,8 @@ struct node * chkfun(struct node *ap)
 	register int16_t t;
 
 	p = ap;
+	if (p == NULL)
+		return(NULL);	/* empty arglist marker (see MCALL in c00.c) */
 	if (((t = p->u.tnode.type)&XTYPE)==FUNC && p->u.tnode.op!=ETYPE)
 		return(block(AMPER,incref(t),p->u.tnode.subsp,p->u.tnode.strp,p, NULL));
 	return(p);
@@ -335,7 +340,10 @@ struct node * disarray(struct node *ap)
 	register struct node *p;
 
 	p = ap;
-	/* check array & not MOS and not typer */
+	/* check array & not MOS and not typer; NULL is the "empty arglist"
+	   marker MCALL pushes (c00.c) and must pass through untouched */
+	if (p == NULL)
+		return(NULL);
 	if (((t = p->u.tnode.type)&XTYPE)!=ARRAY || p->u.tnode.op==NAME&&p->u.tnode.tr1->u.hshtab.hclass==MOS
 	 || p->u.tnode.op==ETYPE)
 		return(p);
