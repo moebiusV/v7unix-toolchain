@@ -229,6 +229,65 @@ when it is real:
             putchar(sign);
     printf("%o", n);
 
+### 4.6 The readable null page — a recurring class of crash
+
+The PDP-11 had **no memory protection**: address 0 was readable, so V7 code
+freely dereferenced `NULL` and read garbage, relying on "garbage != what I'm
+looking for" to skip the branch.  x86-64 maps address 0 to a fault, so each of
+those reads becomes a SIGSEGV.  This is not one bug but a family, found one at a
+time by feeding the port real V7 source (`tools/v7check.sh`).  Fixed so far:
+
+- **`c0` — the "empty arglist" marker is `NULL`.**  `tree()` pushes `*cp++ =
+  NULL` for a bare call `f()` (`case MCALL`), and `build(CALL)` pops it into
+  `disarray()`/`chkfun()`, which dereferenced it.  Added `if (p==NULL)
+  return(NULL)` to `disarray` and `chkfun` (c01.c), and guarded the `t2 =
+  p2->type` read in `build()` (`t2 = p2 ? p2->u.tnode.type : 0`).
+- **`c1` — `chkleaf()` built a unary `LOAD` node with `tr2` uninitialised.**
+  It sets `op`/`type`/`degree`/`tr1` but not `tr2`, then `cexpr` reads
+  `tr2->type` (c10.c:483).  Set `lbuf.u.tnode.tr2 = NULL` and guarded the
+  `tr2`-dereference with `tree->u.tnode.tr2!=NULL &&`.
+- **`c2` — `dualop()` dereferences a `NULL` `code` string** (a `MOV` node whose
+  operand string was empty, so `copy()` returned 0).  Not yet fixed at the time
+  of writing; see §7.
+
+The lesson for any further port: grep the original for a bare `->field` on a
+pointer that can be a `copy()`/`alloc()` result, and add the `NULL` guard the
+PDP-11 got for free.
+
+### 4.7 The hardware stack becomes a fixed buffer
+
+The assembler's expression parser pushes and pops directly on the PDP-11
+**hardware stack** (register R6): `mov r2,-(sp)` / `bis (sp)+,r2`.  That stack
+is the whole stack segment, effectively unbounded, so a *small* push/pop
+imbalance never bites.  The port had to turn `sp` into a fixed C buffer
+(`static int estk[64]`, `sp = estk + ESTK`), so any imbalance now overflows a
+concrete array and clobbers its neighbours.
+
+The one that broke `as` on real C output was in `section()` (`.text`/`.data`/
+`.bss`, `as26.s` `opl25/26/27`).  `opline()` pushes the opcode before
+dispatching, and **every** handler must pop it.  The original ends with
+`tst (sp)+`; the port dropped that one instruction — it also dropped the
+`mov r0,-(sp)`/`mov (sp)+,r0` temporary, but those cancel, so the net was a
+single leaked slot per section directive.  `cpp.s` has 36 such directives, and
+each leak pushed the parser's stack one slot lower until `expres1`'s `PUSH('+')`
+underflowed `estk` and wrote `0x2b` into the high 32 bits of the adjacent
+`adrp` pointer (a `static int *` one buffer below `estk`).  `getx()` then did
+`*adrp++` through a now-garbage pointer → SIGSEGV on input that V7 assembles
+fine.  The fix is the missing pop, restoring the original's balance:
+
+    dot = savdot[type - 025];
+    dotrel = type - 023;
+    sp++;                              /* tst (sp)+: pop the opcode */
+
+Confirmed by running `as` to completion on `cpp.s`: `sp == estk+64` (empty) at
+`saexit`.
+
+The general lesson for this port: every `jsr pc,<handler>` from `opline()` that
+does not go through the early `xpr` path has exactly one matching `tst (sp)+` /
+`bis (sp)+,r2` / `mov (sp)+,rN` before its `rts pc`, because `opline()` pushed
+the opcode.  When a handler in the C port neither `POP()`s nor `sp++`s, it leaks
+one slot per call — grep each `oplNN`/`section`/`opl17` for the missing pop.
+
 ## 5. What the port produced
 
 Both halves now build as host binaries:
@@ -308,3 +367,128 @@ cross-compiles it for pdp11.
   cross-compiles it for pdp11.
 * **Wire `cpp` and the `cc` driver** — to turn the passes into a single
   cross-compiling `cc`.
+* **`c0` segfault on real V7 source** — `tools/v7check.sh` surfaced this:
+  cross-compiling the original `cmd/cc.c` crashes `c0` in `disarray(NULL)`
+  (a NULL node on the expression stack, reached `build()` → `tree()` →
+  `statement()`; `CMSIZ=40` overflow is separately checked and errors cleanly,
+  so it's a logic bug, not a size bug).  Trivial files compile; real V7 sources
+  with deep/compound expressions trip it.  Blocks the toolchain-from-`orig`
+  build until fixed.
+
+## 8. The build tools: make, yacc — a third kind of port
+
+§7 drew two kinds of port.  There is a third, which this section covers: the
+**build tools** — `make`, `yacc`, `lex`, `ar` — that must run *on the host* so
+they can drive a cross-compilation of the V7 tree.  They are neither the
+cross-toolchain (they emit no PDP-11 code) nor target-resident (they are not
+compiled *by* pcc); they are host programs in their own right.  They go
+through the same `orig → c99 → modern` pipeline but skip `union-node` and
+`build-host.py`, because their hard problems are a different set of host-API
+collisions.
+
+The census that chose them (42 makefiles under `usr/src`): the programs that
+must be *ported* are `make`, `yacc`, `lex`, `ar`, **plus `sh` and every command
+the makefiles invoke** — `cp`, `rm`, `cmp`, `mv`, `echo`, `cat`, `touch`,
+`mkdir`, `grep`, `chmod`, `chown`, `ls`, `du`, `sed`, `tar`, `tp`, `size`,
+`install`, `pr`, `diff`, `strip`.  The goal is full self-hosting: build the V7
+tree with *no* host commands.  `cpio` is not used at all.  Directory split
+(see CROSSCOMPILE.md §7): phase-1 commands (`sh` `mv` `cp` `rm` `cmp`) live in
+`modern/`; whole-tree-only commands in `modern2/`.
+
+### 8.1 `make` — host adaptations
+
+`make` is six C files + `defs` + `gram.y`.  K&R→C99 is mechanical; the rest is
+these moves, each a place where V7 assumed a PDP-11 (or a pre-POSIX host) that
+a modern host does not provide:
+
+* **`waitpid` → `childpid`.**  V7 names its child-PID global `waitpid`; a
+  modern host has `waitpid(2)`.  Renamed (`defs`, `main.c`, `dosys.c`).
+
+* **`sprintf` returns `int` now.**  V7's `sprintf` returned `char*` (the
+  buffer), so `fatal(sprintf(buf, s, t))` was valid.  glibc's returns `int`;
+  the two uses become `sprintf(buf, …); fatal(buf);` (`misc.c`).
+
+* **`signal` handling.**  `sigivalue = (int)signal(SIGINT, SIG_IGN) & 01` —
+  extracting the "was it ignored" bit from the old handler — becomes
+  `== SIG_IGN`, and handlers are typed `void (*)(int)` (`main.c`).
+
+* **`srchdir()`: `sys/dir.h` → `dirent.h`.**  V7 read a directory as a raw
+  `FILE*` of `struct direct` records; a modern host has `opendir`/`readdir`.
+  `struct opendir.dirfc` becomes `DIR*`, and `doclose()` calls `closedir`
+  (`files.c`, `defs`, `dosys.c`).
+
+* **V7 `ar.h`/`a.out.h` on-disk layouts.**  `lookarch()` parses the `a(b)`
+  archive-member notation; the PDP-11's middle-endian 32-bit fields (`ar_date`,
+  `ar_size`) are kept as `int16_t[2]` and reassembled with `mkl()` — the same
+  technique as `ld` (§4.3) (`files.c`).
+
+* **`builtin[]` made writable.**  The built-in suffix rules are `char *`
+  string literals, but `eqsign()` splits a `NAME=value` line *in place*.  On
+  the PDP-11 string literals were writable; a modern host puts them in
+  `.rodata`, so `builtin[]` becomes `char [][64]` (`files.c`).
+
+* **The `AS=as -` default.**  The `#ifdef vax` alternative was `"AS=as".` — a
+  stray `.` that never compiled — so only the PDP-11 `"AS=as -"` branch
+  survives (`files.c`).
+
+* **`mkqlist(NULL)` returned garbage.**  A bare `return;` from a `char*`
+  function; it now returns the empty string (`misc.c`).
+
+* **`gram.y` for bison.**  V7's grammar uses `%term` (not `%token`), `= {` for
+  actions, a mid-rule `%{…%}` block, and `%type` comma separators — all V7
+  yacc-isms.  For bison these become `%token`, bare `{`, a prologue block, and
+  space separators; the embedded lexer (`yylex`/`retsh`/`nextlin`) is
+  C99-modernized but the grammar rules are unchanged, so the parser tables are
+  identical to V7's (`gram.y`).
+
+### 8.2 `yacc` — host adaptations
+
+`yacc` is four C files + `dextern` + `files` + `yaccpar`.  Its defining
+contract is **byte-identical output**: it must emit the same `y.tab.c` as V7
+yacc, so `yaccpar` stays byte-for-byte V7's (K&R `yyparse()`) and the emission
+logic is untouched; only yacc's *own* source is C99-modernized, output-neutral:
+
+* **WORD32.**  The host has 32-bit `int`, so yacc uses 32-bit bit-packing; this
+  only changes the internal lookahead-set layout, never the emitted tables
+  (verified: all 12 V7 grammars byte-identical against the unmodified V7 yacc).
+
+* **HUGE, not MEDIUM.**  V7 ships yacc `MEDIUM` (5200 words of storage), but
+  `mip/cgram.y` needs 6461, so `MEDIUM` overflows.  `HUGE` (12000) is
+  output-neutral for everything that fits and additionally handles `cgram.y`.
+
+* **`error()` → varargs.**  V7's `error(s, a1)` was a K&R "generic arg" — one
+  16-bit word holding either an `int` or a `char*`.  On a 64-bit host a `char*`
+  does not fit in a word, so it becomes `void error(char *s, ...)` with
+  `vfprintf` (`y1.c`).
+
+* **`YACCPARSER`.**  yacc looks up `yaccpar` by a compiled-in path; the env
+  var lets a build-tree yacc find its skeleton before it is installed (`y1.c`).
+
+Note the division of labour this encodes: **`modern/yacc` parses ancient code**
+— it is a reproducer you point at `cpy.y`/`gram.y` and diff against V7's
+output.  The `modern/` **build** uses **bison** to regenerate those grammars as
+modern C99; bison is not byte-identical, which is exactly why the ported yacc
+still has a job.
+
+### 8.3 What `knr2c99.py` does not do (the manual follow-ups)
+
+The `orig → c99` step is `knr2c99.py --dialect v7` (§3.1), but a few things
+are always left for the hand — some of which are now tool flags:
+
+* **`#include`'d macros.**  Files whose macros live in an included header
+  (yacc's looping `PLOOP`/`TLOOP`, make's `ALLOC`) need `--include-dir` so the
+  CPP expands them; and `--define unix` so `#ifdef unix` blocks stay active.
+  Both are now flags on `knr2c99.py`.
+
+* **Cross-file prototypes.**  It only inserts *same-file* forward decls; a
+  split program needs every cross-file function declared in its shared header
+  (yacc's `dextern`, make's `defs`), replacing V7's few "strange type" decls.
+
+* **`long int` word-size bug.**  It rewrites `long`→`int32_t` and
+  `int`→`int16_t` independently, so `typedef long int TIMETYPE;` comes out
+  `int32_t int16_t` — hand-fix to `int32_t`.
+
+And the smaller ones: K&R functions with a comment in their header are skipped
+(`metas`/`concat`/`srchdir`/`enbint`), `char *calloc();` clashes with
+`stdlib.h`'s `void *calloc()`, and K&R "generic arg" calls (`error("x")` now
+that `error` takes two args) need their arity padded.

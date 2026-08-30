@@ -1093,6 +1093,7 @@ static void section(int type)          /* .text/.data/.bss */
 	}
 	dot = savdot[type - 025];
 	dotrel = type - 023;
+	sp++;                              /* tst (sp)+: pop the opcode */
 }
 static void opl25(void) { section(025); }
 static void opl26(void) { section(026); }
