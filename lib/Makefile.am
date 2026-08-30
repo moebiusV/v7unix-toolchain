@@ -5,7 +5,7 @@
 # prebuilt V7 C library, copied from a real V7 image, shipped until a
 # from-source build of /usr/src/libc lands.
 
-AS = $(top_builddir)/modern/as/as
+AS = $(top_builddir)/modern/usr/src/cmd/as/as
 
 v7unix_lib_DATA = crt0.o fcrt0.o mcrt0.o fmcrt0.o
 dist_v7unix_lib_DATA = libc.a

@@ -14,12 +14,12 @@
 
 @SET_MAKE@
 
-# c1 — V7's PDP-11 code generator, host-ported.
+# as / as2 — the V7 PDP-11 assembler, ported to a 64-bit host.
 #
-# The committed host c1*.c are generated from the K&R sources; see the
-# c1.rules.json / c1.spec.json specs in tools/.  table.c is re-serialized from
-# the assembled machine-description table (tools/table2c.py).
-
+# as1.c and as2.c are C translations of the original PDP-11 assembly
+# (as11.s..as29.s).  Pass 1 (`as`) execs pass 2 (`as2`); as1.c's as2locate()
+# finds `as2` beside argv[0] (this build tree) or via $AS2, falling back to
+# the compiled-in V7_LIBEXECDIR/as2.
 
 VPATH = @srcdir@
 am__is_gnu_make = { \
@@ -95,24 +95,25 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-v7unix_libexec_PROGRAMS = c1$(EXEEXT)
-subdir = modern/cc/c1
+v7unix_libexec_PROGRAMS = as$(EXEEXT) as2$(EXEEXT)
+subdir = modern/usr/src/cmd/as
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
-DIST_COMMON = $(srcdir)/Makefile.am $(noinst_HEADERS) \
-	$(am__DIST_COMMON)
+DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(v7unix_libexecdir)"
 PROGRAMS = $(v7unix_libexec_PROGRAMS)
-am_c1_OBJECTS = c10.$(OBJEXT) c11.$(OBJEXT) c12.$(OBJEXT) \
-	c13.$(OBJEXT) table.$(OBJEXT) globals.$(OBJEXT)
-c1_OBJECTS = $(am_c1_OBJECTS)
-c1_LDADD = $(LDADD)
+am_as_OBJECTS = as1.$(OBJEXT)
+as_OBJECTS = $(am_as_OBJECTS)
+as_LDADD = $(LDADD)
+am_as2_OBJECTS = as2.$(OBJEXT)
+as2_OBJECTS = $(am_as2_OBJECTS)
+as2_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -128,9 +129,7 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/build-aux/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/c10.Po ./$(DEPDIR)/c11.Po \
-	./$(DEPDIR)/c12.Po ./$(DEPDIR)/c13.Po ./$(DEPDIR)/globals.Po \
-	./$(DEPDIR)/table.Po
+am__depfiles_remade = ./$(DEPDIR)/as1.Po ./$(DEPDIR)/as2.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -144,14 +143,13 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(c1_SOURCES)
-DIST_SOURCES = $(c1_SOURCES)
+SOURCES = $(as_SOURCES) $(as2_SOURCES)
+DIST_SOURCES = $(as_SOURCES) $(as2_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
-HEADERS = $(noinst_HEADERS)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -170,7 +168,8 @@ am__define_uniq_tagged_files = \
     if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
   done | $(am__uniquify_input)`
 am__DIST_COMMON = $(srcdir)/Makefile.in \
-	$(top_srcdir)/build-aux/depcomp
+	$(top_srcdir)/build-aux/depcomp AUTHORS COPYING ChangeLog \
+	INSTALL NEWS README
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -270,9 +269,10 @@ top_srcdir = @top_srcdir@
 v7unix_includedir = @v7unix_includedir@
 v7unix_libdir = @v7unix_libdir@
 v7unix_libexecdir = @v7unix_libexecdir@
-AM_CFLAGS = -std=c99 -O1 @NO_STRICT_ALIASING@
-c1_SOURCES = c10.c c11.c c12.c c13.c table.c globals.c
-noinst_HEADERS = c1.h
+AM_CFLAGS = -std=c99 -O1
+as_SOURCES = as1.c
+as2_SOURCES = as2.c
+EXTRA_DIST = AUTHORS COPYING ChangeLog INSTALL NEWS README tests
 all: all-am
 
 .SUFFIXES:
@@ -286,9 +286,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign modern/cc/c1/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign modern/usr/src/cmd/as/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign modern/cc/c1/Makefile
+	  $(AUTOMAKE) --foreign modern/usr/src/cmd/as/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -349,9 +349,13 @@ uninstall-v7unix_libexecPROGRAMS:
 clean-v7unix_libexecPROGRAMS:
 	-$(am__rm_f) $(v7unix_libexec_PROGRAMS)
 
-c1$(EXEEXT): $(c1_OBJECTS) $(c1_DEPENDENCIES) $(EXTRA_c1_DEPENDENCIES) 
-	@rm -f c1$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(c1_OBJECTS) $(c1_LDADD) $(LIBS)
+as$(EXEEXT): $(as_OBJECTS) $(as_DEPENDENCIES) $(EXTRA_as_DEPENDENCIES) 
+	@rm -f as$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(as_OBJECTS) $(as_LDADD) $(LIBS)
+
+as2$(EXEEXT): $(as2_OBJECTS) $(as2_DEPENDENCIES) $(EXTRA_as2_DEPENDENCIES) 
+	@rm -f as2$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(as2_OBJECTS) $(as2_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -359,12 +363,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c10.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c11.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c12.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c13.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/table.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/as1.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/as2.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -474,8 +474,9 @@ distdir-am: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
+	$(MAKE) $(AM_MAKEFLAGS) check-local
 check: check-am
-all-am: Makefile $(PROGRAMS) $(HEADERS)
+all-am: Makefile $(PROGRAMS)
 installdirs:
 	for dir in "$(DESTDIR)$(v7unix_libexecdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
@@ -515,12 +516,8 @@ clean: clean-am
 clean-am: clean-generic clean-v7unix_libexecPROGRAMS mostlyclean-am
 
 distclean: distclean-am
-	-rm -f ./$(DEPDIR)/c10.Po
-	-rm -f ./$(DEPDIR)/c11.Po
-	-rm -f ./$(DEPDIR)/c12.Po
-	-rm -f ./$(DEPDIR)/c13.Po
-	-rm -f ./$(DEPDIR)/globals.Po
-	-rm -f ./$(DEPDIR)/table.Po
+	-rm -f ./$(DEPDIR)/as1.Po
+	-rm -f ./$(DEPDIR)/as2.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -566,12 +563,8 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -f ./$(DEPDIR)/c10.Po
-	-rm -f ./$(DEPDIR)/c11.Po
-	-rm -f ./$(DEPDIR)/c12.Po
-	-rm -f ./$(DEPDIR)/c13.Po
-	-rm -f ./$(DEPDIR)/globals.Po
-	-rm -f ./$(DEPDIR)/table.Po
+	-rm -f ./$(DEPDIR)/as1.Po
+	-rm -f ./$(DEPDIR)/as2.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -589,24 +582,28 @@ ps-am:
 
 uninstall-am: uninstall-v7unix_libexecPROGRAMS
 
-.MAKE: install-am install-strip
+.MAKE: check-am install-am install-strip
 
-.PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-am clean \
-	clean-generic clean-v7unix_libexecPROGRAMS cscopelist-am ctags \
-	ctags-am distclean distclean-compile distclean-generic \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip install-v7unix_libexecPROGRAMS installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic pdf pdf-am ps ps-am tags tags-am uninstall \
-	uninstall-am uninstall-v7unix_libexecPROGRAMS
+.PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-am \
+	check-local clean clean-generic clean-v7unix_libexecPROGRAMS \
+	cscopelist-am ctags ctags-am distclean distclean-compile \
+	distclean-generic distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip \
+	install-v7unix_libexecPROGRAMS installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic pdf pdf-am \
+	ps ps-am tags tags-am uninstall uninstall-am \
+	uninstall-v7unix_libexecPROGRAMS
 
 .PRECIOUS: Makefile
 
+
+check-local:
+	$(SHELL) $(srcdir)/tests/run-tests.sh ./as
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

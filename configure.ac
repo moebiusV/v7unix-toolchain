@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.69])
 AC_INIT([v7unix-toolchain], [0.1.0], [david@clearbrookdistillery.com])
-AC_CONFIG_SRCDIR([modern/cc/cc.c])
+AC_CONFIG_SRCDIR([modern/usr/src/cmd/cc.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIRS([m4])
@@ -45,13 +45,13 @@ AS_IF([test "x$ac_cv_c_no_strict_aliasing" = xyes],
       [NO_STRICT_ALIASING=])
 AC_SUBST([NO_STRICT_ALIASING])
 
-# cpp's #if grammar (modern/cpp/cpy.y) is processed by bison/yacc.
+# cpp's #if grammar (modern/usr/src/cmd/cpp/cpy.y) is processed by bison/yacc.
 AC_PROG_YACC
 
 # c2's host source is generated from c2.c by tools/build-host.py.
 AC_PATH_PROG([PYTHON3], [python3], [no])
 AS_IF([test "x$PYTHON3" = "xno"],
-      [AC_MSG_WARN([python3 not found; modern/c2 will not build])])
+      [AC_MSG_WARN([python3 not found; c2 will not build])])
 
 # --- install locations ----------------------------------------------------
 # Every host binary (cc, cpp, c0, c1, c2, as, as2, ld) installs under
@@ -75,13 +75,10 @@ V7_DEFINE_DIR([v7unix_includedir], [V7_INCLUDEDIR], [dir holding the v7unix targ
 
 AC_CONFIG_FILES([
   Makefile
-  modern/cpp/Makefile
-  modern/cc/Makefile
-  modern/cc/c0/Makefile
-  modern/cc/c1/Makefile
-  modern/c2/Makefile
-  modern/as/Makefile
-  modern/ld/Makefile
+  modern/usr/src/cmd/Makefile
+  modern/usr/src/cmd/c/Makefile
+  modern/usr/src/cmd/as/Makefile
+  modern/usr/src/cmd/cpp/Makefile
   lib/Makefile
   man/Makefile
 ])

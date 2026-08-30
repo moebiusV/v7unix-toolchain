@@ -165,7 +165,8 @@ am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/config.h.in \
 	$(top_srcdir)/build-aux/install-sh \
 	$(top_srcdir)/build-aux/missing AUTHORS COPYING ChangeLog \
 	INSTALL NEWS README.md TODO build-aux/compile \
-	build-aux/depcomp build-aux/install-sh build-aux/missing
+	build-aux/depcomp build-aux/install-sh build-aux/missing \
+	build-aux/ylwrap
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -310,9 +311,7 @@ top_srcdir = @top_srcdir@
 v7unix_includedir = @v7unix_includedir@
 v7unix_libdir = @v7unix_libdir@
 v7unix_libexecdir = @v7unix_libexecdir@
-SUBDIRS = modern/cpp modern/cc modern/cc/c0 modern/cc/c1 modern/c2 \
-	modern/as modern/ld lib man
-
+SUBDIRS = modern/usr/src/cmd lib man
 EXTRA_DIST = \
 	orig \
 	c99 \
@@ -327,7 +326,7 @@ EXTRA_DIST = \
 	dist/gentoo \
 	dist/nixos \
 	dist/slackware \
-	modern/include \
+	modern/usr/include \
 	PORTING.md \
 	README.md \
 	README.distributions \

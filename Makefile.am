@@ -4,8 +4,7 @@
 # our own `as`), then install everything.  `orig/`, `c99/`, `tools/` and
 # `dist/` are source/packaging trees shipped verbatim in the tarball.
 
-SUBDIRS = modern/cpp modern/cc modern/cc/c0 modern/cc/c1 modern/c2 \
-	modern/as modern/ld lib man
+SUBDIRS = modern/usr/src/cmd lib man
 
 EXTRA_DIST = \
 	orig \
@@ -21,7 +20,7 @@ EXTRA_DIST = \
 	dist/gentoo \
 	dist/nixos \
 	dist/slackware \
-	modern/include \
+	modern/usr/include \
 	PORTING.md \
 	README.md \
 	README.distributions \

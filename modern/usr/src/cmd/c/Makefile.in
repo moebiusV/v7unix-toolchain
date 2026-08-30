@@ -14,15 +14,12 @@
 
 @SET_MAKE@
 
-# c0 — V7's PDP-11 first pass (parser), host-ported.
+# c — V7's PDP-11 compiler passes (c0, c1, c2), host-ported.
 #
-# The committed host c0*.c are generated from the K&R sources by the
-# three-step pipeline; see c0-host.py and the c0.rules.json / c0.spec.json
-# specs in tools/.  This Makefile.am just compiles and links them.
-#
-# The V7 sources are riddled with pre-standard UB (sequence points,
-# uninitialized locals, pointer punning); -O1 rather than -O2 keeps gcc's
-# optimizer from exploiting it, and -fno-strict-aliasing covers the punning.
+# All three passes live in one directory, mirroring V7's /usr/src/cmd/c.
+# c0 (parser) and c1 (code generator) keep -O1 + -fno-strict-aliasing: the
+# V7 sources are full of pre-standard UB the optimizer would otherwise
+# exploit.  c2 is a straightforward port and builds at -O2.
 
 
 VPATH = @srcdir@
@@ -99,8 +96,8 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-v7unix_libexec_PROGRAMS = c0$(EXEEXT)
-subdir = modern/cc/c0
+v7unix_libexec_PROGRAMS = c0$(EXEEXT) c1$(EXEEXT) c2$(EXEEXT)
+subdir = modern/usr/src/cmd/c
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -114,9 +111,18 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(v7unix_libexecdir)"
 PROGRAMS = $(v7unix_libexec_PROGRAMS)
 am_c0_OBJECTS = c00.$(OBJEXT) c01.$(OBJEXT) c02.$(OBJEXT) \
-	c03.$(OBJEXT) c04.$(OBJEXT) c05.$(OBJEXT) globals.$(OBJEXT)
+	c03.$(OBJEXT) c04.$(OBJEXT) c05.$(OBJEXT) c0globals.$(OBJEXT)
 c0_OBJECTS = $(am_c0_OBJECTS)
 c0_LDADD = $(LDADD)
+am_c1_OBJECTS = c10.$(OBJEXT) c11.$(OBJEXT) c12.$(OBJEXT) \
+	c13.$(OBJEXT) table.$(OBJEXT) c1globals.$(OBJEXT)
+c1_OBJECTS = $(am_c1_OBJECTS)
+c1_LDADD = $(LDADD)
+nodist_c2_OBJECTS = c2-c2.host.$(OBJEXT)
+c2_OBJECTS = $(nodist_c2_OBJECTS)
+c2_LDADD = $(LDADD)
+c2_LINK = $(CCLD) $(c2_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o \
+	$@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -134,8 +140,15 @@ depcomp = $(SHELL) $(top_srcdir)/build-aux/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/c00.Po ./$(DEPDIR)/c01.Po \
 	./$(DEPDIR)/c02.Po ./$(DEPDIR)/c03.Po ./$(DEPDIR)/c04.Po \
-	./$(DEPDIR)/c05.Po ./$(DEPDIR)/globals.Po
+	./$(DEPDIR)/c05.Po ./$(DEPDIR)/c0globals.Po ./$(DEPDIR)/c10.Po \
+	./$(DEPDIR)/c11.Po ./$(DEPDIR)/c12.Po ./$(DEPDIR)/c13.Po \
+	./$(DEPDIR)/c1globals.Po ./$(DEPDIR)/c2-c2.host.Po \
+	./$(DEPDIR)/table.Po
 am__mv = mv -f
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
+am__v_lt_1 = 
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 AM_V_CC = $(am__v_CC_@AM_V@)
@@ -148,8 +161,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(c0_SOURCES)
-DIST_SOURCES = $(c0_SOURCES)
+SOURCES = $(c0_SOURCES) $(c1_SOURCES) $(nodist_c2_SOURCES)
+DIST_SOURCES = $(c0_SOURCES) $(c1_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -174,7 +187,7 @@ am__define_uniq_tagged_files = \
     if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
   done | $(am__uniquify_input)`
 am__DIST_COMMON = $(srcdir)/Makefile.in \
-	$(top_srcdir)/build-aux/depcomp
+	$(top_srcdir)/build-aux/depcomp README
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -275,9 +288,19 @@ v7unix_includedir = @v7unix_includedir@
 v7unix_libdir = @v7unix_libdir@
 v7unix_libexecdir = @v7unix_libexecdir@
 AM_CFLAGS = -std=c99 -O1 @NO_STRICT_ALIASING@
-c0_SOURCES = c00.c c01.c c02.c c03.c c04.c c05.c globals.c
-noinst_HEADERS = c0.h
-all: all-am
+c0_SOURCES = c00.c c01.c c02.c c03.c c04.c c05.c c0globals.c
+c1_SOURCES = c10.c c11.c c12.c c13.c table.c c1globals.c
+
+# c2.c is the PDP-11-target source (int16_t, sbrk()); the host build swaps
+# sbrk()/K&R-varargs for malloc()/<stdarg.h> via build-host.py.
+c2_CFLAGS = -std=c99 -O2
+nodist_c2_SOURCES = c2.host.c
+BUILT_SOURCES = c2.host.c
+CLEANFILES = c2.host.c
+noinst_HEADERS = c0.h c1.h
+EXTRA_DIST = c2.c build-host.py README tests
+all: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .o .obj
@@ -290,9 +313,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign modern/cc/c0/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign modern/usr/src/cmd/c/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign modern/cc/c0/Makefile
+	  $(AUTOMAKE) --foreign modern/usr/src/cmd/c/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -357,6 +380,14 @@ c0$(EXEEXT): $(c0_OBJECTS) $(c0_DEPENDENCIES) $(EXTRA_c0_DEPENDENCIES)
 	@rm -f c0$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(c0_OBJECTS) $(c0_LDADD) $(LIBS)
 
+c1$(EXEEXT): $(c1_OBJECTS) $(c1_DEPENDENCIES) $(EXTRA_c1_DEPENDENCIES) 
+	@rm -f c1$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(c1_OBJECTS) $(c1_LDADD) $(LIBS)
+
+c2$(EXEEXT): $(c2_OBJECTS) $(c2_DEPENDENCIES) $(EXTRA_c2_DEPENDENCIES) 
+	@rm -f c2$(EXEEXT)
+	$(AM_V_CCLD)$(c2_LINK) $(c2_OBJECTS) $(c2_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -369,7 +400,14 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c03.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c04.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c05.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c0globals.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c10.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c11.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c12.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c13.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c1globals.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c2-c2.host.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/table.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -392,6 +430,20 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+
+c2-c2.host.o: c2.host.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(c2_CFLAGS) $(CFLAGS) -MT c2-c2.host.o -MD -MP -MF $(DEPDIR)/c2-c2.host.Tpo -c -o c2-c2.host.o `test -f 'c2.host.c' || echo '$(srcdir)/'`c2.host.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/c2-c2.host.Tpo $(DEPDIR)/c2-c2.host.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='c2.host.c' object='c2-c2.host.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(c2_CFLAGS) $(CFLAGS) -c -o c2-c2.host.o `test -f 'c2.host.c' || echo '$(srcdir)/'`c2.host.c
+
+c2-c2.host.obj: c2.host.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(c2_CFLAGS) $(CFLAGS) -MT c2-c2.host.obj -MD -MP -MF $(DEPDIR)/c2-c2.host.Tpo -c -o c2-c2.host.obj `if test -f 'c2.host.c'; then $(CYGPATH_W) 'c2.host.c'; else $(CYGPATH_W) '$(srcdir)/c2.host.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/c2-c2.host.Tpo $(DEPDIR)/c2-c2.host.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='c2.host.c' object='c2-c2.host.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(c2_CFLAGS) $(CFLAGS) -c -o c2-c2.host.obj `if test -f 'c2.host.c'; then $(CYGPATH_W) 'c2.host.c'; else $(CYGPATH_W) '$(srcdir)/c2.host.c'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -479,14 +531,18 @@ distdir-am: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-check: check-am
+	$(MAKE) $(AM_MAKEFLAGS) check-local
+check: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile $(PROGRAMS) $(HEADERS)
 installdirs:
 	for dir in "$(DESTDIR)$(v7unix_libexecdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-install: install-am
-install-exec: install-exec-am
+install: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-am
+install-exec: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-exec-am
 install-data: install-data-am
 uninstall: uninstall-am
 
@@ -507,6 +563,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-$(am__rm_f) $(CLEANFILES)
 
 distclean-generic:
 	-$(am__rm_f) $(CONFIG_CLEAN_FILES)
@@ -515,6 +572,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-$(am__rm_f) $(BUILT_SOURCES)
 clean: clean-am
 
 clean-am: clean-generic clean-v7unix_libexecPROGRAMS mostlyclean-am
@@ -526,7 +584,14 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/c03.Po
 	-rm -f ./$(DEPDIR)/c04.Po
 	-rm -f ./$(DEPDIR)/c05.Po
-	-rm -f ./$(DEPDIR)/globals.Po
+	-rm -f ./$(DEPDIR)/c0globals.Po
+	-rm -f ./$(DEPDIR)/c10.Po
+	-rm -f ./$(DEPDIR)/c11.Po
+	-rm -f ./$(DEPDIR)/c12.Po
+	-rm -f ./$(DEPDIR)/c13.Po
+	-rm -f ./$(DEPDIR)/c1globals.Po
+	-rm -f ./$(DEPDIR)/c2-c2.host.Po
+	-rm -f ./$(DEPDIR)/table.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -578,7 +643,14 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/c03.Po
 	-rm -f ./$(DEPDIR)/c04.Po
 	-rm -f ./$(DEPDIR)/c05.Po
-	-rm -f ./$(DEPDIR)/globals.Po
+	-rm -f ./$(DEPDIR)/c0globals.Po
+	-rm -f ./$(DEPDIR)/c10.Po
+	-rm -f ./$(DEPDIR)/c11.Po
+	-rm -f ./$(DEPDIR)/c12.Po
+	-rm -f ./$(DEPDIR)/c13.Po
+	-rm -f ./$(DEPDIR)/c1globals.Po
+	-rm -f ./$(DEPDIR)/c2-c2.host.Po
+	-rm -f ./$(DEPDIR)/table.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -596,24 +668,31 @@ ps-am:
 
 uninstall-am: uninstall-v7unix_libexecPROGRAMS
 
-.MAKE: install-am install-strip
+.MAKE: all check check-am install install-am install-exec \
+	install-strip
 
-.PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-am clean \
-	clean-generic clean-v7unix_libexecPROGRAMS cscopelist-am ctags \
-	ctags-am distclean distclean-compile distclean-generic \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip install-v7unix_libexecPROGRAMS installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic pdf pdf-am ps ps-am tags tags-am uninstall \
-	uninstall-am uninstall-v7unix_libexecPROGRAMS
+.PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-am \
+	check-local clean clean-generic clean-v7unix_libexecPROGRAMS \
+	cscopelist-am ctags ctags-am distclean distclean-compile \
+	distclean-generic distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip \
+	install-v7unix_libexecPROGRAMS installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic pdf pdf-am \
+	ps ps-am tags tags-am uninstall uninstall-am \
+	uninstall-v7unix_libexecPROGRAMS
 
 .PRECIOUS: Makefile
 
+c2.host.c: $(srcdir)/c2.c $(srcdir)/build-host.py
+	$(PYTHON3) $(srcdir)/build-host.py $(srcdir)/c2.c > $@
+
+check-local:
+	$(SHELL) $(srcdir)/tests/run-tests.sh ./c2
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

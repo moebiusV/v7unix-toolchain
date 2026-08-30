@@ -608,7 +608,7 @@ PACKAGE_STRING='v7unix-toolchain 0.1.0'
 PACKAGE_BUGREPORT='david@clearbrookdistillery.com'
 PACKAGE_URL=''
 
-ac_unique_file="modern/cc/cc.c"
+ac_unique_file="modern/usr/src/cmd/cc.c"
 ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
@@ -4526,7 +4526,7 @@ esac
 fi
 
 
-# cpp's #if grammar (modern/cpp/cpy.y) is processed by bison/yacc.
+# cpp's #if grammar (modern/usr/src/cmd/cpp/cpy.y) is processed by bison/yacc.
 for ac_prog in 'bison -y' byacc
 do
   # Extract the first word of "$ac_prog", so it can be a program name with args.
@@ -4627,8 +4627,8 @@ fi
 
 if test "x$PYTHON3" = "xno"
 then :
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: python3 not found; modern/c2 will not build" >&5
-printf "%s\n" "$as_me: WARNING: python3 not found; modern/c2 will not build" >&2;}
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: python3 not found; c2 will not build" >&5
+printf "%s\n" "$as_me: WARNING: python3 not found; c2 will not build" >&2;}
 fi
 
 # --- install locations ----------------------------------------------------
@@ -4687,7 +4687,7 @@ printf "%s\n" "#define V7_INCLUDEDIR \"$ac_v7_dir\"" >>confdefs.h
   exec_prefix=$ac_saved_exec_prefix
 
 
-ac_config_files="$ac_config_files Makefile modern/cpp/Makefile modern/cc/Makefile modern/cc/c0/Makefile modern/cc/c1/Makefile modern/c2/Makefile modern/as/Makefile modern/ld/Makefile lib/Makefile man/Makefile"
+ac_config_files="$ac_config_files Makefile modern/usr/src/cmd/Makefile modern/usr/src/cmd/c/Makefile modern/usr/src/cmd/as/Makefile modern/usr/src/cmd/cpp/Makefile lib/Makefile man/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -5427,13 +5427,10 @@ do
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h" ;;
     "depfiles") CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "modern/cpp/Makefile") CONFIG_FILES="$CONFIG_FILES modern/cpp/Makefile" ;;
-    "modern/cc/Makefile") CONFIG_FILES="$CONFIG_FILES modern/cc/Makefile" ;;
-    "modern/cc/c0/Makefile") CONFIG_FILES="$CONFIG_FILES modern/cc/c0/Makefile" ;;
-    "modern/cc/c1/Makefile") CONFIG_FILES="$CONFIG_FILES modern/cc/c1/Makefile" ;;
-    "modern/c2/Makefile") CONFIG_FILES="$CONFIG_FILES modern/c2/Makefile" ;;
-    "modern/as/Makefile") CONFIG_FILES="$CONFIG_FILES modern/as/Makefile" ;;
-    "modern/ld/Makefile") CONFIG_FILES="$CONFIG_FILES modern/ld/Makefile" ;;
+    "modern/usr/src/cmd/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/Makefile" ;;
+    "modern/usr/src/cmd/c/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/c/Makefile" ;;
+    "modern/usr/src/cmd/as/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/as/Makefile" ;;
+    "modern/usr/src/cmd/cpp/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/cpp/Makefile" ;;
     "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
     "man/Makefile") CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
 

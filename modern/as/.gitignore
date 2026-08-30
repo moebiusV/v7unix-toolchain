@@ -1,6 +1,0 @@
-# Built binaries
-as
-as2
-
-# Distribution tarballs
-*.tar.gz

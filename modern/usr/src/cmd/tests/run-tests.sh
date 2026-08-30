@@ -9,7 +9,7 @@
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 LD=${1:-"$here/../ld"}
-AS=${2:-"$here/../../as/as"}
+AS=${2:-"$here/../as/as"}
 
 # Resolve to absolute paths so `as` (pass 1) can locate its sibling `as2`
 # (as1.c finds pass 2 next to argv[0]).
