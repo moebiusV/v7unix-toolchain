@@ -13,66 +13,72 @@
  */
 
 
-#define	JBR	1
-#define	CBR	2
-#define	JMP	3
-#define	LABEL	4
-#define	DLABEL	5
-#define	EROU	7
-#define	JSW	9
-#define	MOV	10
-#define	CLR	11
-#define	COM	12
-#define	INC	13
-#define	DEC	14
-#define	NEG	15
-#define	TST	16
-#define	ASR	17
-#define	ASL	18
-#define	SXT	19
-#define	CMP	20
-#define	ADD	21
-#define	SUB	22
-#define	BIT	23
-#define	BIC	24
-#define	BIS	25
-#define	MUL	26
-#define	DIV	27
-#define	ASH	28
-#define	XOR	29
-#define	TEXT	30
-#define	DATA	31
-#define	BSS	32
-#define	EVEN	33
-#define	MOVF	34
-#define	MOVOF	35
-#define	MOVFO	36
-#define	ADDF	37
-#define	SUBF	38
-#define	DIVF	39
-#define	MULF	40
-#define	CLRF	41
-#define	CMPF	42
-#define	NEGF	43
-#define	TSTF	44
-#define	CFCC	45
-#define	SOB	46
-#define	JSR	47
-#define	END	48
+enum {
+	JBR = 1,
+	CBR = 2,
+	JMP = 3,
+	LABEL = 4,
+	DLABEL = 5,
+	EROU = 7,
+	JSW = 9,
+	MOV = 10,
+	CLR = 11,
+	COM = 12,
+	INC = 13,
+	DEC = 14,
+	NEG = 15,
+	TST = 16,
+	ASR = 17,
+	ASL = 18,
+	SXT = 19,
+	CMP = 20,
+	ADD = 21,
+	SUB = 22,
+	BIT = 23,
+	BIC = 24,
+	BIS = 25,
+	MUL = 26,
+	DIV = 27,
+	ASH = 28,
+	XOR = 29,
+	TEXT = 30,
+	DATA = 31,
+	BSS = 32,
+	EVEN = 33,
+	MOVF = 34,
+	MOVOF = 35,
+	MOVFO = 36,
+	ADDF = 37,
+	SUBF = 38,
+	DIVF = 39,
+	MULF = 40,
+	CLRF = 41,
+	CMPF = 42,
+	NEGF = 43,
+	TSTF = 44,
+	CFCC = 45,
+	SOB = 46,
+	JSR = 47,
+	END = 48,
+};
 
-#define	JEQ	0
-#define	JNE	1
-#define	JLE	2
-#define	JGE	3
-#define	JLT	4
-#define	JGT	5
-#define	JLO	6
-#define	JHI	7
-#define	JLOS	8
-#define	JHIS	9
+enum {
+	JEQ = 0,
+	JNE = 1,
+	JLE = 2,
+	JGE = 3,
+	JLT = 4,
+	JGT = 5,
+	JLO = 6,
+	JHI = 7,
+	JLOS = 8,
+	JHIS = 9,
+};
 
-#define	BYTE	100
-#define	LSIZE	512
+enum {
+	BYTE = 100,
+	LSIZE = 512,
+};
 
 struct node {
 	char	op;
@@ -123,12 +129,14 @@ char	conloc[20];
 char	conval[20];
 char	ccloc[20];
 
-#define	RT1	10
-#define	RT2	11
-#define	FREG	5
-#define	NREG	5
-#define	LABHS	127
-#define	OPHS	57
+enum {
+	RT1 = 10,
+	RT2 = 11,
+	FREG = 5,
+	NREG = 5,
+	LABHS = 127,
+	OPHS = 57,
+};
 
 struct optab *ophash[OPHS];
 
@@ -1296,6 +1304,11 @@ int16_t singop(struct node *ap)
 	register char *p1, *p2;
 
 	p1 = ap->code;
+	if (p1 == NULL) {	/* empty operand string (copy() returned 0); PDP-11 read the null page */
+		regs[RT1][0] = 0;
+		regs[RT2][0] = 0;
+		return(0);
+	}
 	p2 = regs[RT1];
 	while (*p2++ = *p1++);
 	regs[RT2][0] = 0;
@@ -1309,6 +1322,11 @@ void dualop(struct node *ap)
 
 	p = ap;
 	p1 = p->code;
+	if (p1 == NULL) {	/* empty operand string (copy() returned 0); PDP-11 read the null page */
+		regs[RT1][0] = 0;
+		regs[RT2][0] = 0;
+		return;
+	}
 	p2 = regs[RT1];
 	while (*p1 && *p1!=',')
 		*p2++ = *p1++;

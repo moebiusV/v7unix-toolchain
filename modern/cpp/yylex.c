@@ -5,10 +5,8 @@
  * yylval are already in scope here.  Everything else it touches lives in
  * cpp.c, so those are re-declared extern with the host's types.
  */
-#define isid(a)  ((fastab+COFF)[a]&IB)
-#define IB 1
 /* Original guarded COFF on `#if pdp11 | vax`; the target is pdp11. */
-#define COFF 128
+enum { IB = 1, COFF = 128 };
 
 #include <string.h>
 #include <stdint.h>
@@ -21,6 +19,8 @@ extern void pperror(char *, ...);
 struct symtab { char *name; char *value; };
 extern struct symtab *lookup(char *, int16_t);
 int tobinary(char *st, int b);
+
+static int isid(int a) { return (fastab + COFF)[a] & IB; }
 
 int yylex(void)
 {

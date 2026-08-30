@@ -40,41 +40,53 @@
  *	symbol table:	16+2*(textsize+datasize) or 16+textsize+datasize
  *
  */
-#define TRUE	1
-#define FALSE	0
+enum {
+	TRUE = 1,
+	FALSE = 0,
+};
 
 
-#define	ARCMAGIC 0177545
-#define OMAGIC	0405
-#define	FMAGIC	0407
-#define	NMAGIC	0410
-#define	IMAGIC	0411
+enum {
+	ARCMAGIC = 0177545,
+	OMAGIC = 0405,
+	FMAGIC = 0407,
+	NMAGIC = 0410,
+	IMAGIC = 0411,
+};
 
-#define	EXTERN	040
-#define	UNDEF	00
-#define	ABS	01
-#define	TEXT	02
-#define	DATA	03
-#define	BSS	04
-#define	COMM	05	/* internal use only */
+enum {
+	EXTERN = 040,
+	UNDEF = 00,
+	ABS = 01,
+	TEXT = 02,
+	DATA = 03,
+	BSS = 04,
+	COMM = 05,	/* internal use only */
+};
 
-#define	RABS	00
-#define	RTEXT	02
-#define	RDATA	04
-#define	RBSS	06
-#define	REXT	010
+enum {
+	RABS = 00,
+	RTEXT = 02,
+	RDATA = 04,
+	RBSS = 06,
+	REXT = 010,
+};
 
-#define NOVLY	16
-#define	RELFLG	01
-#define	NROUT	256
-#define	NSYM	1103
-#define	NSYMPR	1000
+enum {
+	NOVLY = 16,
+	RELFLG = 01,
+	NROUT = 256,
+	NSYM = 1103,
+	NSYMPR = 1000,
+};
 
 char	premeof[] = "Premature EOF";
 char	goodnm[] = "__.SYMDEF";
 
 /* table of contents stuff */
-#define TABSZ	700
+enum {
+	TABSZ = 700,
+};
 struct tab
 {	char cname[8];
 	int16_t cloc[2];	/* middle-endian: cloc[0]=high word, cloc[1]=low word */
@@ -204,7 +216,9 @@ int16_t	infil;
 char	*filname;
 /* Host port: -L search dirs (V7's ld had none — it hardcoded /lib and
    /usr/lib).  Filled during pass 1, used by getfile() to resolve -lname. */
-#define	NLIBDIR	16
+enum {
+	NLIBDIR = 16,
+};
 char	*libdirs[NLIBDIR];
 int	nlibdir;
 

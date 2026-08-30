@@ -12,15 +12,16 @@
 /* July/August 1978
 */
 
-#define STATIC
 
-#define STDIN 0
-#define STDOUT 1
-#define STDERR 2
-#define READ 0
-#define WRITE 1
-#define SALT '#'
-#define BUFSIZ 512
+enum {
+	STDIN = 0,
+	STDOUT = 1,
+	STDERR = 2,
+	READ = 0,
+	WRITE = 1,
+	SALT = '#',
+	BUFSZ = 512,
+};
 
 char *pbeg,*pbuf,*pend;
 char *outp,*inp;
@@ -29,14 +30,20 @@ char cinit;
 
 /* some code depends on whether characters are sign or zero extended */
 /*	#if '\377' < 0		not used here, old cpp doesn't understand */
-#define COFF 128
+enum {
+	COFF = 128,
+};
 
-#define ALFSIZ 256	/* alphabet size */
+enum {
+	ALFSIZ = 256,	/* alphabet size */
+};
 char macbit[ALFSIZ+11];
 char toktyp[ALFSIZ];
-#define BLANK 1
-#define IDENT 2
-#define NUMBR 3
+enum {
+	BLANK = 1,
+	IDENT = 2,
+	NUMBR = 3,
+};
 
 /* a superimposed code is used to reduce the number of calls to the
 /* symbol table lookup routine.  (if the kth character of an identifier
@@ -56,32 +63,36 @@ char toktyp[ALFSIZ];
 /* the code is here.
 /* using both scw1 and scw2 is of dubious value.
 */
-#define scw1 1
-#define scw2 0
+enum {
+	scw1 = 1,
+	scw2 = 0,
+};
 
 
 
-#define IB 1
-#define SB 2
-#define NB 4
-#define CB 8
-#define QB 16
-#define WB 32
+enum {
+	IB = 1,
+	SB = 2,
+	NB = 4,
+	CB = 8,
+	QB = 16,
+	WB = 32,
+};
 char fastab[ALFSIZ];
 char slotab[ALFSIZ];
 char *ptrtab;
-#define isslo (ptrtab==(slotab+COFF))
-#define isid(a)  ((fastab+COFF)[a]&IB)
-#define isspc(a) (ptrtab[a]&SB)
-#define isnum(a) ((fastab+COFF)[a]&NB)
-#define iscom(a) ((fastab+COFF)[a]&CB)
-#define isquo(a) ((fastab+COFF)[a]&QB)
-#define iswarn(a) ((fastab+COFF)[a]&WB)
+static int isslo(void) { return ptrtab == slotab + COFF; }
+static int isid(int a)  { return (fastab + COFF)[a] & IB; }
+static int isspc(int a) { return ptrtab[a] & SB; }
+static int isnum(int a) { return (fastab + COFF)[a] & NB; }
+static int iscom(int a) { return (fastab + COFF)[a] & CB; }
+static int isquo(int a) { return (fastab + COFF)[a] & QB; }
+static int iswarn(int a){ return (fastab + COFF)[a] & WB; }
 
-#define eob(a) ((a)>=pend)
-#define bob(a) (pbeg>=(a))
+static int eob(char *a) { return a >= pend; }
+static int bob(char *a) { return pbeg >= a; }
 
-char buffer[8+BUFSIZ+BUFSIZ+8];
+char buffer[8+BUFSZ+BUFSZ+8];
 
 # define SBSIZE 12000
 char	sbf[SBSIZE];
@@ -108,51 +119,51 @@ char *macforw;	/* pointer which must be exceeded to decrease nesting level */
 int16_t macdam;	/* offset to macforw due to buffer shifting */
 
 
-STATIC	int16_t	inctop[MAXINC];
-STATIC	char	*fnames[MAXINC];
-STATIC	char	*dirnams[MAXINC];	/* actual directory of #include files */
-STATIC	int16_t	fins[MAXINC];
-STATIC	int16_t	lineno[MAXINC];
+int16_t	inctop[MAXINC];
+char	*fnames[MAXINC];
+char	*dirnams[MAXINC];	/* actual directory of #include files */
+int16_t	fins[MAXINC];
+int16_t	lineno[MAXINC];
 
-STATIC	char	*dirs[10];	/* -I and <> directories */
+char	*dirs[10];	/* -I and <> directories */
 char *strdex(char *s, char c);
 struct symtab *stsym(char *s);
-STATIC	int16_t	fin	= STDIN;
-STATIC	FILE	*fout;	/* = stdout, assigned in main(): glibc stdout is a runtime value */
-STATIC	int16_t	nd	= 1;
-STATIC	int16_t	pflag;	/* don't put out lines "# 12 foo.c" */
-STATIC	int16_t	passcom;	/* don't delete comments */
-STATIC	int16_t rflag;	/* allow macro recursion */
-STATIC	int16_t	ifno;
+int16_t	fin	= STDIN;
+FILE	*fout;	/* = stdout, assigned in main(): glibc stdout is a runtime value */
+int16_t	nd	= 1;
+int16_t	pflag;	/* don't put out lines "# 12 foo.c" */
+int16_t	passcom;	/* don't delete comments */
+int16_t rflag;	/* allow macro recursion */
+int16_t	ifno;
 # define NPREDEF 20
-STATIC	char *prespc[NPREDEF];
-STATIC	char **predef = prespc;
-STATIC	char *punspc[NPREDEF];
-STATIC	char **prund = punspc;
-STATIC	int16_t	exfail;
+char *prespc[NPREDEF];
+char **predef = prespc;
+char *punspc[NPREDEF];
+char **prund = punspc;
+int16_t	exfail;
 struct symtab {
 	char	*name;
 	char	*value;
 } *lastsym;
 
 # define symsiz 400
-STATIC	struct symtab stab[symsiz];
+struct symtab stab[symsiz];
 
-STATIC	struct symtab *defloc;
-STATIC	struct symtab *udfloc;
-STATIC	struct symtab *incloc;
-STATIC	struct symtab *ifloc;
-STATIC	struct symtab *elsloc;
-STATIC	struct symtab *eifloc;
-STATIC	struct symtab *ifdloc;
-STATIC	struct symtab *ifnloc;
-STATIC	struct symtab *ysysloc;
-STATIC	struct symtab *varloc;
-STATIC	struct symtab *lneloc;
-STATIC	struct symtab *ulnloc;
-STATIC	struct symtab *uflloc;
-STATIC	int16_t	trulvl;
-STATIC	int16_t	flslvl;
+struct symtab *defloc;
+struct symtab *udfloc;
+struct symtab *incloc;
+struct symtab *ifloc;
+struct symtab *elsloc;
+struct symtab *eifloc;
+struct symtab *ifdloc;
+struct symtab *ifnloc;
+struct symtab *ysysloc;
+struct symtab *varloc;
+struct symtab *lneloc;
+struct symtab *ulnloc;
+struct symtab *uflloc;
+int16_t	trulvl;
+int16_t	flslvl;
 
 int16_t sayline(void){
 	if (pflag==0) fprintf(fout,"# %d \"%s\"\n", lineno[ifno], fnames[ifno]);
@@ -164,7 +175,7 @@ int16_t sayline(void){
 /*
 /*  (low address)                                             (high address)
 /*  pbeg                           pbuf                                 pend
-/*  |      <-- BUFSIZ chars -->      |         <-- BUFSIZ chars -->        |
+/*  |      <-- BUFSZ chars -->      |         <-- BUFSZ chars -->        |
 /*  _______________________________________________________________________
 /* |_______________________________________________________________________|
 /*          |               |               |
@@ -240,7 +251,7 @@ char * refill(char *p){
 */
 	register char *np,*op; register int16_t ninbuf;
 	dump(); np=pbuf-(p-inp); op=inp;
-	if (bob(np+1)) {pperror("token too long"); np=pbeg; p=inp+BUFSIZ;}
+	if (bob(np+1)) {pperror("token too long"); np=pbeg; p=inp+BUFSZ;}
 	macdam += np-inp; outp=inp=np;
 	while (op<p) *np++= *op++;
 	p=np;
@@ -253,7 +264,7 @@ char * refill(char *p){
 			return(p);
 		} else {/* get more text from file(s) */
 			maclvl=0;
-			if (0<(ninbuf=read(fin,pbuf,BUFSIZ))) {
+			if (0<(ninbuf=read(fin,pbuf,BUFSZ))) {
 				pend=pbuf+ninbuf; *pend='\0';
 				return(p);
 			}
@@ -276,8 +287,10 @@ char * refill(char *p){
 	}
 }
 
-#define BEG 0
-#define LF 1
+enum {
+	BEG = 0,
+	LF = 1,
+};
 
 char * cotoken(char *p){
 	register int16_t c,i; char quoc;
@@ -321,7 +334,7 @@ again:
 					if (*p++=='/') goto endcom;
 					if (eob(--p)) {
 						if (!passcom) {inp=p; p=refill(p);}
-						else if ((p-inp)>=BUFSIZ) {/* split long comment */
+						else if ((p-inp)>=BUFSZ) {/* split long comment */
 							inp=p; p=refill(p);	/* last char written is '*' */
 							putc('/',fout);	/* terminate first part */
 							/* and fake start of 2nd */
@@ -332,7 +345,7 @@ again:
 					++lineno[ifno]; if (!passcom) putc('\n',fout);
 				} else if (eob(--p)) {
 					if (!passcom) {inp=p; p=refill(p);}
-					else if ((p-inp)>=BUFSIZ) {/* split long comment */
+					else if ((p-inp)>=BUFSZ) {/* split long comment */
 						inp=p; p=refill(p);
 						putc('*',fout); putc('/',fout);
 						outp=inp=p-=2; *p++='/'; *p++='*';
@@ -361,7 +374,7 @@ again:
 		}
 	} break;
 	case '\n': {
-		++lineno[ifno]; if (isslo) {state=LF; return(p);}
+		++lineno[ifno]; if (isslo()) {state=LF; return(p);}
 prevlf:
 		state=BEG;
 		for (;;) {
@@ -389,29 +402,23 @@ prevlf:
 	case 'p': case 'q': case 'r': case 's': case 't':
 	case 'u': case 'v': case 'w': case 'x': case 'y':
 	case 'z':
-#define tmac1(c,bit)
-#define xmac1(c,bit,op)
-
-#define tmac2(c0,c1,cpos)
-#define xmac2(c0,c1,cpos,op)
-
 	if (flslvl) goto nomac;
 	for (;;) {
-		c= p[-1];                          tmac1(c,b0);
-		i= *p++; if (!isid(i)) goto endid; tmac1(i,b1); tmac2(c,i,0);
-		c= *p++; if (!isid(c)) goto endid; tmac1(c,b2); tmac2(i,c,1);
-		i= *p++; if (!isid(i)) goto endid; tmac1(i,b3); tmac2(c,i,2);
-		c= *p++; if (!isid(c)) goto endid; tmac1(c,b4); tmac2(i,c,3);
-		i= *p++; if (!isid(i)) goto endid; tmac1(i,b5); tmac2(c,i,4);
-		c= *p++; if (!isid(c)) goto endid; tmac1(c,b6); tmac2(i,c,5);
-		i= *p++; if (!isid(i)) goto endid; tmac1(i,b7); tmac2(c,i,6);
-		                                                tmac2(i,0,7);
+		c= p[-1];                          
+		i= *p++; if (!isid(i)) goto endid;  
+		c= *p++; if (!isid(c)) goto endid;  
+		i= *p++; if (!isid(i)) goto endid;  
+		c= *p++; if (!isid(c)) goto endid;  
+		i= *p++; if (!isid(i)) goto endid;  
+		c= *p++; if (!isid(c)) goto endid;  
+		i= *p++; if (!isid(i)) goto endid;  
+		                                                
 		while (isid(*p++));
 		if (eob(--p)) {refill(p); p=inp+1; continue;}
 		goto lokid;
 	endid:
 		if (eob(--p)) {refill(p); p=inp+1; continue;}
-		tmac2(p[-1],0,-1+(p-inp));
+		
 	lokid:
 		slookup(inp,p,0); if (newp) {p=newp; goto again;}
 		else break;
@@ -422,7 +429,7 @@ prevlf:
 	} break;
 	} /* end of switch */
 	
-	if (isslo) return(p);
+	if (isslo()) return(p);
 } /* end of infinite loop */
 }
 
@@ -432,7 +439,7 @@ char * skipbl(char *p){/* get next non-blank token */
 }
 
 char * unfill(char *p){
-/* take <= BUFSIZ chars from right end of buffer and put them on instack .
+/* take <= BUFSZ chars from right end of buffer and put them on instack .
 /* slide rest of buffer to the right, update pointers, return new p.
 */
 	register char *np,*op; register int16_t d;
@@ -443,14 +450,14 @@ char * unfill(char *p){
 	}
 	if (fretop>0) np=bufstack[--fretop];
 	else {
-		np=savch; savch+=BUFSIZ;
+		np=savch; savch+=BUFSZ;
 		if (savch>=sbf+SBSIZE) {pperror("no space"); exit(exfail);}
 		*savch++='\0';
 	}
-	instack[mactop]=np; op=pend-BUFSIZ; if (op<p) op=p;
+	instack[mactop]=np; op=pend-BUFSZ; if (op<p) op=p;
 	for (;;) {while (*np++= *op++); if (eob(op)) break;} /* out with old */
 	endbuf[mactop++]=np;	/* mark end of saved text */
-	np=pbuf+BUFSIZ; op=pend-BUFSIZ; pend=np; if (op<p) op=p;
+	np=pbuf+BUFSZ; op=pend-BUFSZ; pend=np; if (op<p) op=p;
 	while (outp<op) *--np= *--op; /* slide over new */
 	if (bob(np)) pperror("token too long");
 	d=np-outp; outp+=d; inp+=d; macdam+=d; return(p+d);
@@ -458,7 +465,7 @@ char * unfill(char *p){
 
 char * doincl(char *p){
 	int16_t filok,inctype;
-	register char *cp; char **dirp,*nfil; char filname[BUFSIZ];
+	register char *cp; char **dirp,*nfil; char filname[BUFSZ];
 
 	p=skipbl(p); cp=filname;
 	if (*inp++=='<') {/* special <> syntax */
@@ -481,7 +488,7 @@ char * doincl(char *p){
 	if (ifno+1 >=MAXINC) {
 		pperror("Unreasonable include nesting",0); return(p);
 	}
-	if((nfil=savch)>sbf+SBSIZE-BUFSIZ) {pperror("no space"); exit(exfail);}
+	if((nfil=savch)>sbf+SBSIZE-BUFSZ) {pperror("no space"); exit(exfail);}
 	filok=0;
 	for (dirp=dirs+inctype; *dirp; ++dirp) {
 		if (
@@ -519,9 +526,9 @@ char * dodef(char *p){/* process '#define' */
 	char **pf,**qf; int16_t b,c,params; struct symtab *np;
 	char *oldval,*oldsavch;
 	char *formal[MAXFRM]; /* formal[n] is name of nth formal */
-	char formtxt[BUFSIZ]; /* space for formal names */
+	char formtxt[BUFSZ]; /* space for formal names */
 
-	if (savch>sbf+SBSIZE-BUFSIZ) {pperror("too much defining"); return(p);}
+	if (savch>sbf+SBSIZE-BUFSZ) {pperror("too much defining"); return(p);}
 	oldsavch=savch; /* to reclaim space if redefinition */
 	++flslvl; /* prevent macro expansion during 'define' */
 	p=skipbl(p); pin=inp;
@@ -532,9 +539,7 @@ char * dodef(char *p){/* process '#define' */
 	if (oldval=np->value) savch=oldsavch;	/* was previously defined */
 	b=1; cf=pin;
 	while (cf<p) {/* update macbit */
-		c= *cf++; xmac1(c,b,|=); b=(b+b)&0xFF;
-		if (cf!=p) xmac2(c,*cf,-1+(cf-pin),|=);
-		else xmac2(c,0,-1+(cf-pin),|=);
+		c= *cf++;  b=(b+b)&0xFF;
 	}
 	params=0; outp=inp=p; p=cotoken(p); pin=inp;
 	if (*pin=='(') {/* with parameters; identify the formals */
@@ -600,8 +605,8 @@ char * dodef(char *p){/* process '#define' */
 	--flslvl; inp=pin; savch=psav; return(p);
 }
 
-#define fasscan() ptrtab=fastab+COFF
-#define sloscan() ptrtab=slotab+COFF
+static void fasscan(void) { ptrtab = fastab + COFF; }
+static void sloscan(void) { ptrtab = slotab + COFF; }
 
 char * control(char *p){/* find and handle preprocessor control lines */
 	register struct symtab *np;
@@ -653,7 +658,7 @@ for (;;) {
 }
 
 struct symtab * stsym(char *s){
-	char buf[BUFSIZ]; register char *p;
+	char buf[BUFSZ]; register char *p;
 
 	/* make definition look exactly like end of #define line */
 	/* copy to avoid running off end of world when param list is at end */
@@ -745,7 +750,7 @@ char * subst(char *p, struct symtab *sp){
 	static char match[]="%s: argument mismatch";
 	register char *ca,*vp; int16_t params;
 	char *actual[MAXFRM]; /* actual[n] is text of nth actual */
-	char acttxt[BUFSIZ]; /* space for actuals */
+	char acttxt[BUFSZ]; /* space for actuals */
 
 	if (0==(vp=sp->value)) return(p);
 	if ((p-macforw)<=macdam) {
@@ -780,7 +785,7 @@ char * subst(char *p, struct symtab *sp){
 					if (*inp==')' && --plvl==0) {--params; break;}
 					if (plvl==1 && *inp==',') {--params; break;}
 					while (inp<p) *ca++= *inp++;
-					if (ca> &acttxt[BUFSIZ])
+					if (ca> &acttxt[BUFSZ])
 						pperror("%s: actuals too long",sp->name);
 				}
 				if (pa>= &actual[MAXFRM]) ppwarn(match,sp->name);
@@ -819,7 +824,7 @@ char * trmdir(char *s){
 	return(s);
 }
 
-STATIC char * copy(char *s){
+char * copy(char *s){
 	register char *old;
 
 	old = savch; while (*savch++ = *s++);
@@ -907,7 +912,7 @@ int16_t main(int16_t argc, char *argv[])
 	[i don't see what the problem is.  jfr]
 */
 				} else if (fout==stdout) {
-					STATIC char _sobuf[BUFSIZ];	/* host fix: V7's libc exported this */
+					char _sobuf[BUFSZ];	/* host fix: V7's libc exported this */
 					if (NULL==(fout=fopen(argv[i], "w"))) {
 						pperror("Can't create %s", argv[i]); exit(8);
 					} else {fclose(stdout); setbuf(fout,_sobuf);}
@@ -945,7 +950,7 @@ int16_t main(int16_t argc, char *argv[])
 		lookup(*cp2++, DROP);
 	}
 	fnames[ifno]=tf;
-	pbeg=buffer+8; pbuf=pbeg+BUFSIZ; pend=pbuf+BUFSIZ;
+	pbeg=buffer+8; pbuf=pbeg+BUFSZ; pend=pbuf+BUFSZ;
 
 	trulvl = 0; flslvl = 0;
 	lineno[0] = 1; sayline();
