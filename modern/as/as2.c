@@ -92,10 +92,6 @@ static struct sym2 symtab[] = {
 	{ 030, 072000 },   /* ash */
 	{ 030, 073000 },   /* ashc */
 };
-#define NSYM ((int)(sizeof symtab / sizeof symtab[0]))
-#define dot    (symtab[0].value)
-#define dotrel (symtab[0].type)
-#define dotdot (symtab[1].value)
 
 /* ------------------------------------------------------------- data (as28.s) */
 static char qnl[] = "?\n";
@@ -106,19 +102,8 @@ static char *a_outp = aout_name;                   /* -o name */
 /* the seek table (as28.s): txtseek, datseek, gap, trelseek, drelseek,
  * gap, symseek -- indexed by 4*(type-025) bytes in the section switch. */
 static uint32_t seeks[7];
-#define txtseek  seeks[0]
-#define datseek  seeks[1]
-#define trelseek seeks[3]
-#define drelseek seeks[4]
-#define symseek  seeks[6]
 
 static int sizes[6];   /* txtsiz,datsiz,bsssiz,symsiz,stksiz,exorig */
-#define txtsiz sizes[0]
-#define datsiz sizes[1]
-#define bsssiz sizes[2]
-#define symsiz sizes[3]
-#define stksiz sizes[4]
-#define exorig sizes[5]
 
 /* an output buffer: 8-byte header + 512 bytes of words */
 struct obuf {
@@ -147,7 +132,6 @@ static int  line;
 static intptr_t savop;                 /* token save: holds a symbol pointer */
 static int  curfb[20];                 /* curfb[0..9] + nxtfb[0..9], adjacent
                                           in the original (as28.s) */
-#define nxtfb (curfb + 10)
 static int  numval, maxtyp;
 static int  swapf, rlimit, passno;
 static int  endtable;
@@ -280,7 +264,7 @@ static void fbadv(void)
 	int idx = r4;
 	int p;
 	r4 <<= 1;                              /* asl r4: r4 = 2*idx */
-	p = nxtfb[idx];
+	p = (curfb + 10)[idx];
 	curfb[idx] = p;
 	if (p != 0)
 		p += 4;
@@ -293,7 +277,7 @@ static void fbadv(void)
 			break;
 		p += 4;                            /* add $4,r1 */
 	}
-	nxtfb[idx] = p;
+	(curfb + 10)[idx] = p;
 	r4 >>= 1;                              /* asr r4 */
 }
 
@@ -335,8 +319,8 @@ static void flush(struct obuf *b)
  * outw / outb -- as22.s.  Emit a word/byte with its relocation entry.
  */
 
-static uint32_t *tseekp = &txtseek;    /* text seek/size accumulator */
-static uint32_t *rseekp = &trelseek;   /* text-relocation seek/size */
+static uint32_t *tseekp = &seeks[0];    /* text seek/size accumulator */
+static uint32_t *rseekp = &seeks[3];   /* text-relocation seek/size */
 
 static void outb(void);
 
@@ -345,17 +329,17 @@ static void outw(void)
 	int pcrel;
 	int rel;
 
-	if (dotrel == 4) {                 /* cmp dot-2,$4: bss mode */
+	if (symtab[0].type == 4) {                 /* cmp dot-2,$4: bss mode */
 		error('x');
 		return;
 	}
-	if (dot & 1) {                     /* bit $1,dot: odd address */
+	if (symtab[0].value & 1) {                     /* bit $1,dot: odd address */
 		error('o');
 		r3 = 0;
 		outb();
 		return;
 	}
-	dot += 2;
+	symtab[0].value += 2;
 	if (!passno)                       /* tstb passno; beq 8f */
 		return;
 	pcrel = (r3 & 0100000) ? 1 : 0;    /* rol r3; adc (sp): pcrel flag is bit 15 */
@@ -372,9 +356,9 @@ static void outw(void)
 		}
 		if (r3 >= 2 && r3 <= 4) {      /* text/data/bss */
 			if (!pcrel)
-				r2 += dotdot;          /* add dotdot,r2 */
+				r2 += symtab[1].value;          /* add symtab[1].value,r2 */
 		} else if (pcrel) {
-			r2 -= dotdot;              /* sub dotdot,r2 */
+			r2 -= symtab[1].value;              /* sub symtab[1].value,r2 */
 		}
 		rel = r3 - 1;                  /* dec r3; bpl 3f */
 		if (rel < 0)
@@ -389,17 +373,17 @@ static void outw(void)
 
 static void outb(void)
 {
-	if (dotrel == 4) {                 /* bss */
+	if (symtab[0].type == 4) {                 /* bss */
 		error('x');
 		return;
 	}
 	if (r3 > 1)                        /* relocatable byte */
 		error('r');
 	if (!passno) {
-		dot++;
+		symtab[0].value++;
 		return;
 	}
-	if (dot & 1) {                     /* odd: patch the last word's high byte */
+	if (symtab[0].value & 1) {                     /* odd: patch the last word's high byte */
 		((unsigned char *)txtp.next)[-1] = (unsigned char)(r2 & 0xFF);
 	} else {
 		putw(&txtp, r2);
@@ -407,21 +391,20 @@ static void outb(void)
 		*tseekp += 2;
 		*rseekp += 2;
 	}
-	dot++;
+	symtab[0].value++;
 }
 
 /* ------------------------------------------------------------- expression
  * evaluator (as27.s) with the pass-2 relocation matrix.
  */
 
-#define ESTK 64
+enum { ESTK = 64 };
 static int estk[ESTK];
 static int *sp = estk + ESTK;
-#define PUSH(x) (*(--sp) = (x))
-#define POP()    (*sp++)
+static void push(int x) { *--sp = x; }
+static int  pop(void)   { return *sp++; }
 
-#define X (-2)
-#define M (-1)
+enum { M = -1, X = -2 };
 static const signed char reltp2[36] = {
 	0,0,0,0,0,0,  0,M,2,3,4,040,  0,2,X,X,X,X,
 	0,3,X,X,X,X,  0,4,X,X,X,X,    0,040,X,X,X,X,
@@ -543,16 +526,16 @@ static void exnum1(void)
 
 static void brack(void)
 {
-	PUSH(r2);
-	PUSH(r3);
+	push(r2);
+	push(r3);
 	readop();
 	expres1();
 	if (r4 != ']')
 		error(']');
 	r0 = r3;
 	r1 = r2;
-	r3 = POP();
-	r2 = POP();
+	r3 = pop();
+	r2 = pop();
 	oprand();
 }
 
@@ -642,7 +625,7 @@ static void advanc(void)
 
 static void expres1(void)
 {
-	PUSH('+');
+	push('+');
 	r2 = 0;
 	r3 = 1;
 	proc_token();
@@ -729,23 +712,23 @@ static void getx(void)
 		checkreg();
 		checkrp();
 		r2 |= 060;                     /* mode 6 */
-		r2 |= POP();
+		r2 |= pop();
 		return;
 	}
 	if (r3 == 024) {                   /* register */
 		checkreg();
-		r2 |= POP();
+		r2 |= pop();
 		return;
 	}
 	{                                  /* relative: X(pc) */
-		int off = r2 - dot - 4;
+		int off = r2 - symtab[0].value - 4;
 		if (adrp != adrbuf)
 			off -= 2;
 		*adrp++ = off;                 /* index */
 		*adrp++ = r3 | 0100000;        /* index reloc (mark estimated) */
 		*adrp++ = (int)xsymbol;        /* index global */
 		r2 = 067;                      /* mode 6, reg 7 */
-		r2 |= POP();
+		r2 |= pop();
 	}
 }
 
@@ -758,10 +741,10 @@ static void alp(void)                  /* (rN)+ */
 	if (r4 == '+') {
 		readop();
 		r2 |= 020;                     /* mode 2 */
-		r2 |= POP();
+		r2 |= pop();
 		return;
 	}
-	if (POP() != 0) {                  /* tst (sp)+: an index follows */
+	if (pop() != 0) {                  /* tst (sp)+: an index follows */
 		r2 |= 070;                     /* mode 7 (indirect) */
 		*adrp++ = 0;
 		*adrp++ = 0;
@@ -779,7 +762,7 @@ static void amin(void)                 /* -(rN) or unary minus */
 		expres();
 		checkrp();
 		checkreg();
-		r2 |= POP();
+		r2 |= pop();
 		r2 |= 040;                     /* mode 4 */
 		return;
 	}
@@ -795,13 +778,13 @@ static void adoll(void)                /* $immediate */
 	*adrp++ = r2;
 	*adrp++ = r3;
 	*adrp++ = (int)xsymbol;
-	r2 = POP();
+	r2 = pop();
 	r2 |= 027;                         /* mode 2, reg 7 */
 }
 
 static void addres(void)
 {
-	PUSH(0);                           /* clr -(sp): index-present flag */
+	push(0);                           /* clr -(sp): index-present flag */
 	for (;;) {                         /* 4: (as26.s:380) */
 		if (r4 == '(') { alp(); return; }
 		if (r4 == '-') { amin(); return; }
@@ -823,7 +806,7 @@ static int setbr(int target)
 		return 2;
 	{
 		int bit = brtabp & 7, byte = brtabp >> 3;
-		int off = target - dot;
+		int off = target - symtab[0].value;
 		brtabp++;
 		if (off > 0)
 			off -= brdelt;
@@ -849,7 +832,7 @@ static int getbr(void)
 /* the double-operand tail: push source mode, read dest, encode, emit */
 static void op2a(void)
 {
-	PUSH(r2);                          /* mov r2,-(sp) */
+	push(r2);                          /* mov r2,-(sp) */
 	readop();
 	addres();                          /* dest */
 	if (swapf) {                       /* swap source/dest */
@@ -860,8 +843,8 @@ static void op2a(void)
 	*sp = swab16(*sp) >> 2;            /* source mode field */
 	if ((unsigned)*sp >= (unsigned)rlimit)
 		error('x');
-	r2 |= POP();                       /* dest | source field */
-	r2 |= POP();                       /* | opcode */
+	r2 |= pop();                       /* dest | source field */
+	r2 |= pop();                       /* | opcode */
 	r3 = 0;
 	outw();
 	{
@@ -902,29 +885,29 @@ static void opl11(void)                /* sys, emt */
 	expres();
 	if ((unsigned)r2 >= 256 || r3 > 1)
 		errora();
-	r2 |= POP();
+	r2 |= pop();
 	outw();
 }
 static void opl10(void)                /* rts */
 {
 	expres();
 	checkreg();
-	r2 |= POP();
+	r2 |= pop();
 	outw();
 }
 
 static void dobranch(void)             /* branch emit: r2/r3 already set by expres */
 {
 	if (passno) {
-		int off = r2 - dot;
-		if (off >= -254 && off <= 256 && !(off & 1) && r3 == dotrel)
+		int off = r2 - symtab[0].value;
+		if (off >= -254 && off <= 256 && !(off & 1) && r3 == symtab[0].type)
 			r2 = ((off >> 1) - 1) & 0377;
 		else {
 			error('b');
 			r2 = 0;
 		}
 	}
-	r2 |= POP();
+	r2 |= pop();
 	r3 = 0;
 	outw();
 }
@@ -944,8 +927,8 @@ static void opl31(void)                /* sob */
 	readop();
 	expres();
 	if (passno) {
-		int off = dot - r2 + 4;        /* sub dot,r2; neg r2; add $4,r2 */
-		if (off >= -2 && off <= 0175 && !(off & 1) && r3 == dotrel)
+		int off = symtab[0].value - r2 + 4;        /* sub dot,r2; neg r2; add $4,r2 */
+		if (off >= -2 && off <= 0175 && !(off & 1) && r3 == symtab[0].type)
 			r2 = ((off >> 1) - 1) & 0377;
 		else {
 			error('b');
@@ -954,7 +937,7 @@ static void opl31(void)                /* sob */
 	} else {
 		r2 = 0;
 	}
-	r2 |= POP();
+	r2 |= pop();
 	r3 = 0;
 	outw();
 }
@@ -966,7 +949,7 @@ static void opl35(void)                /* jbr */
 		int size = setbr(r2);
 		if (size != 0 && *sp != 0400)  /* not br -> +jmp */
 			size += 2;
-		dot += size + 2;
+		symtab[0].value += size + 2;
 		sp++;
 		return;
 	}
@@ -975,9 +958,9 @@ static void opl35(void)                /* jbr */
 		return;
 	}
 	{
-		int opcode = POP();
-		PUSH(r2);
-		PUSH(r3);
+		int opcode = pop();
+		push(r2);
+		push(r3);
 		if (opcode != 0400) {          /* invert condition + jmp */
 			r2 = 0402 ^ opcode;
 			r3 = 1;
@@ -986,8 +969,8 @@ static void opl35(void)                /* jbr */
 		r3 = 1;
 		r2 = 0000100 + 037;            /* jmp @(pc)+ */
 		outw();
-		r3 = POP();
-		r2 = POP();
+		r3 = pop();
+		r2 = pop();
 		outw();
 	}
 }
@@ -996,14 +979,14 @@ static void opl36(void) { opl35(); }   /* jeq, jne, ... share jbr */
 
 static void opl15(void)                /* single operand */
 {
-	PUSH(0);                           /* clr -(sp) */
+	push(0);                           /* clr -(sp) */
 	addres();                          /* operand already read by opline */
 	/* (no swap for single) */
 	*sp = swab16(*sp) >> 2;
 	if ((unsigned)*sp >= (unsigned)rlimit)
 		error('x');
-	r2 |= POP();
-	r2 |= POP();
+	r2 |= pop();
+	r2 |= pop();
 	r3 = 0;
 	outw();
 	{
@@ -1045,13 +1028,13 @@ static void opl17(void)                /* .ascii */
 
 static void opl20(void)                /* .even */
 {
-	if (dot & 1) {
-		if (dotrel != 4) {
+	if (symtab[0].value & 1) {
+		if (symtab[0].type != 4) {
 			r2 = 0;
 			r3 = 0;
 			outb();
 		} else {
-			dot++;
+			symtab[0].value++;
 		}
 	}
 	sp++;
@@ -1080,19 +1063,19 @@ static void opl23(void)                /* .globl */
 
 static void section(int type)          /* .text/.data/.bss */
 {
-	dot++;
-	dot &= ~1;
-	savdot[dotrel - 2] = dot;          /* save current dot */
+	symtab[0].value++;
+	symtab[0].value &= ~1;
+	savdot[symtab[0].type - 2] = symtab[0].value;          /* save current dot */
 	if (passno) {
 		flush(&txtp);
 		flush(&relp);
 		tseekp = &seeks[0] + (type - 025);
 		oset(&txtp, *tseekp);
-		rseekp = tseekp + 3;           /* trelseek is 3 entries on */
+		rseekp = tseekp + 3;           /* seeks[3] is 3 entries on */
 		oset(&relp, *rseekp);
 	}
-	dot = savdot[type - 025];
-	dotrel = type - 023;
+	symtab[0].value = savdot[type - 025];
+	symtab[0].type = type - 023;
 	sp++;                              /* tst (sp)+: pop the opcode */
 }
 static void opl25(void) { section(025); }
@@ -1154,7 +1137,7 @@ static void opline(void)
 			xpr();
 			return;
 		}
-		PUSH(*(uint16_t *)((unsigned char *)r4 + 2));  /* mov 2(r4),-(sp) */
+		push(*(uint16_t *)((unsigned char *)r4 + 2));  /* mov 2(r4),-(sp) */
 		adrp = adrbuf;                 /* mov $adrbuf,r5 */
 		swapf = 0;
 		rlimit = -1;
@@ -1232,16 +1215,16 @@ static void assem(void)
 		expres();
 		if (label == (intptr_t)&symtab[0]) {   /* assigning to dot */
 			r3 &= ~040;
-			if (r3 != dotrel) {
+			if (r3 != symtab[0].type) {
 				error('.');
 				goto ealoop_x;
 			}
 			if (r3 == 4) {             /* bss */
-				dot = r2;
+				symtab[0].value = r2;
 				goto dotmax;
 			}
 			{
-				int n = r2 - dot;
+				int n = r2 - symtab[0].value;
 				if (n < 0) {
 					error('.');
 					goto ealoop_x;
@@ -1272,26 +1255,26 @@ static void assem(void)
 		if (label >= 0200) {           /* symbol */
 			unsigned char *p = (unsigned char *)label;
 			if (passno) {
-				if (*(uint16_t *)(p + 2) != dot)
+				if (*(uint16_t *)(p + 2) != symtab[0].value)
 					error('p');        /* phase error */
 			} else {
 				int t = p[0] & 037;
 				if (t != 0 && !(t >= 033 && t <= 034))
 					error('m');
 				p[0] &= ~037;
-				p[0] |= dotrel;
-				brdelt = *(uint16_t *)(p + 2) - dot;
-				*(uint16_t *)(p + 2) = dot;
+				p[0] |= symtab[0].type;
+				brdelt = *(uint16_t *)(p + 2) - symtab[0].value;
+				*(uint16_t *)(p + 2) = symtab[0].value;
 			}
 		} else if (label == 2) {       /* numeric label */
 			r4 = numval;
 			fbadv();
 			{
 				int p = curfb[numval];
-				usymtab[p] = (unsigned char)dotrel;
-				brdelt = (usymtab[p + 2] | (usymtab[p + 3] << 8)) - dot;
-				usymtab[p + 2] = (unsigned char)(dot & 0xFF);
-				usymtab[p + 3] = (unsigned char)((dot >> 8) & 0xFF);
+				usymtab[p] = (unsigned char)symtab[0].type;
+				brdelt = (usymtab[p + 2] | (usymtab[p + 3] << 8)) - symtab[0].value;
+				usymtab[p + 2] = (unsigned char)(symtab[0].value & 0xFF);
+				usymtab[p + 3] = (unsigned char)((symtab[0].value >> 8) & 0xFF);
 			}
 		} else {
 			error('x');
@@ -1304,8 +1287,8 @@ static void assem(void)
 	r4 = label;
 	opline();
 dotmax:
-	if (!passno && dot > sizes[dotrel - 2])
-		sizes[dotrel - 2] = dot;
+	if (!passno && symtab[0].value > sizes[symtab[0].type - 2])
+		sizes[symtab[0].type - 2] = symtab[0].value;
 	ealoop_x:
 	ealoop();
 }
@@ -1331,9 +1314,9 @@ static void doreloc(unsigned char *p)
 static void setup(void)
 {
 	int i;
-	for (i = 0; i < 10; i++) {         /* curfb+40. == curfb[10] + nxtfb[10] */
+	for (i = 0; i < 10; i++) {         /* curfb+40. == curfb[10] + (curfb + 10)[10] */
 		curfb[i] = 0;
-		nxtfb[i] = 0;
+		(curfb + 10)[i] = 0;
 	}
 	fin = txtfil;
 	ibufc = 0;
@@ -1354,7 +1337,7 @@ static void go(void)
 	/* read the symbol table into usymtab (4-byte entries) */
 	for (;;) {
 		if (getw()) break;             /* name word 0 */
-		symsiz += 12;
+		sizes[3] += 12;
 		getw(); getw(); getw(); getw();/* name words 1-3, type -> r4 */
 		if (off + 8 >= cap)
 			usymtab = realloc(usymtab, cap += 512);
@@ -1402,41 +1385,41 @@ static void go(void)
 		saexit();
 
 	/* prepare for pass 2 */
-	dot = 0;
-	dotrel = 2;
-	dotdot = 0;
+	symtab[0].value = 0;
+	symtab[0].type = 2;
+	symtab[1].value = 0;
 	brtabp = 0;
 	close(fin);
 	fin = (char)ofile(a_tmp1);
 	ibufc = 0;
 	setup();
 	passno++;
-	bsssiz = (bsssiz + 1) & ~1;
-	txtsiz = (txtsiz + 1) & ~1;
-	datsiz = (datsiz + 1) & ~1;
-	datbase = txtsiz;
-	savdot[1] = txtsiz;
-	bssbase = txtsiz + datsiz;
+	sizes[2] = (sizes[2] + 1) & ~1;
+	sizes[0] = (sizes[0] + 1) & ~1;
+	sizes[1] = (sizes[1] + 1) & ~1;
+	datbase = sizes[0];
+	savdot[1] = sizes[0];
+	bssbase = sizes[0] + sizes[1];
 	savdot[2] = bssbase;
-	symseek = 2 * (txtsiz + datsiz) + 16;
-	drelseek = symseek - datsiz;       /* = 2*txtsiz + datsiz + 16 */
-	trelseek = drelseek - txtsiz;      /* = txtsiz + datsiz + 16 */
-	datseek = trelseek - datsiz;       /* = txtsiz + 16 */
-	txtseek = 16;                      /* as28.s: txtseek: 0; 20 */
+	seeks[6] = 2 * (sizes[0] + sizes[1]) + 16;
+	seeks[4] = seeks[6] - sizes[1];       /* = 2*sizes[0] + sizes[1] + 16 */
+	seeks[3] = seeks[4] - sizes[0];      /* = sizes[0] + sizes[1] + 16 */
+	seeks[1] = seeks[3] - sizes[1];       /* = sizes[0] + 16 */
+	seeks[0] = 16;                      /* as28.s: seeks[0]: 0; 20 */
 
 	for (i = 0; i < endtable; i += 4)
 		doreloc(usymtab + i);
 
 	oset(&txtp, 0);
-	oset(&relp, trelseek);
+	oset(&relp, seeks[3]);
 	/* the a.out header (8 words): 0407 magic + sizes */
 	putw(&txtp, 0407);
-	putw(&txtp, txtsiz);
-	putw(&txtp, datsiz);
-	putw(&txtp, bsssiz);
-	putw(&txtp, symsiz);
-	putw(&txtp, stksiz);
-	putw(&txtp, exorig);
+	putw(&txtp, sizes[0]);
+	putw(&txtp, sizes[1]);
+	putw(&txtp, sizes[2]);
+	putw(&txtp, sizes[3]);
+	putw(&txtp, sizes[4]);
+	putw(&txtp, sizes[5]);
 	putw(&txtp, 0);
 
 	assem();                           /* pass 2 */
@@ -1448,7 +1431,7 @@ static void go(void)
 	fin = symf;
 	(void)lseek(fin, 0, 0);
 	ibufc = 0;
-	oset(&txtp, symseek);
+	oset(&txtp, seeks[6]);
 	i = 0;
 	for (;;) {
 		if (getw()) break;

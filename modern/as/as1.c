@@ -91,8 +91,8 @@ struct sym {
 /*
  * Builtin symbol table, transcribed byte-for-byte from as19.s.  type/value
  * fields are the original's octal literals (C 0-prefixed octal is the same
- * value).  The first two entries carry the location counter as their
- * value/type words, which is why `dot`/`dotrel`/`dotdot` are macros below.
+ * value).  The first two entries carry the location counter, so the code
+ * reads it as symtab[0].value (dot) and symtab[0].type (dotrel).
  */
 static struct sym symtab[] = {
 	/* special variables */
@@ -256,12 +256,9 @@ static struct sym symtab[] = {
 	{ "ash",      030, 072000 },
 	{ "ashc",     030, 073000 },
 };
-#define NSYM ((int)(sizeof symtab / sizeof symtab[0]))
-#define ebsymtab ((unsigned char *)(symtab + NSYM))
+enum { NSYM = (int)(sizeof symtab / sizeof symtab[0]) };
 
 /* the location counter and its relocation type live in symtab[0] */
-#define dot    (symtab[0].value)
-#define dotrel (symtab[0].type)
 
 /* .data section (as18.s).  `namedone` (as18.s:26) is declared in the source
  * but never referenced anywhere in pass 1, so it is omitted here. */
@@ -275,7 +272,7 @@ static uint16_t *obufp;                /* points into outbuf, a word at a time *
 char   curfbr[10];                     /* forward-ref types, 10 bytes */
 int    savdot[3];                      /* save area for .text/.data/.bss dot */
 int    bufcnt;
-#define HSHSIZ 3001
+enum { HSHSIZ = 3001 };
 unsigned char *hshtab[HSHSIZ];         /* hash buckets: pointer to a sym entry */
 char   pof;                            /* output file descriptor */
 char   wordf;
@@ -301,7 +298,7 @@ unsigned char nxtfb[4];                /* forward-ref record: type, idx, value *
 unsigned char *usymtab;
 unsigned char *symend;                 /* current end of user symtab */
 
-#define SYMENT 12                      /* bytes per symbol-table entry */
+enum { SYMENT = 12 };                  /* bytes per symbol-table entry */
 
 static void aexit(void);               /* as11.s:33 */
 
@@ -645,7 +642,7 @@ static int number(void)
 static void setup(void)
 {
 	struct sym *s;
-	for (s = symtab; (unsigned char *)s < ebsymtab; s++) {
+	for (s = symtab; (unsigned char *)s < (unsigned char *)(symtab + NSYM); s++) {
 		int hash = symhash(s->name);
 		int idx = hash % HSHSIZ;
 		int step = hash / HSHSIZ;
@@ -985,11 +982,11 @@ static void readop(void)
  * become the two switches below.
  */
 
-#define ESTK 64
+enum { ESTK = 64 };
 static int estk[ESTK];                 /* the PDP-11 SP stack */
 static int *sp = estk + ESTK;
-#define PUSH(x) (*(--sp) = (x))
-#define POP()    (*sp++)
+static void push(int x) { *--sp = x; }
+static int  pop(void)   { return *sp++; }
 
 static void errore(void) { error('e'); }   /* as16.s:279 */
 
@@ -1061,16 +1058,16 @@ static void exnum(void)                /* as17.s:80 */
 
 static void brack(void)                /* as17.s:85 */
 {
-	PUSH(r2);
-	PUSH(r3);
+	push(r2);
+	push(r3);
 	readop();
 	expres();
 	if (r4 != ']')
 		error(']');
 	r0 = r3;
 	r1 = r2;
-	r3 = POP();
-	r2 = POP();
+	r3 = pop();
+	r2 = pop();
 	oprand();
 }
 
@@ -1160,7 +1157,7 @@ static void advanc(void)               /* as17.s:13 */
 
 static void expres(void)               /* as17.s:6 */
 {
-	PUSH('+');                         /* mov $'+,-(sp) */
+	push('+');                         /* mov $'+,-(sp) */
 	opfound = 0;
 	r2 = 0;
 	r3 = 1;
@@ -1230,11 +1227,11 @@ static void assem(void)
 					continue;
 				return;
 			}
-			if (label == (intptr_t)&dotrel) {   /* assigning to dot */
+			if (label == (intptr_t)&symtab[0].type) {   /* assigning to dot */
 				r3 &= ~040;
-				if (r3 != dotrel) {
+				if (r3 != symtab[0].type) {
 					error('.');
-					dotrel = 2;
+					symtab[0].type = 2;
 					if (ealoop())
 						continue;
 					return;
@@ -1258,16 +1255,16 @@ static void assem(void)
 				unsigned char *p = (unsigned char *)label;
 				if (p[0] & 037)            /* bitb $37,(r4) */
 					error('m');
-				p[0] |= (unsigned char)dotrel;     /* bisb dot-2,(r4) */
-				*(uint16_t *)(p + 2) = dot;        /* mov dot,2(r4) */
+				p[0] |= (unsigned char)symtab[0].type;     /* bisb dot-2,(r4) */
+				*(uint16_t *)(p + 2) = symtab[0].value;        /* mov dot,2(r4) */
 			} else if (label == 1) {       /* numeric label (forward ref) */
 				int idx = fbcheck(numval);
-				curfbr[idx] = (char)dotrel;        /* movb dotrel,curfbr(r0) */
-				nxtfb[0] = (unsigned char)dotrel;  /* movb dotrel,nxtfb */
+				curfbr[idx] = (char)symtab[0].type;        /* movb dotrel,curfbr(r0) */
+				nxtfb[0] = (unsigned char)symtab[0].type;  /* movb dotrel,nxtfb */
 				nxtfb[1] = (unsigned char)(2 * idx);   /* movb r0,nxtfb+1 */
-				nxtfb[2] = (unsigned char)(dot & 0xFF); /* mov dot,nxtfb+2 */
-				nxtfb[3] = (unsigned char)((dot >> 8) & 0xFF);
-				curfb[idx] = dot;          /* mov dot,curfb(r0) */
+				nxtfb[2] = (unsigned char)(symtab[0].value & 0xFF); /* mov dot,nxtfb+2 */
+				nxtfb[3] = (unsigned char)((symtab[0].value >> 8) & 0xFF);
+				curfb[idx] = symtab[0].value;          /* mov dot,curfb(r0) */
 				if (write(fbfil, nxtfb, 4) != 4)
 					wrterr();
 			} else {
@@ -1322,7 +1319,7 @@ static void opl36(void);
 static void xpr(void)
 {
 	expres();
-	dot += 2;
+	symtab[0].value += 2;
 }
 
 /* checkreg -- as16.s:267: register number 0..7, absolute or special type. */
@@ -1349,7 +1346,7 @@ static void getx(void)
 		expres();
 		checkreg();
 		checkrp();
-		dot += 2;
+		symtab[0].value += 2;
 		r0 = 0;
 		return;
 	}
@@ -1358,7 +1355,7 @@ static void getx(void)
 		r0 = 0;
 		return;
 	}
-	dot += 2;
+	symtab[0].value += 2;
 	r0 = 0;
 }
 
@@ -1399,7 +1396,7 @@ static void adoll(void)
 {
 	readop();
 	expres();
-	dot += 2;
+	symtab[0].value += 2;
 	r0 = 0;
 }
 
@@ -1410,7 +1407,7 @@ static void astar(void)
 	if (r4 == '*')
 		error('*');
 	addres();
-	dot += r0;
+	symtab[0].value += r0;
 }
 
 /* addres -- as16.s:186: dispatch on the leading operand character. */
@@ -1427,14 +1424,14 @@ static void addres(void)
 static void opl6(void)
 {
 	expres();
-	dot += 2;
+	symtab[0].value += 2;
 }
 
 /* single operand -- as16.s:89 */
 static void opl15(void)
 {
 	addres();
-	dot += 2;
+	symtab[0].value += 2;
 }
 
 /* double operand -- as16.s:79 */
@@ -1464,7 +1461,7 @@ static void opl16(void)
 {
 	for (;;) {
 		expres();
-		dot++;
+		symtab[0].value++;
 		if (r4 != ',')
 			break;
 		readop();
@@ -1474,15 +1471,15 @@ static void opl16(void)
 /* .ascii / <string> -- as16.s:122 */
 static void opl17(void)
 {
-	dot += numval;
+	symtab[0].value += numval;
 	readop();
 }
 
 /* .even -- as16.s:128 */
 static void opl20(void)
 {
-	dot++;
-	dot &= ~1;
+	symtab[0].value++;
+	symtab[0].value &= ~1;
 }
 
 /* .if -- as16.s:134 */
@@ -1513,9 +1510,9 @@ static void opl23(void)
 static void section(int type)
 {
 	int ns = type - 023;                   /* 025->2, 026->3, 027->4 */
-	savdot[dotrel - 2] = dot;
-	dot = savdot[ns - 2];
-	dotrel = ns;
+	savdot[symtab[0].type - 2] = symtab[0].value;
+	symtab[0].value = savdot[ns - 2];
+	symtab[0].type = ns;
 }
 static void opl25(void) { section(025); }
 static void opl26(void) { section(026); }
@@ -1541,12 +1538,12 @@ static void opl35(void)
 {
 	int size = 4;
 	expres();
-	if (r3 == dotrel) {
-		int off = r2 - dot;
+	if (r3 == symtab[0].type) {
+		int off = r2 - symtab[0].value;
 		if (off < 0 && off >= -0254)       /* -376 octal = -254 */
 			size = 2;
 	}
-	dot += size;
+	symtab[0].value += size;
 }
 
 /* jeq, jne, ... -- as16.s:63 */
@@ -1554,12 +1551,12 @@ static void opl36(void)
 {
 	int size = 6;
 	expres();
-	if (r3 == dotrel) {
-		int off = r2 - dot;
+	if (r3 == symtab[0].type) {
+		int off = r2 - symtab[0].value;
 		if (off < 0 && off >= -0254)
 			size = 2;
 	}
-	dot += size;
+	symtab[0].value += size;
 }
 
 /* opline -- as16.s:6: dispatch one line's opcode/directive on its type. */
