@@ -26,8 +26,10 @@ This gives two usage styles from one layout:
 Important limit, stated plainly: the tools are *cross*-compilers (host amd64
 binaries that emit PDP-11 assembly and link host libc), not PDP-11 emulation.
 The immersive mode gives a V7-flavored *build* environment, not a V7 userspace.
-Today it covers the compiler/assembler/linker; `make` and `sh` are not ported
-yet, so the immersive story for whole-tree builds is still incomplete.
+Today it covers the compiler/assembler/linker; `make`, `yacc`, `sh` and the
+command utilities (`cp`/`rm`/`cmp`/`mv`/`echo`/…) are ported next (phase 1,
+`modern/` — see §7), so the immersive story for whole-tree builds is still
+incomplete.
 
 ## 2. `v7env` (build this first)
 
@@ -138,22 +140,32 @@ by translating the first line or invoking through a wrapper, not by kernel magic
 
 ## 7. Sequencing
 
+The port lives in **`modern/`** (phase 1: everything the *toolchain* build
+needs) and **`modern2/`** (phase 2: whole-tree only). The split rule is: if a
+command is needed by phase 1 it goes in `modern/`, not `modern2/`.
+
+- **`modern/` (phase 1, compile the toolchain)** — `cc` `cpp` `c0` `c1` `c2`
+  `as` `as2` `ld` (all done) **plus** `make` `yacc` `sh` `mv` `cp` `rm` `cmp`
+  (pending).  The toolchain build genuinely uses them: `sh` (globs
+  `as1?.s`/`y?.o`, redirection `cvopt <table.s >table.i`), `mv` (implicit
+  `.y.c` rule `mv y.tab.c $@`), `rm` (c/makefile `rm table.i`), `cp`/`cmp`
+  (install/verify targets).
+- **`modern2/` (phase 2, whole tree)** — `lex` `ar` `echo` `cat` `touch`
+  `mkdir` `grep` `chmod` `chown` `ls` `du` `sed` `tar` `tp` `size` `install`
+  `pr` `diff` `strip`.
+
+Sequencing:
+
 1. **`v7env`** - ship it (PATH + env, no deps); document explicit vs immersive.
-2. **Step 1: build the toolchain, pure C** - `make`, `yacc`, `cp`, `rm`,
-   `cmp`, `touch`, `ls`, `diff` (all pure C; the `cc`/`as`/`ld` passes are
-   done).
-3. **Step 2: toolchain `.s`** - none; no toolchain-build tool has assembly.
-4. **Step 3: whole tree, pure C** - `lex`, `ar`, `sh`, `sed`, `tar`, `tp`,
-   `grep`, `mv`, `ln`, `mkdir`, `chmod`, `chown`, `cat`, `echo`, `pr`,
-   `strip`, `size`, `install`, `du`, and the rest, with original V7 behavior.
-5. **Step 4: whole tree, assembly** - `factor`, `primes`, `bas`, `roff`,
-   `standalone`.
-6. **Isolation chamber on `fakeroot`** - keep the toolchain binaries
-   dynamically linked (the default) so `libfakeroot` can preload and fake
-   `chown`/`mknod` for image `mkfs` and packaging; use the `cc` driver's
-   compiled-in paths plus a `chroot`/`jail` (or `proot -b`) only for the
-   absolute-path stragglers, driven by a helper script.
-7. **`v7crosscompile`** - the full-tree wrapper; first milestone is building one
+2. **Phase 1 pure C** - `make`, `yacc`, `sh`, `mv`, `cp`, `rm`, `cmp` (the
+   `cc`/`as`/`ld` passes are done).
+3. **Phase 2 pure C** - `lex` `ar` `echo` `cat` `touch` `mkdir` `grep`
+   `chmod` `chown` `ls` `du` `sed` `tar` `tp` `size` `install` `pr` `diff`
+   `strip`, with original V7 behavior.
+4. **Whole tree, assembly** - `factor`, `primes`, `bas`, `roff`, `standalone`.
+5. **Isolation / test harness** - `tools/v7check.sh` (built) runs the original
+   makefiles + source inside a synthetic V7 root; see §9.
+6. **`v7crosscompile`** - the full-tree wrapper; first milestone is building one
    V7 tool from `orig/` source, not `make`-ing the whole userland, because the
    `c99/` staging area exists precisely because the source does not compile
    as-is.
@@ -168,3 +180,46 @@ by translating the first line or invoking through a wrapper, not by kernel magic
 - Confirm fakeroot's dynamic-linking requirement across the distros (any tool
   that must be faked by `libfakeroot` cannot be static); does any target tool
   need static linking for a different reason?
+
+## 9. Test harness (`tools/v7check.sh`) — built
+
+`tools/v7check.sh` runs the *original* makefiles + source against the *ported*
+`modern/` tools inside a synthetic V7 root. It:
+
+1. Gunzips V7 headers from `unixtree/V7/usr/include` into a staging
+   `/usr/include` (with `sys/`).
+2. Sets the `cc` driver's `V7_*` overrides (`V7_C0/C1/C2/CPP/AS/LD/CRT0/LIB`)
+   to the built `modern/` passes + target runtime, and prepends
+   `modern/usr/src/cmd` + `modern/usr/src/cmd/as` to `PATH` (so bare
+   `cc`/`as`/`ld`/`make`/`yacc` in the makefiles resolve to the ports).
+3. Runs under `unshare -r -m` (Linux user + mount namespace), bind-mounting the
+   synthetic V7 headers onto `/usr/include` for the duration — because cpp
+   hardcodes `/usr/include` for `<stdio.h>`, and `as/makefile` reads
+   `/usr/include/sys.s` literally.
+
+### fakeroot vs `unshare -r -m`
+
+The original plan (§4) named fakeroot primary. Testing on this host found the
+two do **not** compose:
+
+- `fakeroot unshare -r -m` → `unshare: write failed /proc/self/uid_map:
+  Operation not permitted` (libfakeroot intercepts the uid_map write).
+- `unshare -r -m -- fakeroot` → `chown` fails with `EINVAL` on unmapped ids.
+
+`unshare -r -m` alone gives real uid-0 inside the namespace — enough for bind
+mounts and chmod/mknod — without root, and it *redirects paths* (which
+fakeroot cannot: its `chroot` is faked). For a compile-only build we need path
+redirection, not chown-to-arbitrary-uid, so the harness uses `unshare -r -m`.
+fakeroot remains the fallback for *privilege-only* steps (mkfs device nodes,
+ar archive ownership) on hosts where unprivileged user namespaces are disabled.
+
+### Status / blocker
+
+The harness works end-to-end (stages headers, binds `/usr/include`, drives the
+real `cc`). It surfaced, and drove to fix, the port bugs that blocked the
+toolchain-from-`orig` build: the c0/c1 "readable null page" crashes
+(`disarray(NULL)` in `build()`, `chkleaf()`'s uninitialised `tr2`), the
+assembler's `section()` opcode-pop leak, and the c1 codegen NUL/octal-sign
+drift.  With those fixed, `v7check cc -c cpp.c` produces `cpp.o` byte-identical
+to V7's own assembler.  See PORTING.md §4.
+
