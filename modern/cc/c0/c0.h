@@ -15,32 +15,36 @@
  * parameters
  */
 
-#define	LTYPE	int32_t	/* change to int if no long consts */
-#define	MAXINT	077777	/* Largest positive short integer */
-#define	MAXUINT	0177777	/* largest unsigned integer */
-#define	NCPS	8	/* # chars per symbol */
-#define	HSHSIZ	400	/* # entries in hash table for names */
-#define	CMSIZ	40	/* size of expression stack */
-#define	SSIZE	20	/* size of other expression stack */
-#define	SWSIZ	230	/* size of switch table */
-#define	NMEMS	128	/* Number of members in a structure */
-#define	NBPW	16	/* bits per word, object machine */
-#define	NBPC	8	/* bits per character, object machine */
-#define	NCPW	2	/* chars per word, object machine */
-#define	LNCPW	2	/* chars per word, compiler's machine */
-#define	STAUTO	(-6)	/* offset of first auto variable */
-#define	STARG	4	/* offset of first argument */
+typedef int32_t LTYPE; /* change to int if no long consts */
+enum {
+	MAXINT = 077777,	/* Largest positive short integer */
+	MAXUINT = 0177777,	/* largest unsigned integer */
+	NCPS = 8,	/* # chars per symbol */
+	HSHSIZ = 400,	/* # entries in hash table for names */
+	CMSIZ = 40,	/* size of expression stack */
+	SSIZE = 20,	/* size of other expression stack */
+	SWSIZ = 230,	/* size of switch table */
+	NMEMS = 128,	/* Number of members in a structure */
+	NBPW = 16,	/* bits per word, object machine */
+	NBPC = 8,	/* bits per character, object machine */
+	NCPW = 2,	/* chars per word, object machine */
+	LNCPW = 2,	/* chars per word, compiler's machine */
+	STAUTO = (-6),	/* offset of first auto variable */
+	STARG = 4,	/* offset of first argument */
+};
 
 
 /*
  * # bytes in primitive types
  */
-#define	SZCHAR	1
-#define	SZINT	2
-#define	SZPTR	2
-#define	SZFLOAT	4
-#define	SZLONG	4
-#define	SZDOUB	8
+enum {
+	SZCHAR = 1,
+	SZINT = 2,
+	SZPTR = 2,
+	SZFLOAT = 4,
+	SZLONG = 4,
+	SZDOUB = 8,
+};
 
 struct node;	/* forward: node is a tagged union of tree + namelist shapes */
 
@@ -263,240 +267,272 @@ void outcode(char *s, ...);
 /*
   operators
 */
-#define	EOFC	0
-#define	NULLOP	218
-#define	SEMI	1
-#define	LBRACE	2
-#define	RBRACE	3
-#define	LBRACK	4
-#define	RBRACK	5
-#define	LPARN	6
-#define	RPARN	7
-#define	COLON	8
-#define	COMMA	9
-#define	FSEL	10
-#define	CAST	11
-#define	ETYPE	12
+enum {
+	EOFC = 0,
+	NULLOP = 218,
+	SEMI = 1,
+	LBRACE = 2,
+	RBRACE = 3,
+	LBRACK = 4,
+	RBRACK = 5,
+	LPARN = 6,
+	RPARN = 7,
+	COLON = 8,
+	COMMA = 9,
+	FSEL = 10,
+	CAST = 11,
+	ETYPE = 12,
+};
 
-#define	KEYW	19
-#define	NAME	20
-#define	CON	21
-#define	STRING	22
-#define	FCON	23
-#define	SFCON	24
-#define	LCON	25
-#define	SLCON	26
+enum {
+	KEYW = 19,
+	NAME = 20,
+	CON = 21,
+	STRING = 22,
+	FCON = 23,
+	SFCON = 24,
+	LCON = 25,
+	SLCON = 26,
+};
 
-#define	SIZEOF	91
-#define	INCBEF	30
-#define	DECBEF	31
-#define	INCAFT	32
-#define	DECAFT	33
-#define	EXCLA	34
-#define	AMPER	35
-#define	STAR	36
-#define	NEG	37
-#define	COMPL	38
+enum {
+	SIZEOF = 91,
+	INCBEF = 30,
+	DECBEF = 31,
+	INCAFT = 32,
+	DECAFT = 33,
+	EXCLA = 34,
+	AMPER = 35,
+	STAR = 36,
+	NEG = 37,
+	COMPL = 38,
+};
 
-#define	DOT	39
-#define	PLUS	40
-#define	MINUS	41
-#define	TIMES	42
-#define	DIVIDE	43
-#define	MOD	44
-#define	RSHIFT	45
-#define	LSHIFT	46
-#define	AND	47
-#define	OR	48
-#define	EXOR	49
-#define	ARROW	50
-#define	ITOF	51
-#define	FTOI	52
-#define	LOGAND	53
-#define	LOGOR	54
-#define	FTOL	56
-#define	LTOF	57
-#define	ITOL	58
-#define	LTOI	59
-#define	ITOP	13
-#define	PTOI	14
-#define	LTOP	15
+enum {
+	DOT = 39,
+	PLUS = 40,
+	MINUS = 41,
+	TIMES = 42,
+	DIVIDE = 43,
+	MOD = 44,
+	RSHIFT = 45,
+	LSHIFT = 46,
+	AND = 47,
+	OR = 48,
+	EXOR = 49,
+	ARROW = 50,
+	ITOF = 51,
+	FTOI = 52,
+	LOGAND = 53,
+	LOGOR = 54,
+	FTOL = 56,
+	LTOF = 57,
+	ITOL = 58,
+	LTOI = 59,
+	ITOP = 13,
+	PTOI = 14,
+	LTOP = 15,
+};
 
-#define	EQUAL	60
-#define	NEQUAL	61
-#define	LESSEQ	62
-#define	LESS	63
-#define	GREATEQ	64
-#define	GREAT	65
-#define	LESSEQP	66
-#define	LESSP	67
-#define	GREATQP	68
-#define	GREATP	69
+enum {
+	EQUAL = 60,
+	NEQUAL = 61,
+	LESSEQ = 62,
+	LESS = 63,
+	GREATEQ = 64,
+	GREAT = 65,
+	LESSEQP = 66,
+	LESSP = 67,
+	GREATQP = 68,
+	GREATP = 69,
+};
 
-#define	ASPLUS	70
-#define	ASMINUS	71
-#define	ASTIMES	72
-#define	ASDIV	73
-#define	ASMOD	74
-#define	ASRSH	75
-#define	ASLSH	76
-#define	ASSAND	77
-#define	ASOR	78
-#define	ASXOR	79
-#define	ASSIGN	80
+enum {
+	ASPLUS = 70,
+	ASMINUS = 71,
+	ASTIMES = 72,
+	ASDIV = 73,
+	ASMOD = 74,
+	ASRSH = 75,
+	ASLSH = 76,
+	ASSAND = 77,
+	ASOR = 78,
+	ASXOR = 79,
+	ASSIGN = 80,
+};
 
-#define	QUEST	90
-#define	MAX	93
-#define	MAXP	94
-#define	MIN	95
-#define	MINP	96
-#define	SEQNC	97
-#define	CALL	100
-#define	MCALL	101
-#define	JUMP	102
-#define	CBRANCH	103
-#define	INIT	104
-#define	SETREG	105
-#define	RFORCE	110
-#define	BRANCH	111
-#define	LABEL	112
-#define	NLABEL	113
-#define	RLABEL	114
-#define	STRASG	115
-#define	ITOC	109
-#define	SEOF	200	/* stack EOF marker in expr compilation */
+enum {
+	QUEST = 90,
+	MAX = 93,
+	MAXP = 94,
+	MIN = 95,
+	MINP = 96,
+	SEQNC = 97,
+	CALL = 100,
+	MCALL = 101,
+	JUMP = 102,
+	CBRANCH = 103,
+	INIT = 104,
+	SETREG = 105,
+	RFORCE = 110,
+	BRANCH = 111,
+	LABEL = 112,
+	NLABEL = 113,
+	RLABEL = 114,
+	STRASG = 115,
+	ITOC = 109,
+	SEOF = 200,	/* stack EOF marker in expr compilation */
+};
 
 /*
   types
 */
-#define	INT	0
-#define	CHAR	1
-#define	FLOAT	2
-#define	DOUBLE	3
-#define	STRUCT	4
-#define	LONG	6
-#define	UNSIGN	7
-#define	UNION	8		/* adjusted later to struct */
+enum {
+	INT = 0,
+	CHAR = 1,
+	FLOAT = 2,
+	DOUBLE = 3,
+	STRUCT = 4,
+	LONG = 6,
+	UNSIGN = 7,
+	UNION = 8,	/* adjusted later to struct */
+};
 
-#define	ALIGN	01
-#define	TYPE	07
-#define	BIGTYPE	060000
-#define	TYLEN	2
-#define	XTYPE	(03<<3)
-#define	PTR	010
-#define	FUNC	020
-#define	ARRAY	030
+enum {
+	ALIGN = 01,
+	TYPE = 07,
+	BIGTYPE = 060000,
+	TYLEN = 2,
+	XTYPE = (03<<3),
+	PTR = 010,
+	FUNC = 020,
+	ARRAY = 030,
+};
 
 /*
   storage classes
 */
-#define	KEYWC	1
-#define	DEFXTRN	20
-#define	TYPEDEF	9
-#define	MOS	10
-#define	AUTO	11
-#define	EXTERN	12
-#define	STATIC	13
-#define	REG	14
-#define	STRTAG	15
-#define ARG	16
-#define	ARG1	17
-#define	AREG	18
-#define	MOU	21
-#define	ENUMTAG	22
-#define	ENUMCON	24
+enum {
+	KEYWC = 1,
+	DEFXTRN = 20,
+	TYPEDEF = 9,
+	MOS = 10,
+	AUTO = 11,
+	EXTERN = 12,
+	STATIC = 13,
+	REG = 14,
+	STRTAG = 15,
+	ARG = 16,
+	ARG1 = 17,
+	AREG = 18,
+	MOU = 21,
+	ENUMTAG = 22,
+	ENUMCON = 24,
+};
 
 /*
   keywords
 */
-#define	GOTO	20
-#define	RETURN	21
-#define	IF	22
-#define	WHILE	23
-#define	ELSE	24
-#define	SWITCH	25
-#define	CASE	26
-#define	BREAK	27
-#define	CONTIN	28
-#define	DO	29
-#define	DEFAULT	30
-#define	FOR	31
-#define	ENUM	32
+enum {
+	GOTO = 20,
+	RETURN = 21,
+	IF = 22,
+	WHILE = 23,
+	ELSE = 24,
+	SWITCH = 25,
+	CASE = 26,
+	BREAK = 27,
+	CONTIN = 28,
+	DO = 29,
+	DEFAULT = 30,
+	FOR = 31,
+	ENUM = 32,
+};
 
 /*
   characters
 */
-#define	BSLASH	117
-#define	SHARP	118
-#define	INSERT	119
-#define	PERIOD	120
-#define	SQUOTE	121
-#define	DQUOTE	122
-#define	LETTER	123
-#define	DIGIT	124
-#define	NEWLN	125
-#define	SPACE	126
-#define	UNKN	127
+enum {
+	BSLASH = 117,
+	SHARP = 118,
+	INSERT = 119,
+	PERIOD = 120,
+	SQUOTE = 121,
+	DQUOTE = 122,
+	LETTER = 123,
+	DIGIT = 124,
+	NEWLN = 125,
+	SPACE = 126,
+	UNKN = 127,
+};
 
 /*
  * Special operators in intermediate code
  */
-#define	BDATA	200
-#define	WDATA	201
-#define	PROG	202
-#define	DATA	203
-#define	BSS	204
-#define	CSPACE	205
-#define	SSPACE	206
-#define	SYMDEF	207
-#define	SAVE	208
-#define	RETRN	209
-#define	EVEN	210
-#define	PROFIL	212
-#define	SWIT	213
-#define	EXPR	214
-#define	SNAME	215
-#define	RNAME	216
-#define	ANAME	217
-#define	SETSTK	219
-#define	SINIT	220
+enum {
+	BDATA = 200,
+	WDATA = 201,
+	PROG = 202,
+	DATA = 203,
+	BSS = 204,
+	CSPACE = 205,
+	SSPACE = 206,
+	SYMDEF = 207,
+	SAVE = 208,
+	RETRN = 209,
+	EVEN = 210,
+	PROFIL = 212,
+	SWIT = 213,
+	EXPR = 214,
+	SNAME = 215,
+	RNAME = 216,
+	ANAME = 217,
+	SETSTK = 219,
+	SINIT = 220,
+};
 
 /*
   Flag bits
 */
 
-#define	BINARY	01
-#define	LVALUE	02
-#define	RELAT	04
-#define	ASSGOP	010
-#define	LWORD	020
-#define	RWORD	040
-#define	COMMUTE	0100
-#define	RASSOC	0200
-#define	LEAF	0400
+enum {
+	BINARY = 01,
+	LVALUE = 02,
+	RELAT = 04,
+	ASSGOP = 010,
+	LWORD = 020,
+	RWORD = 040,
+	COMMUTE = 0100,
+	RASSOC = 0200,
+	LEAF = 0400,
+};
 
 /*
  * Conversion codes
  */
-#define	ITF	1
-#define	ITL	2
-#define	LTF	3
-#define	ITP	4
-#define	PTI	5
-#define	FTI	6
-#define	LTI	7
-#define	FTL	8
-#define	LTP	9
-#define	ITC	10
-#define	XX	15
+enum {
+	ITF = 1,
+	ITL = 2,
+	LTF = 3,
+	ITP = 4,
+	PTI = 5,
+	FTI = 6,
+	LTI = 7,
+	FTL = 8,
+	LTP = 9,
+	ITC = 10,
+	XX = 15,
+};
 
 /*
  * symbol table flags
  */
 
-#define	FMOS	01
-#define	FKEYW	04
-#define	FFIELD	020
-#define	FINIT	040
-#define	FLABL	0100
+enum {
+	FMOS = 01,
+	FKEYW = 04,
+	FFIELD = 020,
+	FINIT = 040,
+	FLABL = 0100,
+};
 

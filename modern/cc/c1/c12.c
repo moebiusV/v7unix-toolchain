@@ -606,7 +606,7 @@ struct node *lvfield(struct node *at)
 	return(t);
 }
 
-#define	LSTSIZ	20
+enum { LSTSIZ = 20 };
 struct acl {
 	int16_t nextl;
 	int16_t nextn;

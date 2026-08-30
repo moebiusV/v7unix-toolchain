@@ -120,11 +120,12 @@ loop:
 		goto loop;
 
 	case AUTOI:
-		printf("(r%d)%c", p->u.tname.nloc, flag==1?0:'+');
+		/* V7 printed the +/nothing with a NUL %c; glibc emits the NUL byte. */
+		printf("(r%d)%s", p->u.tname.nloc, flag==1?"":"+");
 		return;
 
 	case AUTOD:
-		printf("%c(r%d)", flag==2?0:'-', p->u.tname.nloc);
+		printf("%s(r%d)", flag==2?"":"-", p->u.tname.nloc);
 		return;
 
 	case STAR:
@@ -779,7 +780,7 @@ int16_t psoct(int16_t an)
 /*
  * Read in an intermediate file.
  */
-#define	STKS	100
+enum { STKS = 100 };
 void getree(void)
 {
 	struct node *expstack[STKS];
@@ -808,7 +809,8 @@ void getree(void)
 			exit(1);
 		}
 		lbl = 0;
-		switch(op &= 0377) {
+		op &= 0377;
+		switch(op) {
 
 	case SINIT:
 		printf("%o\n", geti());
@@ -891,7 +893,9 @@ void getree(void)
 
 	case ANAME:
 		outname(s);
-		printf("~%s=%o\n", s+1, geti());
+		/* geti() is a 16-bit auto/stack offset; mask so %o doesn't print it
+		   sign-extended to 32 bits (V7: `177770`, host would print `37777777770`). */
+		printf("~%s=%o\n", s+1, geti() & 0177777);
 		break;
 
 	case RNAME:

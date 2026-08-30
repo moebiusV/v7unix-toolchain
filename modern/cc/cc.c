@@ -52,7 +52,7 @@ char	*chpass ;
 char	*npassname ;
 /* host fix: V7 sized these at 20 bytes for its short /lib paths; a -B dir
    with a modern path would overflow them, so use a generous fixed size. */
-#define PASSLEN 512
+enum { PASSLEN = 512 };
 /* Defaults are the *installed* locations: every binary (the passes and the
    driver alike) lives under V7_LIBEXECDIR with its original V7 name, and the
    target runtime under V7_LIBDIR.  configure bakes these in via config.h; the

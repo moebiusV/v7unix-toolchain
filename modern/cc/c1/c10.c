@@ -12,10 +12,14 @@
 #include <unistd.h>
 #include <stdint.h>
 
-#define	dbprint(op)	/* */
+static void dbprint(int op)
+{
 #ifdef	DEBUG
-#define	dbprint(op)	printf("	/ %s", opntab[op])
+	printf("	/ %s", opntab[op]);
+#else
+	(void)op;
 #endif
+}
 
 char	maprel[] = {	EQUAL, NEQUAL, GREATEQ, GREAT, LESSEQ,
 			LESS, GREATQP, GREATP, LESSEQP, LESSP
@@ -50,6 +54,7 @@ int main(int argc, char *argv[])
 		error("Can't create %s", argv[3]);
 		exit(1);
 	}
+
 	funcbase = curbase = mmap(NULL, 16<<20, PROT_READ|PROT_WRITE,
 				   MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 	if (funcbase == MAP_FAILED) {
@@ -93,8 +98,7 @@ int main(int argc, char *argv[])
  */
 struct optab *match(struct node *atree, struct table *table, int16_t nrleft, int16_t nocvt)
 {
-#define	NOCVL	1
-#define	NOCVR	2
+	enum { NOCVL = 1, NOCVR = 2 };
 	int16_t op, d1, d2, dope;
 	struct node *p2;
 	register struct node *p1, *tree;
@@ -375,12 +379,12 @@ again:
 					printf("mov\tr%d,-(sp)\n",r+1);
 					nstack++;
 				}
-				printf("mov%c	r%d,%c(sp)\n", modf, r,
-					table==sptab? '-':0);
+				printf("mov%s	r%d,%s(sp)\n", modf?"f":"", r,
+					table==sptab? "-":"");
 				nstack++;
 			}
 			if (table==cctab)
-				printf("tst%c	r%d\n", modf, r);
+				printf("tst%s	r%d\n", modf?"f":"", r);
 			return(r);
 		}
 	}
@@ -480,7 +484,7 @@ int16_t cexpr(struct node *atree, struct table *table, int16_t areg)
 	 * Because of a peculiarity of the PDP11 table
 	 * char = *intreg++ and *--intreg cannot go through.
  	 */
-	if (tree->u.tnode.tr1->type==CHAR && tree->u.tnode.tr2->type!=CHAR
+	if (tree->u.tnode.tr2!=NULL && tree->u.tnode.tr1->type==CHAR && tree->u.tnode.tr2->type!=CHAR
 	 && (tree->u.tnode.tr2->op==AUTOI||tree->u.tnode.tr2->op==AUTOD))
 		tree->u.tnode.tr2 = tnode(LOAD, tree->u.tnode.tr2->type, tree->u.tnode.tr2, NULL);
 	if (table==cregtab)
@@ -1016,6 +1020,7 @@ int16_t chkleaf(struct node *atree, struct table *table, int16_t reg)
 	lbuf.type = tree->type;
 	lbuf.u.tnode.degree = tree->u.tnode.degree;
 	lbuf.u.tnode.tr1 = tree;
+	lbuf.u.tnode.tr2 = NULL;	/* LOAD is unary; V7 left this garbage (null-page reads) */
 	return(rcexpr(&lbuf, table, reg));
 }
 
@@ -1197,5 +1202,5 @@ void movreg(int16_t r0, int16_t r1, struct node *tree)
 			printf(s, r0,r1,r0+1,r1+1);
 		return;
 	}
-	printf("mov%c	r%d,r%d\n", isfloat(tree), r0, r1);
+	printf("mov%s	r%d,r%d\n", isfloat(tree)?"f":"", r0, r1);
 }
