@@ -332,6 +332,32 @@ every arithmetic step back to 56 bits via `pdp11_round`.  That reproduces V7's
 per-step rounding — `ecvt.c`'s `.03` comes out as `0xf5c3`, not glibc's
 53-bit-rounded `0xf5c0`.
 
+### 4.9 Branch relaxation and a C-octal-literal trap
+
+V7's assembler relaxes out-of-range branches (`jbr`/`jeq`/…) into `jmp @(pc)+`
+jumps.  The pass-1 size estimate lives in `as1.c` `opl35`/`opl36`, translated
+from `as16.s`:
+
+```asm
+	cmp	r2,$-376	/ branch fits?  off >= -254 decimal
+	blt	1f
+	mov	$2,(sp)		/ yes -> 2-byte branch
+```
+
+`$-376` is PDP-11 *octal*: `0376` = 254 decimal, so the test is "backward
+branch within 254 bytes".  The naive C port wrote `off >= -0254`, but in C
+`0254` is an **octal** literal = 172 decimal, so the test became "within 172
+bytes".  Any backward branch in `[-254, -172)` was then mis-sized in pass 1,
+shifting the label estimates that pass 2's `brdelt` relaxation uses — which is
+why `doscan.o` came out 2 bytes larger than the disk image's, while `c0`/`c1`/
+`c2` were all byte-identical.  The fix is the decimal literal `-254`.
+
+The lesson generalises to every `$-…` / `.`-suffixed operand in the V7 asm:
+PDP-11 `as` reads bare numbers as octal and a trailing `.` as decimal, so a
+faithful C port must decide per-literal whether the source meant octal or
+decimal and write it accordingly (`0…` or bare decimal) — never transcribe the
+PDP-11 digit string verbatim.
+
 ## 5. What the port produced
 
 Both halves now build as host binaries:

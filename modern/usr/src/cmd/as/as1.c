@@ -1540,7 +1540,7 @@ static void opl35(void)
 	expres();
 	if (r3 == symtab[0].type) {
 		int off = r2 - symtab[0].value;
-		if (off < 0 && off >= -0254)       /* -376 octal = -254 */
+		if (off < 0 && off >= -254)        /* $-376 octal = -254 decimal */
 			size = 2;
 	}
 	symtab[0].value += size;
@@ -1553,7 +1553,7 @@ static void opl36(void)
 	expres();
 	if (r3 == symtab[0].type) {
 		int off = r2 - symtab[0].value;
-		if (off < 0 && off >= -0254)
+		if (off < 0 && off >= -254)
 			size = 2;
 	}
 	symtab[0].value += size;

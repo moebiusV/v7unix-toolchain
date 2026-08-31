@@ -18,6 +18,5 @@ startup and the C library.  They install to `${libdir}/v7unix/`.
 
 `libc.a` carries csv/cret/cerror, the arithmetic helpers, printf, write, exit,
 and the rest of V7's C library, compiled by our own toolchain.  Its member
-bytes are byte-identical to the V7 disk image's `/lib/libc.a` (152 of 153
-members; `doscan.o` differs by a c2 peephole-optimizer gap, see PORTING.md).
-The archive timestamp differs, being a fresh build.
+bytes are byte-identical to the V7 disk image's `/lib/libc.a` (all 153
+members).  The archive timestamp differs, being a fresh build.
