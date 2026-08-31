@@ -62,6 +62,17 @@ The default prefix is `/usr/local` (the BSD convention); Linux distros pass
 
     v7cc hello.c -o hello
 
+## The self-hosting root (froot1, froot2)
+
+`make froot1` assembles `froot1/`, the minimal self-hosting cross-compilation
+root: the ported toolchain plus the phase-1 makefile commands
+(sh/cp/mv/rm/cmp), the V7 headers, and the reference source tree — enough to
+rebuild the toolchain subset (cc/as/ld and friends) from `orig/` using only
+the pieces inside `froot1/`.  `tools/selfhost.sh` runs that verification;
+`make froot1-dist` packs it as `froot1.tar.gz`.  `froot2/` — froot1 plus
+whatever else it takes to build the whole `/usr/src` tree — is the next
+milestone.
+
 ## Packaging
 
 Template packaging files for the major distributions ship in `dist/` (rpm,

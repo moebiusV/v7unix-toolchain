@@ -8,6 +8,10 @@ Packaging (done in 0.1.0)
   * dist/ template tree + README.distributions for 10 distributions.
 
 Remaining
+  * froot1 (the minimal self-hosting root) is DONE: tools/mkfroot.sh + `make
+    froot1` / `make froot1-dist`, verified by tools/selfhost.sh (compiles the
+    toolchain subset cc/as/ld + friends from orig/).
+  * froot2 — froot1 + whatever else it takes to build the whole /usr/src tree.
   Step 1 — build the toolchain, pure C: make, yacc, cp, rm, cmp, touch, ls,
   diff (all pure C; cc/cpp/c0/c1/c2/as/as2/ld already done).
   Step 2 — toolchain .s: none.
