@@ -254,9 +254,9 @@ time by feeding the port real V7 source (`tools/v7check.sh`).  Fixed so far:
   It sets `op`/`type`/`degree`/`tr1` but not `tr2`, then `cexpr` reads
   `tr2->type` (c10.c:483).  Set `lbuf.u.tnode.tr2 = NULL` and guarded the
   `tr2`-dereference with `tree->u.tnode.tr2!=NULL &&`.
-- **`c2` — `dualop()` dereferences a `NULL` `code` string** (a `MOV` node whose
-  operand string was empty, so `copy()` returned 0).  Not yet fixed at the time
-  of writing; see §7.
+- **`c2` — `dualop()`/`singop()` dereference a `NULL` `code` string** (a `MOV`
+  node whose operand string was empty, so `copy()` returned 0).  Fixed: both
+  early-return when `code` is `NULL` (the PDP-11 read the null page there).
 - **`c1` — `xdcalc()` reads `p->type` on a `NULL` node.**  `dcalc()` already
   returns 0 for `p==NULL`, but `xdcalc()` then did `if (d<20 && p->type==CHAR)`
   with `p` still `NULL`.  Guarded the dereference (`crypt.c` was the first file
@@ -472,22 +472,18 @@ PDP-11 `a.out` files and can poke the running kernel), so there is no useful
 "run it on the host" target.  Its "port" is purely source modernization so pcc
 cross-compiles it for pdp11.
 
-* **Byte-identical verification** — run the host `c0`/`c1` against the real V7
-  compiler on real V7-era sources and diff the assembly (the `runv7` helper
-  boots a real V7 for this).
+**Done:** `tools/v7check.sh tools/check-tools.sh` rebuilds every binary the
+modern/ port builds — `cc ld cp mv rm cmp ar c0 c1 c2 as as2 cpp make yacc sh`,
+plus `crt0`/`fcrt0`/`mcrt0`/`fmcrt0` and `libc.a`'s 153 members — from `orig/`
+source with the ported toolchain and diffs each against the V7 reference.  All
+byte-identical (§4.6, §4.9, §4.10 record the fixes that got it there).
+
+Still open:
+
 * **Float/endianness** — confirm the double-as-two-words handling matches a
   real V7's, since it is the one place still endianness-sensitive.
 * **`adb`** (bucket 2) — modernize `cmd/adb/*.c` to the c99/pcc dialect so pcc
   cross-compiles it for pdp11.
-* **Wire `cpp` and the `cc` driver** — to turn the passes into a single
-  cross-compiling `cc`.
-* **`c0` segfault on real V7 source** — `tools/v7check.sh` surfaced this:
-  cross-compiling the original `cmd/cc.c` crashes `c0` in `disarray(NULL)`
-  (a NULL node on the expression stack, reached `build()` → `tree()` →
-  `statement()`; `CMSIZ=40` overflow is separately checked and errors cleanly,
-  so it's a logic bug, not a size bug).  Trivial files compile; real V7 sources
-  with deep/compound expressions trip it.  Blocks the toolchain-from-`orig`
-  build until fixed.
 
 ## 8. The build tools: make, yacc — a third kind of port
 
