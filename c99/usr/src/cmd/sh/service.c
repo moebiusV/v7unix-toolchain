@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 
-PROC VOID	gsort();
+static VOID gsort();
 
 #define ARGMK	01
 
@@ -273,7 +273,7 @@ STRING mactrim(STRING s)
 
 STRING * scan(INT argn)
 {
-	REG ARGPTR	argp = Rcheat(gchain)&~ARGMK;
+	REG ARGPTR	argp = (ARGPTR)(Rcheat(gchain)&~ARGMK);
 	REG STRING	*comargn, *comargm;
 
 	comargn=getstak(BYTESPERWORD*argn+BYTESPERWORD); comargm = comargn += argn; *comargn = ENDARGS;
@@ -288,7 +288,7 @@ STRING * scan(INT argn)
 			comargm = comargn;
 		FI
 		/* Lcheat(argp) &= ~ARGMK; */
-		argp = Rcheat(argp)&~ARGMK;
+		argp = (ARGPTR)(Rcheat(argp)&~ARGMK);
 	OD
 	return(comargn);
 }
@@ -351,10 +351,10 @@ static INT split(STRING s)
 		ELIF c==0
 		THEN	s--;
 		FI
-		IF c=expand((argp=endstak(argp))->argval,0)
+		IF c=expand(((ARGPTR)(argp=endstak(argp)))->argval,0)
 		THEN	count += c;
 		ELSE	/* assign(&fngnod, argp->argval); */
-			makearg(argp); count++;
+			makearg((ARGPTR)argp); count++;
 		FI
 		Lcheat(gchain) |= ARGMK;
 	POOL

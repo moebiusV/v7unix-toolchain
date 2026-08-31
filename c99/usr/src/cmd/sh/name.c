@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <stdint.h>
 
-PROC BOOL	chkid();
+static BOOL chkid();
 
 
 NAMNOD	ps2nod	= {	NIL,		NIL,		ps2name},

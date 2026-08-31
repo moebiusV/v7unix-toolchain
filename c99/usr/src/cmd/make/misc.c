@@ -247,7 +247,7 @@ return(vp);
 int16_t fatal1(char *s, char *t)
 {
 char buf[100];
-fatal( sprintf(buf, s, t) );
+sprintf(buf, s, t); fatal(buf);
 }
 
 
@@ -271,7 +271,7 @@ int16_t yyerror(char *s)
 char buf[50];
 extern int16_t yylineno;
 
-fatal( sprintf(buf, "line %d: %s", yylineno, s) );
+sprintf(buf, "line %d: %s", yylineno, s); fatal(buf);
 }
 
 
@@ -306,7 +306,7 @@ static char qbuf[QBUFMAX];
 if(p == NULL)
 	{
 	qbuf[0] = '\0';
-	return;
+	return(qbuf);
 	}
 
 qbufp = qbuf;

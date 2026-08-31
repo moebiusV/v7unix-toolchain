@@ -18,25 +18,25 @@
  * Essentially all the work is in inserting
  * appropriate conversions.
  */
-struct tnode * block(int16_t op, int16_t t, int16_t *subs, struct str *str, struct tnode *p1, struct tnode *p2);
-struct cnode * cblock(int16_t v);
-struct tnode * chkfun(struct tnode *ap);
-int16_t chklval(struct tnode *ap);
-void chkw(struct tnode *p, int16_t okt);
-struct tnode * convert(struct tnode *p, int16_t t, int16_t cvn, int16_t len);
-struct tnode * disarray(struct tnode *ap);
+struct node * block(int16_t op, int16_t t, int16_t *subs, struct str *str, struct node *p1, struct node *p2);
+struct node * cblock(int16_t v);
+struct node * chkfun(struct node *ap);
+int16_t chklval(struct node *ap);
+void chkw(struct node *p, int16_t okt);
+struct node * convert(struct node *p, int16_t t, int16_t cvn, int16_t len);
+struct node * disarray(struct node *ap);
 int16_t error(int16_t s, int16_t p1, int16_t p2, int16_t p3, int16_t p4, int16_t p5, int16_t p6);
-int16_t fold(int16_t op, struct tnode *ap1, struct tnode *ap2);
+int16_t fold(int16_t op, struct node *ap1, struct node *ap2);
 char * gblock(int16_t n);
 int16_t lintyp(int16_t t);
-int16_t setype(struct tnode *ap, int16_t at, struct tnode *anewp);
+int16_t setype(struct node *ap, int16_t at, struct node *anewp);
 
 void build(int16_t op)
 {
 	register int16_t t1;
 	int16_t t2, t;
-	register struct tnode *p1, *p2;
-	struct tnode *p3;
+	register struct node *p1, *p2;
+	struct node *p3;
 	int16_t dope, leftc, cvn, pcvn;
 
 	/*
@@ -49,16 +49,16 @@ void build(int16_t op)
 	dope = opdope[op];
 	if ((dope&BINARY)!=0) {
 		p2 = chkfun(disarray(*--cp));
-		t2 = p2->type;
+		t2 = p2->u.tnode.type;
 	}
 	p1 = *--cp;
 	/*
 	 * sizeof gets turned into a number here.
 	 */
 	if (op==SIZEOF) {
-		t1 = cblock(length(p1));
-		t1->type = UNSIGN;
-		*cp++ = t1;
+		struct node *tn = cblock(length(p1));
+		tn->u.tnode.type = UNSIGN;
+		*cp++ = tn;
 		return;
 	}
 	if (op!=AMPER) {
@@ -66,7 +66,7 @@ void build(int16_t op)
 		if (op!=CALL)
 			p1 = chkfun(p1);
 	}
-	t1 = p1->type;
+	t1 = p1->u.tnode.type;
 	pcvn = 0;
 	t = INT;
 	switch (op) {
@@ -87,7 +87,7 @@ void build(int16_t op)
 
 	/* no-conversion operators */
 	case QUEST:
-		if (p2->op!=COLON)
+		if (p2->u.tnode.op!=COLON)
 			error("Illegal conditional");
 		else
 			if (fold(QUEST, p1, p2))
@@ -109,18 +109,18 @@ void build(int16_t op)
 	case CALL:
 		if ((t1&XTYPE) != FUNC)
 			error("Call of non-function");
-		*cp++ = block(CALL,decref(t1),p1->subsp,p1->strp,p1,p2);
+		*cp++ = block(CALL,decref(t1),p1->u.tnode.subsp,p1->u.tnode.strp,p1,p2);
 		return;
 
 	case STAR:
 		if ((t1&XTYPE) == FUNC)
 			error("Illegal indirection");
-		*cp++ = block(STAR, decref(t1), p1->subsp, p1->strp, p1);
+		*cp++ = block(STAR, decref(t1), p1->u.tnode.subsp, p1->u.tnode.strp, p1);
 		return;
 
 	case AMPER:
-		if (p1->op==NAME || p1->op==STAR) {
-			*cp++ = block(op,incref(t1),p1->subsp,p1->strp,p1);
+		if (p1->u.tnode.op==NAME || p1->u.tnode.op==STAR) {
+			*cp++ = block(op,incref(t1),p1->u.tnode.subsp,p1->u.tnode.strp,p1);
 			return;
 		}
 		error("Illegal lvalue");
@@ -130,7 +130,7 @@ void build(int16_t op)
 	 * a.b goes to (&a)->b
 	 */
 	case DOT:
-		if (p1->op==CALL && t1==STRUCT) {
+		if (p1->u.tnode.op==CALL && t1==STRUCT) {
 			t1 = incref(t1);
 			setype(p1, t1, p1);
 		} else {
@@ -145,20 +145,20 @@ void build(int16_t op)
 	 * then * is tacked on to access the member.
 	 */
 	case ARROW:
-		if (p2->op!=NAME || p2->tr1->hclass!=MOS) {
+		if (p2->u.tnode.op!=NAME || p2->u.tnode.tr1->u.hshtab.hclass!=MOS) {
 			error("Illegal structure ref");
 			*cp++ = p1;
 			return;
 		}
-		if (t2==INT && p2->tr1->hflag&FFIELD)
+		if (t2==INT && p2->u.tnode.tr1->u.hshtab.hflag&FFIELD)
 			t2 = UNSIGN;
 		t = incref(t2);
 		chkw(p1, -1);
 		setype(p1, t, p2);
-		*cp++ = block(PLUS,t,p2->subsp,p2->strp,p1,cblock(p2->tr1->hoffset));
+		*cp++ = block(PLUS,t,p2->u.tnode.subsp,p2->u.tnode.strp,p1,cblock(p2->u.tnode.tr1->u.hshtab.hoffset));
 		build(STAR);
-		if (p2->tr1->hflag&FFIELD)
-			*cp++ = block(FSEL,UNSIGN,NULL,NULL,*--cp,p2->tr1->hstrp);
+		if (p2->u.tnode.tr1->u.hshtab.hflag&FFIELD)
+			*cp++ = block(FSEL,UNSIGN,NULL,NULL,*--cp,p2->u.tnode.tr1->u.hshtab.hstrp);
 		return;
 	}
 	if ((dope&LVALUE)!=0)
@@ -173,12 +173,12 @@ void build(int16_t op)
 		else if (op==FTOI)
 			t1 = INT;
 		if (!fold(op, p1, 0))
-			*cp++ = block(op,t1,p1->subsp,p1->strp,p1);
+			*cp++ = block(op,t1,p1->u.tnode.subsp,p1->u.tnode.strp,p1);
 		return;
 	}
 	cvn = 0;
 	if (t1==STRUCT || t2==STRUCT) {
-		if (t1!=t2 || p1->strp != p2->strp)
+		if (t1!=t2 || p1->u.tnode.strp != p2->u.tnode.strp)
 			error("Incompatible structures");
 		cvn = 0;
 	} else
@@ -244,30 +244,30 @@ void build(int16_t op)
 	if (t==CHAR)
 		t = INT;
 	if (op==CAST) {
-		if (t!=DOUBLE && (t!=INT || p2->type!=CHAR)) {
-			p2->type = t;
-			p2->subsp = p1->subsp;
-			p2->strp = p1->strp;
+		if (t!=DOUBLE && (t!=INT || p2->u.tnode.type!=CHAR)) {
+			p2->u.tnode.type = t;
+			p2->u.tnode.subsp = p1->u.tnode.subsp;
+			p2->u.tnode.strp = p1->u.tnode.strp;
 		}
-		if (t==INT && p1->type==CHAR)
+		if (t==INT && p1->u.tnode.type==CHAR)
 			p2 = block(ITOC, INT, NULL, NULL, p2);
 		*cp++ = p2;
 		return;
 	}
 	if (fold(op, p1, p2)==0) {
 		p3 = leftc?p2:p1;
-		*cp++ = block(op, t, p3->subsp, p3->strp, p1, p2);
+		*cp++ = block(op, t, p3->u.tnode.subsp, p3->u.tnode.strp, p1, p2);
 	}
 	if (pcvn && t1!=(PTR+CHAR)) {
 		p1 = *--cp;
-		*cp++ = convert(p1, 0, PTI, plength(p1->tr1));
+		*cp++ = convert(p1, 0, PTI, plength(p1->u.tnode.tr1));
 	}
 }
 
 /*
  * Generate the appropriate conversion operator.
  */
-struct tnode * convert(struct tnode *p, int16_t t, int16_t cvn, int16_t len)
+struct node * convert(struct node *p, int16_t t, int16_t cvn, int16_t len)
 {
 	register int16_t op;
 
@@ -287,23 +287,23 @@ struct tnode * convert(struct tnode *p, int16_t t, int16_t cvn, int16_t len)
  * type at.
  * Used with structure references.
  */
-int16_t setype(struct tnode *ap, int16_t at, struct tnode *anewp)
+int16_t setype(struct node *ap, int16_t at, struct node *anewp)
 {
-	register struct tnode *p, *newp;
+	register struct node *p, *newp;
 	register int16_t t;
 
 	p = ap;
 	t = at;
 	newp = anewp;
-	for (;; p = p->tr1) {
-		p->subsp = newp->subsp;
-		p->strp = newp->strp;
-		p->type = t;
-		if (p->op==AMPER)
+	for (;; p = p->u.tnode.tr1) {
+		p->u.tnode.subsp = newp->u.tnode.subsp;
+		p->u.tnode.strp = newp->u.tnode.strp;
+		p->u.tnode.type = t;
+		if (p->u.tnode.op==AMPER)
 			t = decref(t);
-		else if (p->op==STAR)
+		else if (p->u.tnode.op==STAR)
 			t = incref(t);
-		else if (p->op!=PLUS)
+		else if (p->u.tnode.op!=PLUS)
 			break;
 	}
 }
@@ -312,14 +312,14 @@ int16_t setype(struct tnode *ap, int16_t at, struct tnode *anewp)
  * A mention of a function name is turned into
  * a pointer to that function.
  */
-struct tnode * chkfun(struct tnode *ap)
+struct node * chkfun(struct node *ap)
 {
-	register struct tnode *p;
+	register struct node *p;
 	register int16_t t;
 
 	p = ap;
-	if (((t = p->type)&XTYPE)==FUNC && p->op!=ETYPE)
-		return(block(AMPER,incref(t),p->subsp,p->strp,p));
+	if (((t = p->u.tnode.type)&XTYPE)==FUNC && p->u.tnode.op!=ETYPE)
+		return(block(AMPER,incref(t),p->u.tnode.subsp,p->u.tnode.strp,p));
 	return(p);
 }
 
@@ -327,17 +327,17 @@ struct tnode * chkfun(struct tnode *ap)
  * A mention of an array is turned into
  * a pointer to the base of the array.
  */
-struct tnode * disarray(struct tnode *ap)
+struct node * disarray(struct node *ap)
 {
 	register int16_t t;
-	register struct tnode *p;
+	register struct node *p;
 
 	p = ap;
 	/* check array & not MOS and not typer */
-	if (((t = p->type)&XTYPE)!=ARRAY || p->op==NAME&&p->tr1->hclass==MOS
-	 || p->op==ETYPE)
+	if (((t = p->u.tnode.type)&XTYPE)!=ARRAY || p->u.tnode.op==NAME&&p->u.tnode.tr1->u.hshtab.hclass==MOS
+	 || p->u.tnode.op==ETYPE)
 		return(p);
-	p->subsp++;
+	p->u.tnode.subsp++;
 	*cp++ = p;
 	setype(p, decref(t), p);
 	build(AMPER);
@@ -350,11 +350,11 @@ struct tnode * disarray(struct tnode *ap)
  * okt might be nonexistent or 'long'
  * (e.g. for <<).
  */
-void chkw(struct tnode *p, int16_t okt)
+void chkw(struct node *p, int16_t okt)
 {
 	register int16_t t;
 
-	if ((t=p->type)!=INT && t<PTR && t!=CHAR && t!=UNSIGN && t!=okt)
+	if ((t=p->u.tnode.type)!=INT && t<PTR && t!=CHAR && t!=UNSIGN && t!=okt)
 		error("Illegal type of operand");
 	return;
 }
@@ -402,60 +402,60 @@ int16_t error(int16_t s, int16_t p1, int16_t p2, int16_t p3, int16_t p4, int16_t
  * setting the operator, type, dimen/struct table ptrs,
  * and the operands.
  */
-struct tnode * block(int16_t op, int16_t t, int16_t *subs, struct str *str, struct tnode *p1, struct tnode *p2)
+struct node * block(int16_t op, int16_t t, int16_t *subs, struct str *str, struct node *p1, struct node *p2)
 {
-	register struct tnode *p;
+	register struct node *p;
 
 	p = gblock(sizeof(*p));
-	p->op = op;
-	p->type = t;
-	p->subsp = subs;
-	p->strp = str;
-	p->tr1 = p1;
+	p->u.tnode.op = op;
+	p->u.tnode.type = t;
+	p->u.tnode.subsp = subs;
+	p->u.tnode.strp = str;
+	p->u.tnode.tr1 = p1;
 	if (opdope[op]&BINARY)
-		p->tr2 = p2;
+		p->u.tnode.tr2 = p2;
 	else
-		p->tr2 = NULL;
+		p->u.tnode.tr2 = NULL;
 	return(p);
 }
 
-struct tnode * nblock(struct hshtab *ads)
+struct node * nblock(struct node *ads)
 {
-	register struct hshtab *ds;
+	register struct node *ds;
 
 	ds = ads;
-	return(block(NAME, ds->htype, ds->hsubsp, ds->hstrp, ds));
+	return(block(NAME, ds->u.hshtab.htype, ds->u.hshtab.hsubsp, ds->u.hshtab.hstrp, ds));
 }
 
 /*
  * Generate a block for a constant
  */
-struct cnode * cblock(int16_t v)
+struct node * cblock(int16_t v)
 {
-	register struct cnode *p;
+	register struct node *p;
 
 	p = gblock(sizeof(*p));
-	p->op = CON;
-	p->type = INT;
-	p->subsp = NULL;
-	p->strp = NULL;
-	p->value = v;
+	p->u.tnode.op = CON;
+	p->u.tnode.type = INT;
+	p->u.tnode.subsp = NULL;
+	p->u.tnode.strp = NULL;
+	p->u.cnode.value = v;
 	return(p);
 }
 
 /*
  * A block for a float or long constant
  */
-struct fnode * fblock(int16_t t, char *string)
+struct node * fblock(int16_t t, char *string)
 {
-	register struct fnode *p;
+	register struct node *p;
 
 	p = gblock(sizeof(*p));
-	p->op = FCON;
-	p->type = t;
-	p->subsp = NULL;
-	p->strp = NULL;
-	p->cstr = string;
+	p->u.tnode.op = FCON;
+	p->u.tnode.type = t;
+	p->u.tnode.subsp = NULL;
+	p->u.tnode.strp = NULL;
+	p->u.fnode.cstr = string;
 	return(p);
 }
 
@@ -481,14 +481,14 @@ char * gblock(int16_t n)
 /*
  * Check that a tree can be used as an lvalue.
  */
-int16_t chklval(struct tnode *ap)
+int16_t chklval(struct node *ap)
 {
-	register struct tnode *p;
+	register struct node *p;
 
 	p = ap;
-	if (p->op==FSEL)
-		p = p->tr1;
-	if (p->op!=NAME && p->op!=STAR)
+	if (p->u.tnode.op==FSEL)
+		p = p->u.tnode.tr1;
+	if (p->u.tnode.op!=NAME && p->u.tnode.op!=STAR)
 		error("Lvalue required");
 }
 
@@ -498,31 +498,31 @@ int16_t chklval(struct tnode *ap)
  * but this is used to allow constant expressions
  * to be used in switches and array bounds.
  */
-int16_t fold(int16_t op, struct tnode *ap1, struct tnode *ap2)
+int16_t fold(int16_t op, struct node *ap1, struct node *ap2)
 {
-	register struct tnode *p1;
+	register struct node *p1;
 	register int16_t v1, v2;
 	int16_t unsignf;
 
 	p1 = ap1;
-	if (p1->op!=CON)
+	if (p1->u.tnode.op!=CON)
 		return(0);
-	unsignf = p1->type==UNSIGN;
+	unsignf = p1->u.tnode.type==UNSIGN;
 	if (op==QUEST) {
-		if (ap2->tr1->op==CON && ap2->tr2->op==CON) {
-			p1->value = p1->value? ap2->tr1->value: ap2->tr2->value;
+		if (ap2->u.tnode.tr1->u.tnode.op==CON && ap2->u.tnode.tr2->u.tnode.op==CON) {
+			p1->u.cnode.value = p1->u.cnode.value? ap2->u.tnode.tr1->u.cnode.value: ap2->u.tnode.tr2->u.cnode.value;
 			*cp++ = p1;
 			return(1);
 		}
 		return(0);
 	}
 	if (ap2) {
-		if (ap2->op!=CON)
+		if (ap2->u.tnode.op!=CON)
 			return(0);
-		v2 = ap2->value;
-		unsignf |= ap2->type==UNSIGN;
+		v2 = ap2->u.cnode.value;
+		unsignf |= ap2->u.tnode.type==UNSIGN;
 	}
-	v1 = p1->value;
+	v1 = p1->u.cnode.value;
 	switch (op) {
 
 	case PLUS:
@@ -618,7 +618,7 @@ int16_t fold(int16_t op, struct tnode *ap1, struct tnode *ap2)
 	default:
 		return(0);
 	}
-	p1->value = v1;
+	p1->u.cnode.value = v1;
 	*cp++ = p1;
 	return(1);
 }
@@ -629,13 +629,13 @@ int16_t fold(int16_t op, struct tnode *ap1, struct tnode *ap2)
  */
 int16_t conexp(void)
 {
-	register struct tnode *t;
+	register struct node *t;
 
 	initflg++;
 	if (t = tree())
-		if (t->op != CON)
+		if (t->u.tnode.op != CON)
 			error("Constant required");
 	initflg--;
 	curbase = funcbase;
-	return(t->value);
+	return(t->u.cnode.value);
 }

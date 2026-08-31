@@ -54,7 +54,7 @@ int16_t ignsig(int16_t n)
 {
 	REG INT		s, i;
 
-	IF (s=signal(i=n,1)&01)==0
+	IF (s=(int16_t)signal(i=n,1)&01)==0
 	THEN	trapflg[i] |= SIGMOD;
 	FI
 	return(s);

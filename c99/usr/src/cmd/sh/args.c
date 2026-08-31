@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-PROC STRING *copyargs();
+static DOLPTR copyargs();
 LOCAL DOLPTR	dolh;
 
 CHAR	flagadr[10];
@@ -65,7 +65,7 @@ INT options(INT argc, STRING *argv)
 	return(argc);
 }
 
-static STRING * copyargs(STRING from[], int16_t n);
+static DOLPTR copyargs(STRING from[], int16_t n);
 int16_t freeargs(DOLPTR blk);
 
 VOID setargs(STRING argi[])
@@ -99,14 +99,14 @@ int16_t freeargs(DOLPTR blk)
 	return(argr);
 }
 
-static STRING * copyargs(STRING from[], int16_t n)
+static DOLPTR copyargs(STRING from[], int16_t n)
 {
-	REG STRING *	np=alloc(sizeof(STRING*)*n+3*BYTESPERWORD);
+	REG DOLPTR	pp=(DOLPTR)alloc(sizeof(STRING*)*n+3*BYTESPERWORD);
 	REG STRING *	fp=from;
-	REG STRING *	pp=np;
+	REG STRING *	np;
 
-	np->doluse=1;	/* use count */
-	np=np->dolarg;
+	pp->doluse=1;	/* use count */
+	np=(STRING *)(pp->dolarg);
 	dolv=np;
 
 	WHILE n--

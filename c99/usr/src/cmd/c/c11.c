@@ -15,9 +15,9 @@ int16_t max(int16_t a, int16_t b)
 	return(b);
 }
 
-int16_t degree(struct tnode *at)
+int16_t degree(struct node *at)
 {
-	register struct tnode *t, *t1;
+	register struct node *t, *t1;
 
 	if ((t=at)==0 || t->op==0)
 		return(0);
@@ -26,9 +26,9 @@ int16_t degree(struct tnode *at)
 	if (t->op == AMPER)
 		return(-2);
 	if (t->op==ITOL) {
-		if ((t1 = isconstant(t)) && (t1->value>=0 || t1->type==UNSIGN))
+		if ((t1 = isconstant(t)) && (t1->u.tconst.value>=0 || t1->type==UNSIGN))
 			return(-2);
-		if ((t1=t->tr1)->type==UNSIGN && opdope[t1->op]&LEAF)
+		if ((t1=t->u.tnode.tr1)->type==UNSIGN && opdope[t1->op]&LEAF)
 			return(-1);
 	}
 	if ((opdope[t->op] & LEAF) != 0) {
@@ -36,67 +36,67 @@ int16_t degree(struct tnode *at)
 			return(1);
 		return(0);
 	}
-	return(t->degree);
+	return(t->u.tnode.degree);
 }
 
 int16_t branch(int16_t lbl, int16_t aop, int16_t c);
 int16_t breq(int16_t v, int16_t l);
-int16_t dcalc(struct tnode *ap, int16_t nrleft);
+int16_t dcalc(struct node *ap, int16_t nrleft);
 int16_t decref(int16_t at);
 int16_t error(int16_t s, int16_t p1, int16_t p2, int16_t p3, int16_t p4, int16_t p5, int16_t p6);
 int16_t geti(void);
 int16_t incref(int16_t t);
 int16_t label(int16_t l);
-int16_t longrel(struct tnode *atree, int16_t lbl, int16_t cond, int16_t reg);
+int16_t longrel(struct node *atree, int16_t lbl, int16_t cond, int16_t reg);
 int16_t outname(int16_t s);
-int16_t pbase(struct tnode *ap);
+int16_t pbase(struct node *ap);
 int16_t psoct(int16_t an);
 int16_t regerr(void);
-int16_t setype(struct tnode *p, int16_t t);
+int16_t setype(struct node *p, int16_t t);
 int16_t sort(struct swtab *afp, struct swtab *alp);
 
-void pname(struct tnode *ap, int16_t flag)
+void pname(struct node *ap, int16_t flag)
 {
 	register int16_t i;
-	register struct tnode *p;
+	register struct node *p;
 
 	p = ap;
 loop:
 	switch(p->op) {
 
 	case LCON:
-		printf("$%o", flag>10? p->lvalue.intx[1]:p->lvalue.intx[0]);
+		printf("$%o", flag>10? p->u.lconst.intx[1]:p->u.lconst.intx[0]);
 		return;
 
 	case SFCON:
 	case CON:
 		printf("$");
-		psoct(p->value);
+		psoct(p->u.tconst.value);
 		return;
 
 	case FCON:
-		printf("L%d", (p->value>0? p->value: -p->value));
+		printf("L%d", (p->u.tconst.value>0? p->u.tconst.value: -p->u.tconst.value));
 		return;
 
 	case NAME:
-		i = p->offset;
+		i = p->u.tname.offset;
 		if (flag>10)
 			i += 2;
 		if (i) {
 			psoct(i);
-			if (p->class!=OFFS)
+			if (p->u.tname.class!=OFFS)
 				putchar('+');
-			if (p->class==REG)
+			if (p->u.tname.class==REG)
 				regerr();
 		}
-		switch(p->class) {
+		switch(p->u.tname.class) {
 
 		case SOFFS:
 		case XOFFS:
 			pbase(p);
 
 		case OFFS:
-			printf("(r%d)", p->regno);
+			printf("(r%d)", p->u.tname.regno);
 			return;
 
 		case EXTERN:
@@ -105,7 +105,7 @@ loop:
 			return;
 
 		case REG:
-			printf("r%d", p->nloc);
+			printf("r%d", p->u.tname.nloc);
 			return;
 
 		}
@@ -114,21 +114,21 @@ loop:
 
 	case AMPER:
 		putchar('$');
-		p = p->tr1;
-		if (p->op==NAME && p->class==REG)
+		p = p->u.tnode.tr1;
+		if (p->op==NAME && p->u.tname.class==REG)
 			regerr();
 		goto loop;
 
 	case AUTOI:
-		printf("(r%d)%c", p->nloc, flag==1?0:'+');
+		printf("(r%d)%c", p->u.tname.nloc, flag==1?0:'+');
 		return;
 
 	case AUTOD:
-		printf("%c(r%d)", flag==2?0:'-', p->nloc);
+		printf("%c(r%d)", flag==2?0:'-', p->u.tname.nloc);
 		return;
 
 	case STAR:
-		p = p->tr1;
+		p = p->u.tnode.tr1;
 		putchar('*');
 		goto loop;
 
@@ -141,20 +141,20 @@ int16_t regerr(void)
 	error("Illegal use of register");
 }
 
-int16_t pbase(struct tnode *ap)
+int16_t pbase(struct node *ap)
 {
-	register struct tnode *p;
+	register struct node *p;
 
 	p = ap;
-	if (p->class==SOFFS || p->class==STATIC)
-		printf("L%d", p->nloc);
+	if (p->u.tname.class==SOFFS || p->u.tname.class==STATIC)
+		printf("L%d", p->u.tname.nloc);
 	else
-		printf("%.8s", &(p->nloc));
+		printf("%.8s", &(p->u.tname.nloc));
 }
 
-int16_t xdcalc(struct tnode *ap, int16_t nrleft)
+int16_t xdcalc(struct node *ap, int16_t nrleft)
 {
-	register struct tnode *p;
+	register struct node *p;
 	register int16_t d;
 
 	p = ap;
@@ -168,16 +168,16 @@ int16_t xdcalc(struct tnode *ap, int16_t nrleft)
 	return(d);
 }
 
-int16_t dcalc(struct tnode *ap, int16_t nrleft)
+int16_t dcalc(struct node *ap, int16_t nrleft)
 {
-	register struct tnode *p, *p1;
+	register struct node *p, *p1;
 
 	if ((p=ap)==0)
 		return(0);
 	switch (p->op) {
 
 	case NAME:
-		if (p->class==REG)
+		if (p->u.tname.class==REG)
 			return(9);
 
 	case AMPER:
@@ -189,29 +189,29 @@ int16_t dcalc(struct tnode *ap, int16_t nrleft)
 
 	case CON:
 	case SFCON:
-		if (p->value==0)
+		if (p->u.tconst.value==0)
 			return(4);
-		if (p->value==1)
+		if (p->u.tconst.value==1)
 			return(5);
-		if (p->value > 0)
+		if (p->u.tconst.value > 0)
 			return(8);
 		return(12);
 
 	case STAR:
-		p1 = p->tr1;
+		p1 = p->u.tnode.tr1;
 		if (p1->op==NAME||p1->op==CON||p1->op==AUTOI||p1->op==AUTOD)
 			if (p->type!=LONG)
 				return(12);
 	}
 	if (p->type==LONG)
 		nrleft--;
-	return(p->degree <= nrleft? 20: 24);
+	return(p->u.tnode.degree <= nrleft? 20: 24);
 }
 
-int16_t notcompat(struct tnode *ap, int16_t ast, int16_t op)
+int16_t notcompat(struct node *ap, int16_t ast, int16_t op)
 {
 	register int16_t at, st;
-	register struct tnode *p;
+	register struct node *p;
 
 	p = ap;
 	at = p->type;
@@ -229,7 +229,7 @@ int16_t notcompat(struct tnode *ap, int16_t ast, int16_t op)
 		at = at&TYPE | 020;
 	if (st==FLOAT && at==DOUBLE)
 		at = FLOAT;
-	if (p->op==NAME && p->class==REG && op==ASSIGN && st==CHAR)
+	if (p->op==NAME && p->u.tname.class==REG && op==ASSIGN && st==CHAR)
 		return(0);
 	return(st != at);
 }
@@ -239,8 +239,8 @@ void prins(int16_t op, int16_t c, struct instab *itable)
 	register struct instab *insp;
 	register char *ip;
 
-	for (insp=itable; insp->op != 0; insp++) {
-		if (insp->op == op) {
+	for (insp=itable; insp->iop != 0; insp++) {
+		if (insp->iop == op) {
 			ip = c? insp->str2: insp->str1;
 			if (ip==0)
 				break;
@@ -251,32 +251,32 @@ void prins(int16_t op, int16_t c, struct instab *itable)
 	error("No match' for op %d", op);
 }
 
-int16_t collcon(struct tnode *ap)
+int16_t collcon(struct node *ap)
 {
 	register int16_t op;
-	register struct tnode *p;
+	register struct node *p;
 
 	p = ap;
 	if (p->op==STAR) {
 		if (p->type==LONG+PTR) /* avoid *x(r); *x+2(r) */
 			return(0);
-		p = p->tr1;
+		p = p->u.tnode.tr1;
 	}
 	if (p->op==PLUS) {
-		op = p->tr2->op;
+		op = p->u.tnode.tr2->op;
 		if (op==CON || op==AMPER)
 			return(1);
 	}
 	return(0);
 }
 
-int16_t isfloat(struct tnode *at)
+int16_t isfloat(struct node *at)
 {
-	register struct tnode *t;
+	register struct node *t;
 
 	t = at;
 	if ((opdope[t->op]&RELAT)!=0)
-		t = t->tr1;
+		t = t->u.tnode.tr1;
 	if (t->type==FLOAT || t->type==DOUBLE) {
 		nfloat = 1;
 		return('f');
@@ -284,14 +284,14 @@ int16_t isfloat(struct tnode *at)
 	return(0);
 }
 
-int16_t oddreg(struct tnode *t, int16_t areg)
+int16_t oddreg(struct node *t, int16_t areg)
 {
 	register int16_t reg;
 
 	reg = areg;
 	if (!isfloat(t)) {
 		if (opdope[t->op]&RELAT) {
-			if (t->tr1->type==LONG)
+			if (t->u.tnode.tr1->type==LONG)
 				return((reg+1) & ~01);
 			return(reg);
 		}
@@ -488,26 +488,26 @@ int16_t sort(struct swtab *afp, struct swtab *alp)
 int16_t ispow2(int16_t atree)
 {
 	register int16_t d;
-	register struct tnode *tree;
+	register struct node *tree;
 
 	tree = atree;
-	if (!isfloat(tree) && tree->tr2->op==CON) {
-		d = tree->tr2->value;
+	if (!isfloat(tree) && tree->u.tnode.tr2->op==CON) {
+		d = tree->u.tnode.tr2->u.tconst.value;
 		if (d>1 && (d&(d-1))==0)
 			return(d);
 	}
 	return(0);
 }
 
-int16_t pow2(struct tnode *atree)
+int16_t pow2(struct node *atree)
 {
 	register int16_t d, i;
-	register struct tnode *tree;
+	register struct node *tree;
 
 	tree = atree;
 	if (d = ispow2(tree)) {
 		for (i=0; (d>>=1)!=0; i++);
-		tree->tr2->value = i;
+		tree->u.tnode.tr2->u.tconst.value = i;
 		switch (tree->op) {
 
 		case TIMES:
@@ -520,22 +520,22 @@ int16_t pow2(struct tnode *atree)
 
 		case DIVIDE:
 			tree->op = ULSH;
-			tree->tr2->value = -i;
+			tree->u.tnode.tr2->u.tconst.value = -i;
 			break;
 
 		case ASDIV:
 			tree->op = ASULSH;
-			tree->tr2->value = -i;
+			tree->u.tnode.tr2->u.tconst.value = -i;
 			break;
 
 		case MOD:
 			tree->op = AND;
-			tree->tr2->value = (1<<i)-1;
+			tree->u.tnode.tr2->u.tconst.value = (1<<i)-1;
 			break;
 
 		case ASMOD:
 			tree->op = ASAND;
-			tree->tr2->value = (1<<i)-1;
+			tree->u.tnode.tr2->u.tconst.value = (1<<i)-1;
 			break;
 
 		default:
@@ -546,11 +546,11 @@ int16_t pow2(struct tnode *atree)
 	return(tree);
 }
 
-void cbranch(struct tnode *atree, int16_t albl, int16_t cond, int16_t areg)
+void cbranch(struct node *atree, int16_t albl, int16_t cond, int16_t areg)
 {
 	int16_t l1, op;
 	register int16_t lbl, reg;
-	register struct tnode *tree;
+	register struct node *tree;
 
 	lbl = albl;
 	reg = areg;
@@ -561,50 +561,50 @@ again:
 
 	case LOGAND:
 		if (cond) {
-			cbranch(tree->tr1, l1=isn++, 0, reg);
-			cbranch(tree->tr2, lbl, 1, reg);
+			cbranch(tree->u.tnode.tr1, l1=isn++, 0, reg);
+			cbranch(tree->u.tnode.tr2, lbl, 1, reg);
 			label(l1);
 		} else {
-			cbranch(tree->tr1, lbl, 0, reg);
-			cbranch(tree->tr2, lbl, 0, reg);
+			cbranch(tree->u.tnode.tr1, lbl, 0, reg);
+			cbranch(tree->u.tnode.tr2, lbl, 0, reg);
 		}
 		return;
 
 	case LOGOR:
 		if (cond) {
-			cbranch(tree->tr1, lbl, 1, reg);
-			cbranch(tree->tr2, lbl, 1, reg);
+			cbranch(tree->u.tnode.tr1, lbl, 1, reg);
+			cbranch(tree->u.tnode.tr2, lbl, 1, reg);
 		} else {
-			cbranch(tree->tr1, l1=isn++, 1, reg);
-			cbranch(tree->tr2, lbl, 0, reg);
+			cbranch(tree->u.tnode.tr1, l1=isn++, 1, reg);
+			cbranch(tree->u.tnode.tr2, lbl, 0, reg);
 			label(l1);
 		}
 		return;
 
 	case EXCLA:
-		cbranch(tree->tr1, lbl, !cond, reg);
+		cbranch(tree->u.tnode.tr1, lbl, !cond, reg);
 		return;
 
 	case SEQNC:
-		rcexpr(tree->tr1, efftab, reg);
-		atree = tree->tr2;
+		rcexpr(tree->u.tnode.tr1, efftab, reg);
+		atree = tree->u.tnode.tr2;
 		goto again;
 
 	case ITOL:
-		tree = tree->tr1;
+		tree = tree->u.tnode.tr1;
 		break;
 	}
 	op = tree->op;
 	if (opdope[op]&RELAT
-	 && tree->tr1->op==ITOL && tree->tr2->op==ITOL) {
-		tree->tr1 = tree->tr1->tr1;
-		tree->tr2 = tree->tr2->tr1;
+	 && tree->u.tnode.tr1->op==ITOL && tree->u.tnode.tr2->op==ITOL) {
+		tree->u.tnode.tr1 = tree->u.tnode.tr1->u.tnode.tr1;
+		tree->u.tnode.tr2 = tree->u.tnode.tr2->u.tnode.tr1;
 		if (op>=LESSEQ && op<=GREAT
-		 && (tree->tr1->type==UNSIGN || tree->tr2->type==UNSIGN))
+		 && (tree->u.tnode.tr1->type==UNSIGN || tree->u.tnode.tr2->type==UNSIGN))
 			tree->op = op = op+LESSEQP-LESSEQ;
 	}
 	if (tree->type==LONG
-	  || opdope[op]&RELAT&&tree->tr1->type==LONG) {
+	  || opdope[op]&RELAT&&tree->u.tnode.tr1->type==LONG) {
 		longrel(tree, lbl, cond, reg);
 		return;
 	}
@@ -613,8 +613,8 @@ again:
 	if ((opdope[op]&RELAT)==0)
 		op = NEQUAL;
 	else {
-		l1 = tree->tr2->op;
-	 	if ((l1==CON || l1==SFCON) && tree->tr2->value==0)
+		l1 = tree->u.tnode.tr2->op;
+	 	if ((l1==CON || l1==SFCON) && tree->u.tnode.tr2->u.tconst.value==0)
 			op += 200;		/* special for ptr tests */
 		else
 			op = maprel[op-EQUAL];
@@ -635,11 +635,11 @@ int16_t branch(int16_t lbl, int16_t aop, int16_t c)
 	printf("\tL%d\n", lbl);
 }
 
-int16_t longrel(struct tnode *atree, int16_t lbl, int16_t cond, int16_t reg)
+int16_t longrel(struct node *atree, int16_t lbl, int16_t cond, int16_t reg)
 {
 	int16_t xl1, xl2, xo, xz;
 	register int16_t op, isrel;
-	register struct tnode *tree;
+	register struct node *tree;
 
 	if (reg&01)
 		reg++;
@@ -660,11 +660,11 @@ int16_t longrel(struct tnode *atree, int16_t lbl, int16_t cond, int16_t reg)
 	xlab2 = 0;
 	xop = op;
 	xz = xzero;
-	xzero = !isrel || tree->tr2->op==ITOL && tree->tr2->tr1->op==CON
-		&& tree->tr2->tr1->value==0;
+	xzero = !isrel || tree->u.tnode.tr2->op==ITOL && tree->u.tnode.tr2->u.tnode.tr1->op==CON
+		&& tree->u.tnode.tr2->u.tnode.tr1->u.tconst.value==0;
 	if (tree->op==ANDN) {
 		tree->op = TAND;
-		tree->tr2 = optim(tnode(COMPL, LONG, tree->tr2));
+		tree->u.tnode.tr2 = optim(tnode(COMPL, LONG, tree->u.tnode.tr2));
 	}
 	if (cexpr(tree, cctab, reg) < 0) {
 		reg = rcexpr(tree, regtab, reg);
@@ -771,18 +771,18 @@ int16_t psoct(int16_t an)
 #define	STKS	100
 void getree(void)
 {
-	struct tnode *expstack[STKS];
-	register struct tnode **sp;
+	struct node *expstack[STKS];
+	register struct node **sp;
 	register int16_t t, op;
 	static char s[9];
 	struct swtab *swp;
 	double atof();
 	char numbuf[64];
-	struct tname *np;
-	struct xtname *xnp;
-	struct ftconst *fp;
-	struct lconst *lp;
-	struct fasgn *sap;
+	struct node *np;
+	struct node *xnp;
+	struct node *fp;
+	struct node *lp;
+	struct node *sap;
 	int16_t lbl, cond, lbl2, lbl3;
 
 	curbase = funcbase;
@@ -833,7 +833,7 @@ void getree(void)
 	case SYMDEF:
 		outname(s);
 		printf(".globl%s%.8s\n", s[0]?"	":"", s);
-		sfuncr.nloc = 0;
+		sfuncr.u.tname.nloc = 0;
 		break;
 
 	case RETRN:
@@ -939,16 +939,16 @@ void getree(void)
 		if (t==EXTERN) {
 			np = getblk(sizeof(*xnp));
 			np->type = geti();
-			outname(np->name);
+			outname(np->u.xtname.name);
 		} else {
 			np = getblk(sizeof(*np));
 			np->type = geti();
-			np->nloc = geti();
+			np->u.tname.nloc = geti();
 		}
 		np->op = NAME;
-		np->class = t;
-		np->regno = 0;
-		np->offset = 0;
+		np->u.tname.class = t;
+		np->u.tname.regno = 0;
+		np->u.tname.offset = 0;
 		*sp++ = np;
 		break;
 
@@ -968,7 +968,7 @@ void getree(void)
 		lp = getblk(sizeof(*lp));
 		lp->op = LCON;
 		lp->type = LONG;
-		lp->lvalue = ((int32_t)t<<16) + (unsigned)op;	/* nonportable */
+		lp->u.lconst.lvalue = ((int32_t)t<<16) + (unsigned)op;	/* nonportable */
 		*sp++ = lp;
 		break;
 
@@ -978,24 +978,24 @@ void getree(void)
 		fp = getblk(sizeof(*fp));
 		fp->op = FCON;
 		fp->type = t;
-		fp->value = isn++;
-		fp->fvalue = atof(numbuf);
+		fp->u.tconst.value = isn++;
+		fp->u.ftconst.fvalue = atof(numbuf);
 		*sp++ = fp;
 		break;
 
 	case FSEL:
 		*sp = tnode(FSEL, geti(), *--sp, NULL);
 		t = geti();
-		(*sp++)->tr2 = tnode(COMMA, INT, tconst(geti(), INT), tconst(t, INT));
+		(*sp++)->u.tnode.tr2 = tnode(COMMA, INT, tconst(geti(), INT), tconst(t, INT));
 		break;
 
 	case STRASG:
 		sap = getblk(sizeof(*sap));
 		sap->op = STRASG;
 		sap->type = geti();
-		sap->mask = geti();
-		sap->tr1 = *--sp;
-		sap->tr2 = NULL;
+		sap->u.fasgn.mask = geti();
+		sap->u.tnode.tr1 = *--sp;
+		sap->u.tnode.tr2 = NULL;
 		*sp++ = sap;
 		break;
 
@@ -1066,22 +1066,22 @@ int16_t outname(int16_t s)
 	return(s);
 }
 
-void strasg(struct fasgn *atp)
+void strasg(struct node *atp)
 {
-	register struct tnode *tp;
+	register struct node *tp;
 	register int16_t nwords, i;
 
-	nwords = atp->mask/sizeof(int16_t);
-	tp = atp->tr1;
+	nwords = atp->u.fasgn.mask/sizeof(int16_t);
+	tp = atp->u.tnode.tr1;
 	if (tp->op != ASSIGN) {
 		if (tp->op==RFORCE) {	/* function return */
-			if (sfuncr.nloc==0) {
-				sfuncr.nloc = isn++;
-				printf(".bss\nL%d:.=.+%o\n.text\n", sfuncr.nloc, nwords*sizeof(int16_t));
+			if (sfuncr.u.tname.nloc==0) {
+				sfuncr.u.tname.nloc = isn++;
+				printf(".bss\nL%d:.=.+%o\n.text\n", sfuncr.u.tname.nloc, nwords*sizeof(int16_t));
 			}
-			atp->tr1 = tnode(ASSIGN, STRUCT, &sfuncr, tp->tr1);
+			atp->u.tnode.tr1 = tnode(ASSIGN, STRUCT, &sfuncr, tp->u.tnode.tr1);
 			strasg(atp);
-			printf("mov	$L%d,r0\n", sfuncr.nloc);
+			printf("mov	$L%d,r0\n", sfuncr.u.tname.nloc);
 			return;
 		}
 		if (tp->op==CALL) {
@@ -1091,19 +1091,19 @@ void strasg(struct fasgn *atp)
 		error("Illegal structure operation");
 		return;
 	}
-	tp->tr2 = strfunc(tp->tr2);
+	tp->u.tnode.tr2 = strfunc(tp->u.tnode.tr2);
 	if (nwords==1)
 		setype(tp, INT);
 	else if (nwords==sizeof(int16_t))
 		setype(tp, LONG);
 	else {
-		if (tp->tr1->op!=NAME && tp->tr1->op!=STAR
-		 || tp->tr2->op!=NAME && tp->tr2->op!=STAR) {
+		if (tp->u.tnode.tr1->op!=NAME && tp->u.tnode.tr1->op!=STAR
+		 || tp->u.tnode.tr2->op!=NAME && tp->u.tnode.tr2->op!=STAR) {
 			error("unimplemented structure assignment");
 			return;
 		}
-		tp->tr1 = tnode(AMPER, STRUCT+PTR, tp->tr1);
-		tp->tr2 = tnode(AMPER, STRUCT+PTR, tp->tr2);
+		tp->u.tnode.tr1 = tnode(AMPER, STRUCT+PTR, tp->u.tnode.tr1);
+		tp->u.tnode.tr2 = tnode(AMPER, STRUCT+PTR, tp->u.tnode.tr2);
 		tp->op = STRSET;
 		tp->type = STRUCT+PTR;
 		tp = optim(tp);
@@ -1125,17 +1125,17 @@ void strasg(struct fasgn *atp)
 	rcexpr(tp, efftab, 0);
 }
 
-int16_t setype(struct tnode *p, int16_t t)
+int16_t setype(struct node *p, int16_t t)
 {
 
-	for (;; p = p->tr1) {
+	for (;; p = p->u.tnode.tr1) {
 		p->type = t;
 		if (p->op==AMPER)
 			t = decref(t);
 		else if (p->op==STAR)
 			t = incref(t);
 		else if (p->op==ASSIGN)
-			setype(p->tr2, t);
+			setype(p->u.tnode.tr2, t);
 		else if (p->op!=PLUS)
 			break;
 	}

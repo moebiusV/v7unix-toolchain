@@ -39,13 +39,13 @@ int16_t incref(int16_t t)
  * Make a tree that causes a branch to lbl
  * if the tree's value is non-zero together with the cond.
  */
-int16_t length(struct tnode *acs);
+int16_t length(struct node *acs);
 int16_t nextchar(void);
-void outcode(char *s, int16_t a);
+void outcode(char *s, int16_t a, ...);
 int16_t spnextchar(void);
-void treeout(struct tnode *atp, int16_t isstruct);
+void treeout(struct node *atp, int16_t isstruct);
 
-int16_t cbranch(struct tnode *t, int16_t lbl, int16_t cond)
+int16_t cbranch(struct node *t, int16_t lbl, int16_t cond)
 {
 	treeout(t, 0);
 	outcode("BNNN", CBRANCH, lbl, cond, line);
@@ -54,19 +54,19 @@ int16_t cbranch(struct tnode *t, int16_t lbl, int16_t cond)
 /*
  * Write out a tree.
  */
-void rcexpr(struct tnode *atp)
+void rcexpr(struct node *atp)
 {
-	register struct tnode *tp;
+	register struct node *tp;
 
 	/*
 	 * Special optimization
 	 */
-	if ((tp=atp)->op==INIT && tp->tr1->op==CON) {
-		if (tp->type==CHAR) {
-			outcode("B1N0", BDATA, tp->tr1->value);
+	if ((tp=atp)->u.tnode.op==INIT && tp->u.tnode.tr1->u.tnode.op==CON) {
+		if (tp->u.tnode.type==CHAR) {
+			outcode("B1N0", BDATA, tp->u.tnode.tr1->u.cnode.value);
 			return;
-		} else if (tp->type==INT || tp->type==UNSIGN) {
-			outcode("BN", SINIT, tp->tr1->value);
+		} else if (tp->u.tnode.type==INT || tp->u.tnode.type==UNSIGN) {
+			outcode("BN", SINIT, tp->u.tnode.tr1->u.cnode.value);
 			return;
 		}
 	}
@@ -74,49 +74,49 @@ void rcexpr(struct tnode *atp)
 	outcode("BN", EXPR, line);
 }
 
-void treeout(struct tnode *atp, int16_t isstruct)
+void treeout(struct node *atp, int16_t isstruct)
 {
-	register struct tnode *tp;
-	register struct hshtab *hp;
+	register struct node *tp;
+	register struct node *hp;
 	register int16_t nextisstruct;
 
 	if ((tp = atp) == 0) {
 		outcode("B", NULLOP);
 		return;
 	}
-	nextisstruct = tp->type==STRUCT;
-	switch(tp->op) {
+	nextisstruct = tp->u.tnode.type==STRUCT;
+	switch(tp->u.tnode.op) {
 
 	case NAME:
-		hp = tp->tr1;
-		if (hp->hclass==TYPEDEF)
+		hp = tp->u.tnode.tr1;
+		if (hp->u.hshtab.hclass==TYPEDEF)
 			error("Illegal use of type name");
-		outcode("BNN", NAME, hp->hclass==0?STATIC:hp->hclass, tp->type);
-		if (hp->hclass==EXTERN)
-			outcode("S", hp->name);
+		outcode("BNN", NAME, hp->u.hshtab.hclass==0?STATIC:hp->u.hshtab.hclass, tp->u.tnode.type);
+		if (hp->u.hshtab.hclass==EXTERN)
+			outcode("S", hp->u.hshtab.name);
 		else
-			outcode("N", hp->hoffset);
+			outcode("N", hp->u.hshtab.hoffset);
 		break;
 
 	case LCON:
-		outcode("BNNN", tp->op, tp->type, tp->lvalue);
+		outcode("BNNN", tp->u.tnode.op, tp->u.tnode.type, tp->u.lnode.lvalue);
 		break;
 
 	case CON:
-		outcode("BNN", tp->op, tp->type, tp->value);
+		outcode("BNN", tp->u.tnode.op, tp->u.tnode.type, tp->u.cnode.value);
 		break;
 
 	case FCON:
-		outcode("BNF", tp->op, tp->type, tp->cstr);
+		outcode("BNF", tp->u.tnode.op, tp->u.tnode.type, tp->u.fnode.cstr);
 		break;
 
 	case STRING:
-		outcode("BNNN", NAME, STATIC, tp->type, tp->tr1);
+		outcode("BNNN", NAME, STATIC, tp->u.tnode.type, tp->u.tnode.tr1);
 		break;
 
 	case FSEL:
-		treeout(tp->tr1, nextisstruct);
-		outcode("BNNN",tp->op,tp->type,tp->tr2->bitoffs,tp->tr2->flen);
+		treeout(tp->u.tnode.tr1, nextisstruct);
+		outcode("BNNN",tp->u.tnode.op,tp->u.tnode.type,((struct field *)tp->u.tnode.tr2)->bitoffs,((struct field *)tp->u.tnode.tr2)->flen);
 		break;
 
 	case ETYPE:
@@ -124,26 +124,26 @@ void treeout(struct tnode *atp, int16_t isstruct)
 		break;
 
 	case AMPER:
-		treeout(tp->tr1, 1);
-		outcode("BN", tp->op, tp->type);
+		treeout(tp->u.tnode.tr1, 1);
+		outcode("BN", tp->u.tnode.op, tp->u.tnode.type);
 		break;
 
 
 	case CALL:
-		treeout(tp->tr1, 1);
-		treeout(tp->tr2, 0);
-		outcode("BN", CALL, tp->type);
+		treeout(tp->u.tnode.tr1, 1);
+		treeout(tp->u.tnode.tr2, 0);
+		outcode("BN", CALL, tp->u.tnode.type);
 		break;
 
 	default:
-		treeout(tp->tr1, nextisstruct);
-		if (opdope[tp->op]&BINARY)
-			treeout(tp->tr2, nextisstruct);
-		outcode("BN", tp->op, tp->type);
+		treeout(tp->u.tnode.tr1, nextisstruct);
+		if (opdope[tp->u.tnode.op]&BINARY)
+			treeout(tp->u.tnode.tr2, nextisstruct);
+		outcode("BN", tp->u.tnode.op, tp->u.tnode.type);
 		break;
 	}
 	if (nextisstruct && isstruct==0)
-		outcode("BNN", STRASG, STRUCT, tp->strp->ssize);
+		outcode("BNN", STRASG, STRUCT, tp->u.tnode.strp->ssize);
 }
 
 /*
@@ -170,14 +170,14 @@ int16_t label(int16_t l)
 int16_t plength(struct tname *ap)
 {
 	register int16_t t, l;
-	register struct tnode *p;
+	register struct node *p;
 
 	p = ap;
-	if (p==0 || ((t=p->type)&~TYPE) == 0)		/* not a reference */
+	if (p==0 || ((t=p->u.tnode.type)&~TYPE) == 0)		/* not a reference */
 		return(1);
-	p->type = decref(t);
+	p->u.tnode.type = decref(t);
 	l = length(p);
-	p->type = t;
+	p->u.tnode.type = t;
 	return(l);
 }
 
@@ -185,20 +185,20 @@ int16_t plength(struct tname *ap)
  * return the number of bytes in the object
  * whose tree node is acs.
  */
-int16_t length(struct tnode *acs)
+int16_t length(struct node *acs)
 {
 	register int16_t t, elsz;
 	int32_t n;
-	register struct tnode *cs;
+	register struct node *cs;
 	int16_t nd;
 
 	cs = acs;
-	t = cs->type;
+	t = cs->u.tnode.type;
 	n = 1;
 	nd = 0;
 	while ((t&XTYPE) == ARRAY) {
 		t = decref(t);
-		n *= cs->subsp[nd++];
+		n *= cs->u.tnode.subsp[nd++];
 	}
 	if ((t&~TYPE)==FUNC)
 		return(0);
@@ -228,7 +228,7 @@ int16_t length(struct tnode *acs)
 		break;
 
 	case STRUCT:
-		if ((elsz = cs->strp->ssize) == 0)
+		if ((elsz = cs->u.tnode.strp->ssize) == 0)
 			error("Undefined structure");
 		break;
 	default:
@@ -246,7 +246,7 @@ int16_t length(struct tnode *acs)
 /*
  * The number of bytes in an object, rounded up to a word.
  */
-int16_t rlength(struct tnode *cs)
+int16_t rlength(struct node *cs)
 {
 	return((length(cs)+ALIGN) & ~ALIGN);
 }
@@ -257,22 +257,22 @@ int16_t rlength(struct tnode *cs)
  */
 int16_t simplegoto(void)
 {
-	register struct hshtab *csp;
+	register struct node *csp;
 
 	if ((peeksym=symbol())==NAME && nextchar()==';') {
 		csp = csym;
-		if (csp->hblklev == 0)
+		if (csp->u.hshtab.hblklev == 0)
 			pushdecl(csp);
-		if (csp->hclass==0 && csp->htype==0) {
-			csp->htype = ARRAY;
-			csp->hflag |= FLABL;
-			if (csp->hoffset==0)
-				csp->hoffset = isn++;
+		if (csp->u.hshtab.hclass==0 && csp->u.hshtab.htype==0) {
+			csp->u.hshtab.htype = ARRAY;
+			csp->u.hshtab.hflag |= FLABL;
+			if (csp->u.hshtab.hoffset==0)
+				csp->u.hshtab.hoffset = isn++;
 		}
-		if ((csp->hclass==0||csp->hclass==STATIC)
-		 &&  csp->htype==ARRAY) {
+		if ((csp->u.hshtab.hclass==0||csp->u.hshtab.hclass==STATIC)
+		 &&  csp->u.hshtab.htype==ARRAY) {
 			peeksym = -1;
-			return(csp->hoffset);
+			return(csp->u.hshtab.hoffset);
 		}
 	}
 	return(0);
@@ -327,7 +327,7 @@ int16_t chconbrk(int16_t l)
  */
 int16_t dogoto(void)
 {
-	register struct tnode *np;
+	register struct node *np;
 
 	*cp++ = tree();
 	build(STAR);
@@ -341,15 +341,15 @@ int16_t dogoto(void)
  */
 int16_t doret(void)
 {
-	register struct tnode *t;
+	register struct node *t;
 
 	if (nextchar() != ';') {
 		t = tree();
 		*cp++ = &funcblk;
 		*cp++ = t;
 		build(ASSIGN);
-		cp[-1] = cp[-1]->tr2;
-		if (funcblk.type==CHAR)
+		cp[-1] = cp[-1]->u.tnode.tr2;
+		if (funcblk.u.tnode.type==CHAR)
 			cp[-1] = block(ITOC, INT, NULL, NULL, cp[-1]);
 		build(RFORCE);
 		rcexpr(*--cp);
@@ -368,7 +368,7 @@ int16_t doret(void)
  *   1: number 1
  *   0: number 0
  */
-void outcode(char *s, int16_t a)
+void outcode(char *s, int16_t a, ...)
 {
 	register int16_t *ap;
 	register FILE *bufp;

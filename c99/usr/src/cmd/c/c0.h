@@ -37,12 +37,14 @@
 #define	SZLONG	4
 #define	SZDOUB	8
 
+struct node;	/* forward: node is a tagged union of tree + namelist shapes */
+
 /*
  * format of a structure description
  */
 struct str {
 	int16_t	ssize;			/* structure size */
-	struct hshtab 	**memlist;	/* member list */
+	struct node **memlist;		/* member list */
 };
 
 /*
@@ -54,81 +56,66 @@ struct field {
 };
 
 /*
- * Structure of tree nodes for operators
+ * A node is a tagged union of the operator/constant shapes AND the namelist
+ * entry.  V7 kept one global member-name space, so a `struct node *` could
+ * reach `value` (cnode), `hclass`/`htype`/`hoffset` (hshtab), `tr1` (tnode),
+ * and vice versa.  C99 forbids that, so every member access is qualified by its
+ * sub-struct (`->u.tnode.op`, `->u.cnode.value`, `->u.hshtab.hclass`).
  */
-struct tnode {
-	int16_t	op;		/* operator */
-	int16_t	type;		/* data type */
-	int16_t	*subsp;		/* subscript list (for arrays) */
-	struct	str *strp;	/* structure description for structs */
-	struct	tnode *tr1;	/* left operand */
-	struct	tnode *tr2;	/* right operand */
-};
-
-/*
- * Tree node for constants
- */
-struct	cnode {
-	int16_t	op;
-	int16_t	type;
-	int16_t	*subsp;
-	struct	str *strp;
-	int16_t	value;
-};
-
-/*
- * Tree node for long constants
- */
-struct lnode {
-	int16_t	op;
-	int16_t	type;
-	int16_t	*subsp;
-	struct	str *strp;
-	int32_t	lvalue;
-};
-
-/*
- * tree node for floating
- * constants
- */
-struct	fnode {
-	int16_t	op;
-	int16_t	type;
-	int16_t	*subsp;
-	struct	str *strp;
-	char	*cstr;
-};
-
-/*
- * Structure of namelist
- */
-/*
- * Pushed-down entry for block structure
- */
-struct	phshtab {
-	char	hclass;
-	char	hflag;
-	int16_t	htype;
-	int16_t	*hsubsp;
-	struct	str *hstrp;
-	int16_t	hoffset;
-	struct	phshtab *hpdown;
-	char	hblklev;
-};
-
-/*
- * Top-level namelist
- */
-struct hshtab {
-	char	hclass;		/* storage class */
-	char	hflag;		/* various flags */
-	int16_t	htype;		/* type */
-	int16_t	*hsubsp;	/* subscript list */
-	struct	str *hstrp;	/* structure description */
-	int16_t	hoffset;	/* post-allocation location */
-	struct	phshtab *hpdown;	/* Pushed-down name in outer block */
-	char	hblklev;	/* Block level of definition */
-	char	name[NCPS];	/* ASCII name */
+struct	node {
+	union {
+		struct {
+			int16_t op;		/* operator */
+			int16_t type;		/* data type */
+			int16_t *subsp;		/* subscript list (for arrays) */
+			struct str *strp;	/* structure description for structs */
+			struct node *tr1;	/* left operand */
+			struct node *tr2;	/* right operand */
+		} tnode;
+		struct {
+			int16_t op;
+			int16_t type;
+			int16_t *subsp;
+			struct str *strp;
+			int16_t value;
+		} cnode;
+		struct {
+			int16_t op;
+			int16_t type;
+			int16_t *subsp;
+			struct str *strp;
+			int32_t lvalue;
+		} lnode;
+		struct {
+			int16_t op;
+			int16_t type;
+			int16_t *subsp;
+			struct str *strp;
+			char *cstr;
+		} fnode;
+		struct {
+			char hclass;		/* storage class */
+			char hflag;		/* various flags */
+			int16_t htype;		/* type */
+			int16_t *hsubsp;	/* subscript list */
+			struct str *hstrp;	/* structure description */
+			int16_t hoffset;	/* post-allocation location */
+			struct node *hpdown;	/* Pushed-down name in outer block */
+			char hblklev;		/* Block level of definition */
+			char name[NCPS];	/* ASCII name */
+			struct node *next;	/* parameter-list link (V7 reused hoffset) */
+		} hshtab;
+		struct {
+			char hclass;
+			char hflag;
+			int16_t htype;
+			int16_t *hsubsp;
+			struct str *hstrp;
+			int16_t hoffset;
+			struct node *hpdown;
+			char hblklev;
+		} phshtab;
+	} u;
 };
 
 /*
@@ -154,8 +141,8 @@ int16_t	opdope[];
 char	ctab[];
 char	symbuf[NCPS+2];
 int16_t	hshused;
-struct	hshtab	hshtab[HSHSIZ];
-struct	tnode **cp;
+struct node	hshtab[HSHSIZ];
+struct node **cp;
 int16_t	isn;
 struct	swtab	swtab[SWSIZ];
 struct	swtab	*swp;
@@ -173,16 +160,16 @@ char	*funcbase;
 char	*curbase;
 char	*coremax;
 char	*maxdecl;
-struct	hshtab	*defsym;
-struct	hshtab	*funcsym;
+struct node	*defsym;
+struct node	*funcsym;
 int16_t	proflg;
-struct	hshtab	*csym;
+struct node	*csym;
 int16_t	cval;
 int32_t	lcval;
 int16_t	nchstr;
 int16_t	nerror;
-struct	hshtab	**paraml;
-struct	hshtab	**parame;
+struct node	*paraml;
+struct node	*parame;
 int16_t	strflg;
 int16_t	mosflg;
 int16_t	initflg;
@@ -191,12 +178,12 @@ char	sbuf[BUFSIZ];
 FILE	*sbufp;
 int16_t	regvar;
 int16_t	bitoffs;
-struct	tnode	funcblk;
+struct node	funcblk;
 char	cvntab[];
 char	numbuf[64];
-struct	hshtab **memlist;
+struct node **memlist;
 int16_t	nmems;
-struct	hshtab	structhole;
+struct node	structhole;
 int16_t	blklev;
 int16_t	mossym;
 
@@ -444,16 +431,16 @@ int16_t	mossym;
  * functions
  */
 char	*sbrk();
-struct	tnode *tree();
+struct node *tree();
 char	*copnum();
-struct	tnode *convert();
-struct	tnode *chkfun();
-struct	tnode *disarray();
-struct	tnode *block();
-struct	cnode *cblock();
-struct	fnode *fblock();
+struct node *convert();
+struct node *chkfun();
+struct node *disarray();
+struct node *block();
+struct node *cblock();
+struct node *fblock();
 char	*gblock();
-struct	tnode *pexpr();
+struct node *pexpr();
 struct	str *strdec();
-struct	hshtab *xprtype();
-struct	tnode *nblock();
+struct node *xprtype();
+struct node *nblock();

@@ -15,14 +15,14 @@
  * Process a sequence of declaration statements
  */
 int16_t align(int16_t type, int16_t offset, int16_t aflen);
-int16_t cpysymb(struct phshtab *s1, struct phshtab *s2);
-int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab *absname);
-int16_t declare(int16_t askw, struct hshtab *tptr, int16_t offset);
+int16_t cpysymb(struct node *s1, struct node *s2);
+int16_t decl1(int16_t askw, struct node *atptr, int16_t offset, struct node *absname);
+int16_t declare(int16_t askw, struct node *tptr, int16_t offset);
 int16_t decsyn(int16_t o);
-int16_t getkeywords(int16_t *scptr, struct hshtab *tptr);
-int16_t getype(struct tdim *adimp, struct hshtab *absname);
-int16_t goodreg(struct hshtab *hp);
-int16_t pushdecl(struct phshtab *asp);
+int16_t getkeywords(int16_t *scptr, struct node *tptr);
+int16_t getype(struct tdim *adimp, struct node *absname);
+int16_t goodreg(struct node *hp);
+int16_t pushdecl(struct node *asp);
 int16_t redec(void);
 struct str * strdec(int16_t mosf, int16_t kind);
 int16_t typov(void);
@@ -30,7 +30,7 @@ int16_t typov(void);
 int16_t declist(int16_t sclass)
 {
 	register int16_t sc, offset;
-	struct hshtab typer;
+	struct node typer;
 
 	offset = 0;
 	sc = sclass;
@@ -46,7 +46,7 @@ int16_t declist(int16_t sclass)
  * Store back the storage class, and fill in the type
  * entry, which looks like a hash table entry.
  */
-int16_t getkeywords(int16_t *scptr, struct hshtab *tptr)
+int16_t getkeywords(int16_t *scptr, struct node *tptr)
 {
 	register int16_t skw, tkw, longf;
 	int16_t o, isadecl, ismos, unsignf;
@@ -54,19 +54,19 @@ int16_t getkeywords(int16_t *scptr, struct hshtab *tptr)
 	isadecl = 0;
 	longf = 0;
 	unsignf = 0;
-	tptr->htype = INT;
-	tptr->hstrp = NULL;
-	tptr->hsubsp = NULL;
+	tptr->u.hshtab.htype = INT;
+	tptr->u.hshtab.hstrp = NULL;
+	tptr->u.hshtab.hsubsp = NULL;
 	tkw = -1;
 	skw = *scptr;
 	ismos = skw==MOS||skw==MOU;
 	for (;;) {
 		mosflg = ismos && isadecl;
 		o = symbol();
-		if (o==NAME && csym->hclass==TYPEDEF && tkw<0) {
-			tkw = csym->htype;
-			tptr->hsubsp = csym->hsubsp;
-			tptr->hstrp = csym->hstrp;
+		if (o==NAME && csym->u.hshtab.hclass==TYPEDEF && tkw<0) {
+			tkw = csym->u.hshtab.htype;
+			tptr->u.hshtab.hsubsp = csym->u.hshtab.hsubsp;
+			tptr->u.hshtab.hstrp = csym->u.hshtab.hstrp;
 			isadecl++;
 			continue;
 		}
@@ -100,7 +100,7 @@ int16_t getkeywords(int16_t *scptr, struct hshtab *tptr)
 
 		case UNION:
 		case STRUCT:
-			tptr->hstrp = strdec(ismos, cval);
+			tptr->u.hshtab.hstrp = strdec(ismos, cval);
 			cval = STRUCT;
 		case INT:
 		case CHAR:
@@ -135,7 +135,7 @@ int16_t getkeywords(int16_t *scptr, struct hshtab *tptr)
 					error("Misplaced 'long'");
 			}
 			*scptr = skw;
-			tptr->htype = tkw;
+			tptr->u.hshtab.htype = tkw;
 			return(1);
 		}
 		isadecl++;
@@ -149,14 +149,14 @@ int16_t getkeywords(int16_t *scptr, struct hshtab *tptr)
 struct str * strdec(int16_t mosf, int16_t kind)
 {
 	register int16_t elsize, o;
-	register struct hshtab *ssym;
+	register struct node *ssym;
 	int16_t savebits;
-	struct hshtab **savememlist;
+	struct node **savememlist;
 	int16_t savenmems;
 	struct str *strp;
-	struct hshtab *ds;
-	struct hshtab *mems[NMEMS];
-	struct hshtab typer;
+	struct node *ds;
+	struct node *mems[NMEMS];
+	struct node typer;
 	int16_t tagkind;
 
 	if (kind!=ENUM) {
@@ -169,18 +169,18 @@ struct str * strdec(int16_t mosf, int16_t kind)
 		ssym = csym;
 		mosflg = mosf;
 		o = symbol();
-		if (o==LBRACE && ssym->hblklev<blklev)
+		if (o==LBRACE && ssym->u.hshtab.hblklev<blklev)
 			pushdecl(ssym);
-		if (ssym->hclass==0) {
-			ssym->hclass = tagkind;
-			ssym->strp = gblock(sizeof(*strp));
+		if (ssym->u.hshtab.hclass==0) {
+			ssym->u.hshtab.hclass = tagkind;
+			ssym->u.tnode.strp = gblock(sizeof(*strp));
 			funcbase = curbase;
-			ssym->strp->ssize = 0;
-			ssym->strp->memlist = NULL;
+			ssym->u.tnode.strp->ssize = 0;
+			ssym->u.tnode.strp->memlist = NULL;
 		}
-		if (ssym->hclass != tagkind)
+		if (ssym->u.hshtab.hclass != tagkind)
 			redec();
-		strp = ssym->strp;
+		strp = ssym->u.tnode.strp;
 	} else {
 		strp = gblock(sizeof(*strp));
 		funcbase = curbase;
@@ -191,7 +191,7 @@ struct str * strdec(int16_t mosf, int16_t kind)
 	if (o != LBRACE) {
 		if (ssym==0)
 			goto syntax;
-		if (ssym->hclass!=tagkind)
+		if (ssym->u.hshtab.hclass!=tagkind)
 			error("Bad structure/union/enum name");
 		peeksym = o;
 	} else {
@@ -204,15 +204,15 @@ struct str * strdec(int16_t mosf, int16_t kind)
 		nmems = 2;
 		bitoffs = 0;
 		if (kind==ENUM) {
-			typer.htype = INT;
-			typer.hstrp = strp;
+			typer.u.hshtab.htype = INT;
+			typer.u.hshtab.hstrp = strp;
 			declare(ENUM, &typer, 0);
 		} else
 			elsize = declist(kind==UNION?MOU:MOS);
 		bitoffs = savebits;
 		defsym = ds;
 		if (strp->ssize)
-			error("%.8s redeclared", ssym->name);
+			error("%.8s redeclared", ssym->u.hshtab.name);
 		strp->ssize = elsize;
 		*memlist++ = NULL;
 		strp->memlist = gblock((memlist-mems)*sizeof(*memlist));
@@ -233,7 +233,7 @@ struct str * strdec(int16_t mosf, int16_t kind)
 /*
  * Process a comma-separated list of declarators
  */
-int16_t declare(int16_t askw, struct hshtab *tptr, int16_t offset)
+int16_t declare(int16_t askw, struct node *tptr, int16_t offset)
 {
 	register int16_t o;
 	register int16_t skw, isunion;
@@ -276,13 +276,13 @@ int16_t declare(int16_t askw, struct hshtab *tptr, int16_t offset)
 /*
  * Process a single declarator
  */
-int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab *absname)
+int16_t decl1(int16_t askw, struct node *atptr, int16_t offset, struct node *absname)
 {
 	int16_t t1, chkoff, a, elsize;
 	register int16_t skw;
 	int16_t type;
-	register struct hshtab *dsym;
-	register struct hshtab *tptr;
+	register struct node *dsym;
+	register struct node *tptr;
 	struct tdim dim;
 	struct field *fldp;
 	int16_t *dp;
@@ -301,22 +301,22 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 	if (peeksym==COLON && skw==MOS) {
 		peeksym = -1;
 		t1 = conexp();
-		elsize = align(tptr->htype, offset, t1);
+		elsize = align(tptr->u.hshtab.htype, offset, t1);
 		bitoffs += t1;
 		return(elsize);
 	}
 	t1 = getype(&dim, absname);
 	if (t1 == -1)
 		return(0);
-	if (tptr->hsubsp) {
-		type = tptr->htype;
+	if (tptr->u.hshtab.hsubsp) {
+		type = tptr->u.hshtab.htype;
 		for (a=0; type&XTYPE;) {
 			if ((type&XTYPE)==ARRAY)
-				dim.dimens[dim.rank++] = tptr->hsubsp[a++];
+				dim.dimens[dim.rank++] = tptr->u.hshtab.hsubsp[a++];
 			type >>= TYLEN;
 		}
 	}
-	type = tptr->htype & ~TYPE;
+	type = tptr->u.hshtab.htype & ~TYPE;
 	while (t1&XTYPE) {
 		if (type&BIGTYPE) {
 			typov();
@@ -325,14 +325,14 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 		type = type<<TYLEN | (t1 & XTYPE);
 		t1 >>= TYLEN;
 	}
-	type |= tptr->htype&TYPE;
+	type |= tptr->u.hshtab.htype&TYPE;
 	if (absname)
 		defsym = absname;
 	dsym = defsym;
-	if (dsym->hblklev < blklev)
+	if (dsym->u.hshtab.hblklev < blklev)
 		pushdecl(dsym);
 	if (dim.rank == 0)
-		dsym->subsp = NULL;
+		dsym->u.tnode.subsp = NULL;
 	else {
 		dp = gblock(dim.rank*sizeof(dim.rank));
 		funcbase = curbase;
@@ -340,11 +340,11 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 			maxdecl = curbase;
 		for (a=0; a<dim.rank; a++) {
 			if ((t1 = dp[a] = dim.dimens[a])
-			 && (dsym->htype&XTYPE) == ARRAY
-			 && dsym->subsp[a] && t1!=dsym->subsp[a])
+			 && (dsym->u.hshtab.htype&XTYPE) == ARRAY
+			 && dsym->u.tnode.subsp[a] && t1!=dsym->u.tnode.subsp[a])
 				redec();
 		}
-		dsym->subsp = dp;
+		dsym->u.tnode.subsp = dp;
 	}
 	if ((type&XTYPE) == FUNC) {
 		if (skw==AUTO)
@@ -352,25 +352,25 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 		if ((skw!=EXTERN && skw!=TYPEDEF) && absname==NULL)
 			error("Bad func. storage class");
 	}
-	if (!(dsym->hclass==0
-	   || ((skw==ARG||skw==AREG) && dsym->hclass==ARG1)
-	   || (skw==EXTERN && dsym->hclass==EXTERN && dsym->htype==type)))
-		if (skw==MOS && dsym->hclass==MOS && dsym->htype==type)
+	if (!(dsym->u.hshtab.hclass==0
+	   || ((skw==ARG||skw==AREG) && dsym->u.hshtab.hclass==ARG1)
+	   || (skw==EXTERN && dsym->u.hshtab.hclass==EXTERN && dsym->u.hshtab.htype==type)))
+		if (skw==MOS && dsym->u.hshtab.hclass==MOS && dsym->u.hshtab.htype==type)
 			chkoff = 1;
 		else {
 			redec();
 			goto syntax;
 		}
-	if (dsym->hclass && (dsym->htype&TYPE)==STRUCT && (type&TYPE)==STRUCT)
-		if (dsym->hstrp != tptr->hstrp) {
+	if (dsym->u.hshtab.hclass && (dsym->u.hshtab.htype&TYPE)==STRUCT && (type&TYPE)==STRUCT)
+		if (dsym->u.hshtab.hstrp != tptr->u.hshtab.hstrp) {
 			error("Warning: structure redeclaration");
 			nerror--;
 		}
-	dsym->htype = type;
-	if (tptr->hstrp)
-		dsym->hstrp = tptr->hstrp;
+	dsym->u.hshtab.htype = type;
+	if (tptr->u.hshtab.hstrp)
+		dsym->u.hshtab.hstrp = tptr->u.hshtab.hstrp;
 	if (skw==TYPEDEF) {
-		dsym->hclass = TYPEDEF;
+		dsym->u.hshtab.hclass = TYPEDEF;
 		return(0);
 	}
 	if (absname)
@@ -379,9 +379,9 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 		if (paraml==0)
 			paraml = dsym;
 		else
-			parame->hoffset = dsym;
+			parame->u.hshtab.next = dsym;
 		parame = dsym;
-		dsym->hclass = skw;
+		dsym->u.hshtab.hclass = skw;
 		return(0);
 	}
 	elsize = 0;
@@ -392,17 +392,17 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 			peeksym = -1;
 			t1 = conexp();
 			a = align(type, offset, t1);
-			if (dsym->hflag&FFIELD) {
-				if (dsym->hstrp->bitoffs!=bitoffs
-			 	 || dsym->hstrp->flen!=t1)
+			if (dsym->u.hshtab.hflag&FFIELD) {
+				if (((struct field *)dsym->u.hshtab.hstrp)->bitoffs!=bitoffs
+			 	 || ((struct field *)dsym->u.hshtab.hstrp)->flen!=t1)
 					redec();
 			} else {
-				dsym->hstrp = gblock(sizeof(*fldp));
+				dsym->u.hshtab.hstrp = gblock(sizeof(*fldp));
 				funcbase = curbase;
 			}
-			dsym->hflag |= FFIELD;
-			dsym->hstrp->bitoffs = bitoffs;
-			dsym->hstrp->flen = t1;
+			dsym->u.hshtab.hflag |= FFIELD;
+			((struct field *)dsym->u.hshtab.hstrp)->bitoffs = bitoffs;
+			((struct field *)dsym->u.hshtab.hstrp)->flen = t1;
 			bitoffs += t1;
 		} else
 			a = align(type, offset, 0);
@@ -415,15 +415,15 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 		}
 		if (a)
 			*memlist++ = &structhole;
-		if (chkoff && dsym->hoffset != offset)
+		if (chkoff && dsym->u.hshtab.hoffset != offset)
 			redec();
-		dsym->hoffset = offset;
+		dsym->u.hshtab.hoffset = offset;
 		*memlist++ = dsym;
 	}
 	if (skw==REG)
-		if ((dsym->hoffset = goodreg(dsym)) < 0)
+		if ((dsym->u.hshtab.hoffset = goodreg(dsym)) < 0)
 			skw = AUTO;
-	dsym->hclass = skw;
+	dsym->u.hshtab.hclass = skw;
 	isinit = 0;
 	if ((a=symbol())!=COMMA && a!=SEMI && a!=RBRACE)
 		isinit++;
@@ -432,11 +432,11 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 	if (skw==AUTO) {
 	/*	if (STAUTO < 0) {	*/
 			autolen -= rlength(dsym);
-			dsym->hoffset = autolen;
+			dsym->u.hshtab.hoffset = autolen;
 			if (autolen < maxauto)
 				maxauto = autolen;
 	/*	} else { 			*/
-	/*		dsym->hoffset = autolen;	*/
+	/*		dsym->u.hshtab.hoffset = autolen;	*/
 	/*		autolen =+ rlength(dsym);	*/
 	/*		if (autolen > maxauto)		*/
 	/*			maxauto = autolen;	*/
@@ -444,7 +444,7 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 		if (isinit)
 			cinit(dsym, 0, AUTO);
 	} else if (skw==STATIC) {
-		dsym->hoffset = isn;
+		dsym->u.hshtab.hoffset = isn;
 		if (isinit) {
 			outcode("BBN", DATA, LABEL, isn++);
 			if (cinit(dsym, 1, STATIC) & ALIGN)
@@ -456,12 +456,12 @@ int16_t decl1(int16_t askw, struct hshtab *atptr, int16_t offset, struct hshtab 
 		cinit(dsym, 0, REG);
 	else if (skw==ENUM) {
 		if (type!=INT)
-			error("Illegal enumeration %.8s", dsym->name);
-		dsym->hclass = ENUMCON;
-		dsym->hoffset = offset;
+			error("Illegal enumeration %.8s", dsym->u.hshtab.name);
+		dsym->u.hshtab.hclass = ENUMCON;
+		dsym->u.hshtab.hoffset = offset;
 		if (isinit)
 			cinit(dsym, 0, ENUMCON);
-		elsize = dsym->hoffset-offset+1;
+		elsize = dsym->u.hshtab.hoffset-offset+1;
 	}
 	prste(dsym);
 syntax:
@@ -472,51 +472,51 @@ syntax:
  * Push down an outer-block declaration
  * after redeclaration in an inner block.
  */
-int16_t pushdecl(struct phshtab *asp)
+int16_t pushdecl(struct node *asp)
 {
-	register struct phshtab *sp, *nsp;
+	register struct node *sp, *nsp;
 
 	sp = asp;
 	nsp = gblock(sizeof(*nsp));
 	maxdecl = funcbase = curbase;
 	cpysymb(nsp, sp);
-	sp->hclass = 0;
-	sp->hflag &= (FKEYW|FMOS);
-	sp->htype = 0;
-	sp->hoffset = 0;
-	sp->hblklev = blklev;
-	sp->hpdown = nsp;
+	sp->u.hshtab.hclass = 0;
+	sp->u.hshtab.hflag &= (FKEYW|FMOS);
+	sp->u.hshtab.htype = 0;
+	sp->u.hshtab.hoffset = 0;
+	sp->u.hshtab.hblklev = blklev;
+	sp->u.hshtab.hpdown = nsp;
 }
 
 /*
  * Copy the non-name part of a symbol
  */
-int16_t cpysymb(struct phshtab *s1, struct phshtab *s2)
+int16_t cpysymb(struct node *s1, struct node *s2)
 {
-	register struct phshtab *rs1, *rs2;
+	register struct node *rs1, *rs2;
 
 	rs1 = s1;
 	rs2 = s2;
-	rs1->hclass = rs2->hclass;
-	rs1->hflag = rs2->hflag;
-	rs1->htype = rs2->htype;
-	rs1->hoffset = rs2->hoffset;
-	rs1->hsubsp = rs2->hsubsp;
-	rs1->hstrp = rs2->hstrp;
-	rs1->hblklev = rs2->hblklev;
-	rs1->hpdown = rs2->hpdown;
+	rs1->u.hshtab.hclass = rs2->u.hshtab.hclass;
+	rs1->u.hshtab.hflag = rs2->u.hshtab.hflag;
+	rs1->u.hshtab.htype = rs2->u.hshtab.htype;
+	rs1->u.hshtab.hoffset = rs2->u.hshtab.hoffset;
+	rs1->u.hshtab.hsubsp = rs2->u.hshtab.hsubsp;
+	rs1->u.hshtab.hstrp = rs2->u.hshtab.hstrp;
+	rs1->u.hshtab.hblklev = rs2->u.hshtab.hblklev;
+	rs1->u.hshtab.hpdown = rs2->u.hshtab.hpdown;
 }
 
 
 /*
  * Read a declarator and get the implied type
  */
-int16_t getype(struct tdim *adimp, struct hshtab *absname)
+int16_t getype(struct tdim *adimp, struct node *absname)
 {
-	static struct hshtab argtype;
+	static struct node argtype;
 	int16_t type;
 	register int16_t o;
-	register struct hshtab *ds;
+	register struct node *ds;
 	register struct tdim *dimp;
 
 	ds = defsym;
@@ -675,18 +675,18 @@ int16_t decsyn(int16_t o)
  */
 int16_t redec(void)
 {
-	error("%.8s redeclared", defsym->name);
+	error("%.8s redeclared", defsym->u.hshtab.name);
 }
 
 /*
  * Determine if a variable is suitable for storage in
  * a register; if so return the register number
  */
-int16_t goodreg(struct hshtab *hp)
+int16_t goodreg(struct node *hp)
 {
 	int16_t type;
 
-	type = hp->htype;
+	type = hp->u.hshtab.htype;
 	/*
 	 * Special dispensation for unions
 	 */

@@ -13,23 +13,23 @@
 int16_t blkend(void);
 int16_t blockhead(void);
 int16_t cfunc(void);
-int16_t cinit(struct hshtab *anp, int16_t flex, int16_t sclass);
+int16_t cinit(struct node *anp, int16_t flex, int16_t sclass);
 int16_t errflush(int16_t ao);
 int16_t forstmt(void);
 int16_t funchead(void);
-struct tnode * pexpr(void);
-void prste(struct hshtab *acs);
+struct node * pexpr(void);
+void prste(struct node *acs);
 int16_t pswitch(void);
-int16_t setinit(struct hshtab *anp);
+int16_t setinit(struct node *anp);
 void statement(void);
-int16_t strinit(struct tnode *np, int16_t sclass);
+int16_t strinit(struct node *np, int16_t sclass);
 
 void extdef(void)
 {
 	register int16_t o;
 	int16_t sclass, scflag, *cb;
-	struct hshtab typer;
-	register struct hshtab *ds;
+	struct node typer;
+	register struct node *ds;
 
 	if(((o=symbol())==EOFC) || o==SEMI)
 		return;
@@ -60,13 +60,13 @@ void extdef(void)
 		if ((ds=defsym)==0)
 			return;
 		funcsym = ds;
-		if ((ds->type&XTYPE)==FUNC) {
+		if ((ds->u.tnode.type&XTYPE)==FUNC) {
 			if ((peeksym=symbol())==LBRACE || peeksym==KEYW
-			 || (peeksym==NAME && csym->hclass==TYPEDEF)) {
-				funcblk.type = decref(ds->type);
-				funcblk.strp = ds->strp;
+			 || (peeksym==NAME && csym->u.hshtab.hclass==TYPEDEF)) {
+				funcblk.u.tnode.type = decref(ds->u.tnode.type);
+				funcblk.u.tnode.strp = ds->u.tnode.strp;
 				setinit(ds);
-				outcode("BS", SYMDEF, sclass==EXTERN?ds->name:"");
+				outcode("BS", SYMDEF, sclass==EXTERN?ds->u.hshtab.name:"");
 				cfunc();
 				return;
 			}
@@ -77,16 +77,16 @@ void extdef(void)
 			o = (length(ds)+ALIGN) & ~ALIGN;
 			if (sclass==STATIC) {
 				setinit(ds);
-				outcode("BSBBSBN", SYMDEF, "", BSS, NLABEL, ds->name, SSPACE, o);
+				outcode("BSBBSBN", SYMDEF, "", BSS, NLABEL, ds->u.hshtab.name, SSPACE, o);
 			} else if (scflag)
-				outcode("BSN", CSPACE, ds->name, o);
+				outcode("BSN", CSPACE, ds->u.hshtab.name, o);
 		} else {
 			if (o!=ASSIGN)
 				peeksym = o;
 			setinit(ds);
 			if (sclass==EXTERN)
-				outcode("BS", SYMDEF, ds->name);
-			outcode("BBS", DATA, NLABEL, ds->name);
+				outcode("BS", SYMDEF, ds->u.hshtab.name);
+			outcode("BBS", DATA, NLABEL, ds->u.hshtab.name);
 			cb = funcbase;
 			if (cinit(ds, 1, sclass) & ALIGN)
 				outcode("B", EVEN);
@@ -118,7 +118,7 @@ int16_t cfunc(void)
 
 	sloc = isn;
 	isn += 2;
-	outcode("BBS", PROG, RLABEL, funcsym->name);
+	outcode("BBS", PROG, RLABEL, funcsym->u.hshtab.name);
 	if (proflg)
 		outcode("BN", PROFIL, isn++);
 	cb = curbase;
@@ -148,18 +148,18 @@ int16_t cfunc(void)
 /*
  * Process the initializers for an external definition.
  */
-int16_t cinit(struct hshtab *anp, int16_t flex, int16_t sclass)
+int16_t cinit(struct node *anp, int16_t flex, int16_t sclass)
 {
-	register struct phshtab *np;
+	register struct node *np;
 	register int16_t nel, ninit;
 	int16_t width, isarray, o, brace, realtype, *cb;
-	struct tnode *s;
+	struct node *s;
 
 	cb = funcbase;
 	np = gblock(sizeof(*np));
 	funcbase = curbase;
 	cpysymb(np, anp);
-	realtype = np->type;
+	realtype = np->u.tnode.type;
 	isarray = 0;
 	if ((realtype&XTYPE) == ARRAY)
 		isarray++;
@@ -176,17 +176,17 @@ int16_t cinit(struct hshtab *anp, int16_t flex, int16_t sclass)
 		if (isarray || realtype==STRUCT)
 			error("No auto. aggregate initialization");
 	if (isarray) {
-		np->type = decref(realtype);
-		np->subsp++;
+		np->u.tnode.type = decref(realtype);
+		np->u.tnode.subsp++;
 		if (width==0 && flex==0)
-			error("0-length row: %.8s", anp->name);
+			error("0-length row: %.8s", anp->u.hshtab.name);
 		o = length(np);
 		/* nel = ldiv(0, width, o); */
 		nel = (unsigned)width/o;
 		width = o;
 	}
 	brace = 0;
-	if ((peeksym=symbol())==LBRACE && (isarray || np->type!=STRUCT)) {
+	if ((peeksym=symbol())==LBRACE && (isarray || np->u.tnode.type!=STRUCT)) {
 		peeksym = -1;
 		brace++;
 	}
@@ -203,15 +203,15 @@ int16_t cinit(struct hshtab *anp, int16_t flex, int16_t sclass)
 			ninit += nchstr;
 			o = symbol();
 			break;
-		} else if (np->type==STRUCT) {
+		} else if (np->u.tnode.type==STRUCT) {
 			strinit(np, sclass);
-		} else if ((np->type&ARRAY)==ARRAY || peeksym==LBRACE)
+		} else if ((np->u.tnode.type&ARRAY)==ARRAY || peeksym==LBRACE)
 			cinit(np, 0, sclass);
 		else {
 			initflg++;
 			s = tree();
 			initflg = 0;
-			if (np->hflag&FFIELD)
+			if (np->u.hshtab.hflag&FFIELD)
 				error("No field initialization");
 			*cp++ = nblock(np);
 			*cp++ = s;
@@ -219,11 +219,11 @@ int16_t cinit(struct hshtab *anp, int16_t flex, int16_t sclass)
 			if (sclass==AUTO||sclass==REG)
 				rcexpr(*--cp);
 			else if (sclass==ENUMCON) {
-				if (s->op!=CON)
-					error("Illegal enum constant for %.8s", anp->name);
-				anp->hoffset = s->value;
+				if (s->u.tnode.op!=CON)
+					error("Illegal enum constant for %.8s", anp->u.hshtab.name);
+				anp->u.hshtab.hoffset = s->u.cnode.value;
 			} else
-				rcexpr(block(INIT,np->type,NULL,NULL,(*--cp)->tr2));
+				rcexpr(block(INIT,np->u.tnode.type,NULL,NULL,(*--cp)->u.tnode.tr2));
 		}
 		ninit++;
 		if ((ninit&077)==0 && sclass==EXTERN)
@@ -241,9 +241,9 @@ int16_t cinit(struct hshtab *anp, int16_t flex, int16_t sclass)
 		outcode("BN", SSPACE, (nel-ninit)*width);
 	else if (ninit>nel) {
 		if (flex && nel==0) {
-			np->subsp[-1] = ninit;
+			np->u.tnode.subsp[-1] = ninit;
 		} else
-			error("Too many initializers: %.8s", anp->name);
+			error("Too many initializers: %.8s", anp->u.hshtab.name);
 		nel = ninit;
 	}
 	curbase = funcbase = cb;
@@ -253,13 +253,13 @@ int16_t cinit(struct hshtab *anp, int16_t flex, int16_t sclass)
 /*
  * Initialize a structure
  */
-int16_t strinit(struct tnode *np, int16_t sclass)
+int16_t strinit(struct node *np, int16_t sclass)
 {
-	register struct hshtab **mlp;
+	register struct node **mlp;
 	static int16_t zerloc;
 	register int16_t o, brace;
 
-	if ((mlp = np->strp->memlist)==NULL) {
+	if ((mlp = np->u.tnode.strp->memlist)==NULL) {
 		mlp = &zerloc;
 		error("Undefined structure initialization");
 	}
@@ -284,7 +284,7 @@ int16_t strinit(struct tnode *np, int16_t sclass)
 	} while ((o=symbol())==COMMA && (*mlp || brace));
 	if (sclass!=AUTO && sclass!=REG) {
 		if (*mlp)
-			outcode("BN", SSPACE, np->strp->ssize - (*mlp)->hoffset);
+			outcode("BN", SSPACE, np->u.tnode.strp->ssize - (*mlp)->u.hshtab.hoffset);
 		outcode("B", EVEN);
 	}
 	if (o!=RBRACE || brace==0)
@@ -294,14 +294,14 @@ int16_t strinit(struct tnode *np, int16_t sclass)
 /*
  * Mark already initialized
  */
-int16_t setinit(struct hshtab *anp)
+int16_t setinit(struct node *anp)
 {
-	register struct hshtab *np;
+	register struct node *np;
 
 	np = anp;
-	if (np->hflag&FINIT)
-		error("%s multiply defined", np->name);
-	np->hflag |= FINIT;
+	if (np->u.hshtab.hflag&FINIT)
+		error("%s multiply defined", np->u.hshtab.name);
+	np->u.hshtab.hflag |= FINIT;
 }
 
 /*
@@ -311,7 +311,7 @@ void statement(void)
 {
 	register int16_t o, o1, o2;
 	int16_t o3;
-	struct tnode *np;
+	struct node *np;
 	int16_t sauto, sreg;
 
 stmt:
@@ -509,23 +509,23 @@ stmt:
 	case NAME:
 		if (nextchar()==':') {
 			peekc = 0;
-			o1 = csym;
-			if (o1->hclass>0) {
-				if (o1->hblklev==0) {
-					pushdecl(o1);
-					o1->hoffset = 0;
+			struct node *onp = csym;
+			if (onp->u.hshtab.hclass>0) {
+				if (onp->u.hshtab.hblklev==0) {
+					pushdecl(onp);
+					onp->u.hshtab.hoffset = 0;
 				} else {
-					defsym = o1;
+					defsym = onp;
 					redec();
 					goto stmt;
 				}
 			}
-			o1->hclass = STATIC;
-			o1->htype = ARRAY;
-			o1->hflag |= FLABL;
-			if (o1->hoffset==0)
-				o1->hoffset = isn++;
-			label(o1->hoffset);
+			onp->u.hshtab.hclass = STATIC;
+			onp->u.hshtab.htype = ARRAY;
+			onp->u.hshtab.hflag |= FLABL;
+			if (onp->u.hshtab.hoffset==0)
+				onp->u.hshtab.hoffset = isn++;
+			label(onp->u.hshtab.hoffset);
 			goto stmt;
 		}
 	}
@@ -547,7 +547,7 @@ int16_t forstmt(void)
 {
 	register int16_t l, o, sline;
 	int16_t sline1, *ss;
-	struct tnode *st;
+	struct node *st;
 
 	if ((o=symbol()) != LPARN)
 		return(o);
@@ -595,7 +595,7 @@ int16_t forstmt(void)
  * A parenthesized expression,
  * as after "if".
  */
-struct tnode * pexpr(void)
+struct node * pexpr(void)
 {
 	register int16_t o, t;
 
@@ -650,46 +650,46 @@ int16_t pswitch(void)
 /*
  * Structure resembling a block for a register variable.
  */
-struct	hshtab	hreg	{ REG, 0, 0, NULL, NULL, 0 };
-struct	tnode	areg	{ NAME, 0, NULL, NULL, &hreg};
+struct node hreg = { { .hshtab = { REG, 0, 0, NULL, NULL, 0 } } };
+struct node areg = { { .tnode = { NAME, 0, NULL, NULL, &hreg } } };
 int16_t funchead(void)
 {
 	register int16_t pl;
-	register struct hshtab *cs;
-	struct tnode *bstack[2];
+	register struct node *cs;
+	struct node *bstack[2];
 
 	pl = STARG;
 	while(paraml) {
-		parame->hoffset = 0;
+		parame->u.hshtab.next = 0;
 		cs = paraml;
-		paraml = paraml->hoffset;
-		if (cs->htype==FLOAT)
-			cs->htype = DOUBLE;
-		cs->hoffset = pl;
-		if ((cs->htype&XTYPE) == ARRAY) {
-			cs->htype -= (ARRAY-PTR);	/* set ptr */
-			cs->subsp++;		/* pop dims */
+		paraml = paraml->u.hshtab.next;
+		if (cs->u.hshtab.htype==FLOAT)
+			cs->u.hshtab.htype = DOUBLE;
+		cs->u.hshtab.hoffset = pl;
+		if ((cs->u.hshtab.htype&XTYPE) == ARRAY) {
+			cs->u.hshtab.htype -= (ARRAY-PTR);	/* set ptr */
+			cs->u.tnode.subsp++;		/* pop dims */
 		}
 		pl += rlength(cs);
-		if (cs->hclass==AREG && (hreg.hoffset=goodreg(cs))>=0) {
+		if (cs->u.hshtab.hclass==AREG && (hreg.u.hshtab.hoffset=goodreg(cs))>=0) {
 			bstack[0] = &areg;
 			bstack[1] = nblock(cs);
 			cp = &bstack[2];
-			areg.type = cs->htype;
-			cs->hclass = AUTO;
+			areg.u.tnode.type = cs->u.hshtab.htype;
+			cs->u.hshtab.hclass = AUTO;
 			build(ASSIGN);
 			rcexpr(bstack[0]);
-			cs->hoffset = hreg.hoffset;
-			cs->hclass = REG;
+			cs->u.hshtab.hoffset = hreg.u.hshtab.hoffset;
+			cs->u.hshtab.hclass = REG;
 		} else
-			cs->hclass = AUTO;
+			cs->u.hshtab.hclass = AUTO;
 		prste(cs);
 	}
 	for (cs=hshtab; cs<hshtab+HSHSIZ; cs++) {
-		if (cs->name[0] == '\0')
+		if (cs->u.hshtab.name[0] == '\0')
 			continue;
-		if (cs->hclass == ARG || cs->hclass==AREG)
-			error("Not an argument: %.8s", cs->name);
+		if (cs->u.hshtab.hclass == ARG || cs->u.hshtab.hclass==AREG)
+			error("Not an argument: %.8s", cs->u.hshtab.name);
 	}
 	outcode("BN", SETREG, regvar);
 }
@@ -712,25 +712,25 @@ int16_t blockhead(void)
  */
 int16_t blkend(void)
 {
-	register struct hshtab *cs, *ncs;
-	struct hshtab *endcs;
+	register struct node *cs, *ncs;
+	struct node *endcs;
 	register int16_t i;
 
 	blklev--;
-	for (cs=hshtab; cs->name[0] && cs<hshtab+HSHSIZ-1; ++cs)
+	for (cs=hshtab; cs->u.hshtab.name[0] && cs<hshtab+HSHSIZ-1; ++cs)
 		;
 	endcs = cs;
-	do  if (cs->name[0]) {
-		if (cs->hblklev <= blklev)
+	do  if (cs->u.hshtab.name[0]) {
+		if (cs->u.hshtab.hblklev <= blklev)
 			continue;
-		if ((cs->hclass!=EXTERN || blklev!=0)
-		 && ((cs->hflag&FLABL)==0 || blklev==0)) {
-			if (cs->hclass==0)
-				error("%.8s undefined", cs->name);
-			if ((ncs = cs->hpdown)==NULL) {
-				cs->name[0] = '\0';
+		if ((cs->u.hshtab.hclass!=EXTERN || blklev!=0)
+		 && ((cs->u.hshtab.hflag&FLABL)==0 || blklev==0)) {
+			if (cs->u.hshtab.hclass==0)
+				error("%.8s undefined", cs->u.hshtab.name);
+			if ((ncs = cs->u.hshtab.hpdown)==NULL) {
+				cs->u.hshtab.name[0] = '\0';
 				hshused--;
-				cs->hflag &= FKEYW;
+				cs->u.hshtab.hflag &= FKEYW;
 			} else {
 				cpysymb(cs, ncs);
 			}
@@ -740,19 +740,19 @@ int16_t blkend(void)
 		 * Retained name; must rehash.
 		 */
 		for (i=0; i<NCPS; i++)
-			symbuf[i] = cs->name[i];
-		mossym = cs->hflag&FMOS;
+			symbuf[i] = cs->u.hshtab.name[i];
+		mossym = cs->u.hshtab.hflag&FMOS;
 		lookup();
 		if ((ncs=csym) != cs) {
-			cs->name[0] = '\0';
+			cs->u.hshtab.name[0] = '\0';
 			hshused--;
-			i = ncs->hflag;
+			i = ncs->u.hshtab.hflag;
 			cpysymb(ncs, cs);
-			ncs->hflag |= i&FKEYW;
-			cs->hflag &= FKEYW;
+			ncs->u.hshtab.hflag |= i&FKEYW;
+			cs->u.hshtab.hflag &= FKEYW;
 		}
-		if (ncs->hblklev>1 || (ncs->hblklev>0 && ncs->hclass==EXTERN))
-			ncs->hblklev--;
+		if (ncs->u.hshtab.hblklev>1 || (ncs->u.hshtab.hblklev>0 && ncs->u.hshtab.hclass==EXTERN))
+			ncs->u.hshtab.hblklev--;
 	} while ((cs = (cs<&hshtab[HSHSIZ-1])? ++cs: hshtab) != endcs);
 }
 
@@ -761,13 +761,13 @@ int16_t blkend(void)
  * benefit of the debugger.  None of these are used
  * by the assembler except to save them.
  */
-void prste(struct hshtab *acs)
+void prste(struct node *acs)
 {
-	register struct hshtab *cs;
+	register struct node *cs;
 	register int16_t nkind;
 
 	cs = acs;
-	switch (cs->hclass) {
+	switch (cs->u.hshtab.hclass) {
 	case REG:
 		nkind = RNAME;
 		break;
@@ -784,7 +784,7 @@ void prste(struct hshtab *acs)
 		return;
 
 	}
-	outcode("BSN", nkind, cs->name, cs->hoffset);
+	outcode("BSN", nkind, cs->u.hshtab.name, cs->u.hshtab.hoffset);
 }
 
 /*

@@ -13,41 +13,41 @@ int16_t acommute(int16_t atree);
 void c1_const(int16_t op, int16_t *vp, int16_t av);
 void distrib(struct acl *list);
 void *getblk(int16_t size);
-int16_t hardlongs(struct tnode *at);
+int16_t hardlongs(struct node *at);
 void insert(int16_t op, int16_t atree, struct acl *alist);
-struct tnode *isconstant(struct tnode *at);
+struct node *isconstant(struct node *at);
 int16_t islong(int16_t t);
-struct tnode * lconst(int16_t op, struct tnode *lp, struct tnode *rp);
-int16_t lvfield(struct tnode *at);
-int16_t squash(struct tnode **p, struct tnode **maxp);
-struct tconst *tconst(int16_t val, int16_t type);
-struct tnode *tnode(int16_t op, int16_t type, struct tnode *tr1, struct tnode *tr2);
-struct tnode *unoptim(struct tnode *atree);
+struct node * lconst(int16_t op, struct node *lp, struct node *rp);
+int16_t lvfield(struct node *at);
+int16_t squash(struct node **p, struct node **maxp);
+struct node *tconst(int16_t val, int16_t type);
+struct node *tnode(int16_t op, int16_t type, struct node *tr1, struct node *tr2);
+struct node *unoptim(struct node *atree);
 
-struct tnode *optim(struct tnode *atree)
+struct node *optim(struct node *atree)
 {
 	register int16_t op, dope;
 	int16_t d1, d2;
-	struct tnode *t;
-	register struct tnode *tree;
+	struct node *t;
+	register struct node *tree;
 
 	if ((tree=atree)==0)
 		return(0);
 	if ((op = tree->op)==0)
 		return(tree);
-	if (op==NAME && tree->class==AUTO) {
-		tree->class = OFFS;
-		tree->regno = 5;
-		tree->offset = tree->nloc;
+	if (op==NAME && tree->u.tname.class==AUTO) {
+		tree->u.tname.class = OFFS;
+		tree->u.tname.regno = 5;
+		tree->u.tname.offset = tree->u.tname.nloc;
 	}
 	dope = opdope[op];
 	if ((dope&LEAF) != 0) {
 		if (op==FCON
-		 && tree->fvalue.intx[1]==0
-		 && tree->fvalue.intx[2]==0
-		 && tree->fvalue.intx[3]==0) {
+		 && tree->u.ftconst.intx[1]==0
+		 && tree->u.ftconst.intx[2]==0
+		 && tree->u.ftconst.intx[3]==0) {
 			tree->op = SFCON;
-			tree->value = tree->fvalue.intx[0];
+			tree->u.tconst.value = tree->u.ftconst.intx[0];
 		}
 		return(tree);
 	}
@@ -64,7 +64,7 @@ struct tnode *optim(struct tnode *atree)
 	 */
 	case ASAND:
 		tree->op = ASANDN;
-		tree->tr2 = tnode(COMPL, tree->tr2->type, tree->tr2);
+		tree->u.tnode.tr2 = tnode(COMPL, tree->u.tnode.tr2->type, tree->u.tnode.tr2);
 		break;
 
 	/*
@@ -73,25 +73,25 @@ struct tnode *optim(struct tnode *atree)
 	 */
 	case LTOP:
 		tree->op = ITOP;
-		tree->tr1 = unoptim(tnode(LTOI,INT,tree->tr1));
+		tree->u.tnode.tr1 = unoptim(tnode(LTOI,INT,tree->u.tnode.tr1));
 	case ITOP:
 		tree->op = TIMES;
 		break;
 
 	case MINUS:
-		if ((t = isconstant(tree->tr2)) && (t->type!=UNSIGN || tree->type!=LONG)) {
+		if ((t = isconstant(tree->u.tnode.tr2)) && (t->type!=UNSIGN || tree->type!=LONG)) {
 			tree->op = PLUS;
 			if (t->type==DOUBLE)
 				/* PDP-11 FP representation */
-				t->value ^= 0100000;
+				t->u.tconst.value ^= 0100000;
 			else
-				t->value = -t->value;
+				t->u.tconst.value = -t->u.tconst.value;
 		}
 		break;
 	}
 	op = tree->op;
 	dope = opdope[op];
-	if (dope&LVALUE && tree->tr1->op==FSEL)
+	if (dope&LVALUE && tree->u.tnode.tr1->op==FSEL)
 		return(lvfield(tree));
 	if ((dope&COMMUTE)!=0) {
 		d1 = tree->type;
@@ -109,64 +109,64 @@ struct tnode *optim(struct tnode *atree)
 		/*
 		 * long & pos-int is simpler
 		 */
-		if (tree->type==LONG && tree->tr2->op==ITOL
-		 && (tree->tr2->tr1->op==CON && tree->tr2->tr1->value>=0
-		   || tree->tr2->tr1->type==UNSIGN)) {
+		if (tree->type==LONG && tree->u.tnode.tr2->op==ITOL
+		 && (tree->u.tnode.tr2->u.tnode.tr1->op==CON && tree->u.tnode.tr2->u.tnode.tr1->u.tconst.value>=0
+		   || tree->u.tnode.tr2->u.tnode.tr1->type==UNSIGN)) {
 			tree->type = UNSIGN;
-			t = tree->tr2;
-			tree->tr2 = tree->tr2->tr1;
-			t->tr1 = tree;
-			tree->tr1 = tnode(LTOI, UNSIGN, tree->tr1);
+			t = tree->u.tnode.tr2;
+			tree->u.tnode.tr2 = tree->u.tnode.tr2->u.tnode.tr1;
+			t->u.tnode.tr1 = tree;
+			tree->u.tnode.tr1 = tnode(LTOI, UNSIGN, tree->u.tnode.tr1);
 			return(optim(t));
 		}
 		/*
 		 * Keep constants to the right
 		 */
-		if ((tree->tr1->op==ITOL && tree->tr1->tr1->op==CON)
-		  || tree->tr1->op==LCON) {
-			t = tree->tr1;
-			tree->tr1 = tree->tr2;
-			tree->tr2 = t;
+		if ((tree->u.tnode.tr1->op==ITOL && tree->u.tnode.tr1->u.tnode.tr1->op==CON)
+		  || tree->u.tnode.tr1->op==LCON) {
+			t = tree->u.tnode.tr1;
+			tree->u.tnode.tr1 = tree->u.tnode.tr2;
+			tree->u.tnode.tr2 = t;
 		}
 		tree->op = ANDN;
 		op = ANDN;
-		tree->tr2 = tnode(COMPL, tree->tr2->type, tree->tr2);
+		tree->u.tnode.tr2 = tnode(COMPL, tree->u.tnode.tr2->type, tree->u.tnode.tr2);
 	}
     again:
-	tree->tr1 = optim(tree->tr1);
-	tree->tr2 = optim(tree->tr2);
+	tree->u.tnode.tr1 = optim(tree->u.tnode.tr1);
+	tree->u.tnode.tr2 = optim(tree->u.tnode.tr2);
 	if (tree->type == LONG) {
-		t = lconst(tree->op, tree->tr1, tree->tr2);
+		t = lconst(tree->op, tree->u.tnode.tr1, tree->u.tnode.tr2);
 		if (t)
 			return(t);
 	}
 	if ((dope&RELAT) != 0) {
-		if ((d1=degree(tree->tr1)) < (d2=degree(tree->tr2))
-		 || d1==d2 && tree->tr1->op==NAME && tree->tr2->op!=NAME) {
-			t = tree->tr1;
-			tree->tr1 = tree->tr2;
-			tree->tr2 = t;
+		if ((d1=degree(tree->u.tnode.tr1)) < (d2=degree(tree->u.tnode.tr2))
+		 || d1==d2 && tree->u.tnode.tr1->op==NAME && tree->u.tnode.tr2->op!=NAME) {
+			t = tree->u.tnode.tr1;
+			tree->u.tnode.tr1 = tree->u.tnode.tr2;
+			tree->u.tnode.tr2 = t;
 			tree->op = maprel[op-EQUAL];
 		}
-		if (tree->tr1->type==CHAR && tree->tr2->op==CON
-		 && (dcalc(tree->tr1, 0) <= 12 || tree->tr1->op==STAR)
-		 && tree->tr2->value <= 127 && tree->tr2->value >= 0)
-			tree->tr2->type = CHAR;
+		if (tree->u.tnode.tr1->type==CHAR && tree->u.tnode.tr2->op==CON
+		 && (dcalc(tree->u.tnode.tr1, 0) <= 12 || tree->u.tnode.tr1->op==STAR)
+		 && tree->u.tnode.tr2->u.tconst.value <= 127 && tree->u.tnode.tr2->u.tconst.value >= 0)
+			tree->u.tnode.tr2->type = CHAR;
 	}
-	d1 = max(degree(tree->tr1), islong(tree->type));
-	d2 = max(degree(tree->tr2), 0);
+	d1 = max(degree(tree->u.tnode.tr1), islong(tree->type));
+	d2 = max(degree(tree->u.tnode.tr2), 0);
 	switch (op) {
 
 	/*
 	 * In assignment to fields, treat all-zero and all-1 specially.
 	 */
 	case FSELA:
-		if (tree->tr2->op==CON && tree->tr2->value==0) {
+		if (tree->u.tnode.tr2->op==CON && tree->u.tnode.tr2->u.tconst.value==0) {
 			tree->op = ASAND;
-			tree->tr2->value = ~tree->mask;
+			tree->u.tnode.tr2->u.tconst.value = ~tree->u.fasgn.mask;
 			return(optim(tree));
 		}
-		if (tree->tr2->op==CON && tree->mask==tree->tr2->value) {
+		if (tree->u.tnode.tr2->op==CON && tree->u.fasgn.mask==tree->u.tnode.tr2->u.tconst.value) {
 			tree->op = ASOR;
 			return(optim(tree));
 		}
@@ -177,33 +177,33 @@ struct tnode *optim(struct tnode *atree)
 	case LASTIMES:
 	case LASDIV:
 	case LASMOD:
-		tree->degree = 10;
+		tree->u.tnode.degree = 10;
 		break;
 
 	case ANDN:
-		if (isconstant(tree->tr2) && tree->tr2->value==0) {
-			return(tree->tr1);
+		if (isconstant(tree->u.tnode.tr2) && tree->u.tnode.tr2->u.tconst.value==0) {
+			return(tree->u.tnode.tr1);
 		}
 		goto def;
 
 	case CALL:
-		tree->degree = 10;
+		tree->u.tnode.degree = 10;
 		break;
 
 	case QUEST:
 	case COLON:
-		tree->degree = max(d1, d2);
+		tree->u.tnode.degree = max(d1, d2);
 		break;
 
 	case DIVIDE:
 	case ASDIV:
 	case ASTIMES:
 	case PTOI:
-		if (tree->tr2->op==CON && tree->tr2->value==1)
-			return(tree->tr1);
+		if (tree->u.tnode.tr2->op==CON && tree->u.tnode.tr2->u.tconst.value==1)
+			return(tree->u.tnode.tr1);
 	case MOD:
 	case ASMOD:
-		if (tree->tr1->type==UNSIGN && ispow2(tree))
+		if (tree->u.tnode.tr1->type==UNSIGN && ispow2(tree))
 			return(pow2(tree));
 		if ((op==MOD||op==ASMOD) && tree->type==DOUBLE) {
 			error("Floating %% not defined");
@@ -221,8 +221,8 @@ struct tnode *optim(struct tnode *atree)
 	case RSHIFT:
 	case ASRSH:
 	case ASLSH:
-		if (tree->tr2->op==CON && tree->tr2->value==0) {
-			return(tree->tr1);
+		if (tree->u.tnode.tr2->op==CON && tree->u.tnode.tr2->u.tconst.value==0) {
+			return(tree->u.tnode.tr1);
 		}
 		/*
 		 * PDP-11 special: turn right shifts into negative
@@ -234,13 +234,13 @@ struct tnode *optim(struct tnode *atree)
 		}
 		if (op==LSHIFT||op==ASLSH)
 			goto constant;
-		if (tree->tr2->op==CON && tree->tr2->value==1
-		 && tree->tr1->type!=UNSIGN)
+		if (tree->u.tnode.tr2->op==CON && tree->u.tnode.tr2->u.tconst.value==1
+		 && tree->u.tnode.tr1->type!=UNSIGN)
 			goto constant;
 		op += (LSHIFT-RSHIFT);
 		tree->op = op;
-		tree->tr2 = tnode(NEG, tree->type, tree->tr2);
-		if (tree->tr1->type==UNSIGN) {
+		tree->u.tnode.tr2 = tnode(NEG, tree->type, tree->u.tnode.tr2);
+		if (tree->u.tnode.tr1->type==UNSIGN) {
 			if (tree->op==LSHIFT)
 				tree->op = ULSH;
 			else if (tree->op==ASLSH)
@@ -249,20 +249,20 @@ struct tnode *optim(struct tnode *atree)
 		goto again;
 
 	constant:
-		if (tree->tr1->op==CON && tree->tr2->op==CON) {
-			c1_const(op, &tree->tr1->value, tree->tr2->value);
-			return(tree->tr1);
+		if (tree->u.tnode.tr1->op==CON && tree->u.tnode.tr2->op==CON) {
+			c1_const(op, &tree->u.tnode.tr1->u.tconst.value, tree->u.tnode.tr2->u.tconst.value);
+			return(tree->u.tnode.tr1);
 		}
 
 
 	def:
 	default:
 		if (dope&RELAT) {
-			if (tree->tr1->type==LONG)	/* long relations are a mess */
+			if (tree->u.tnode.tr1->type==LONG)	/* long relations are a mess */
 				d1 = 10;
-			if (opdope[tree->tr1->op]&RELAT && tree->tr2->op==CON
-			 && tree->tr2->value==0) {
-				tree = tree->tr1;
+			if (opdope[tree->u.tnode.tr1->op]&RELAT && tree->u.tnode.tr2->op==CON
+			 && tree->u.tnode.tr2->u.tconst.value==0) {
+				tree = tree->u.tnode.tr1;
 				switch(op) {
 				case GREATEQ:
 					return(&cone);
@@ -275,36 +275,36 @@ struct tnode *optim(struct tnode *atree)
 				return(tree);
 			}
 		}
-		tree->degree = d1==d2? d1+islong(tree->type): max(d1, d2);
+		tree->u.tnode.degree = d1==d2? d1+islong(tree->type): max(d1, d2);
 		break;
 	}
 	return(tree);
 }
 
-struct tnode *unoptim(struct tnode *atree)
+struct node *unoptim(struct node *atree)
 {
-	register struct tnode *subtre, *tree;
-	register int16_t *p;
+	register struct node *subtre, *tree;
+	register struct node *p;
 	double static fv;
-	struct ftconst *fp;
+	struct node *fp;
 
 	if ((tree=atree)==0)
 		return(0);
     again:
-	if (tree->op==AMPER && tree->tr1->op==STAR) {
-		subtre = tree->tr1->tr1;
+	if (tree->op==AMPER && tree->u.tnode.tr1->op==STAR) {
+		subtre = tree->u.tnode.tr1->u.tnode.tr1;
 		subtre->type = tree->type;
 		return(optim(subtre));
 	}
-	subtre = tree->tr1 = optim(tree->tr1);
+	subtre = tree->u.tnode.tr1 = optim(tree->u.tnode.tr1);
 	switch (tree->op) {
 
 	case ITOL:
-		if (subtre->op==CON && subtre->type==INT && subtre->value<0) {
-			subtre = getblk(sizeof(struct lconst));
+		if (subtre->op==CON && subtre->type==INT && subtre->u.tconst.value<0) {
+			subtre = getblk(sizeof(struct node));
 			subtre->op = LCON;
 			subtre->type = LONG;
-			subtre->lvalue = tree->tr1->value;
+			subtre->u.lconst.lvalue = tree->u.tnode.tr1->u.tconst.value;
 			return(subtre);
 		}
 		break;
@@ -322,40 +322,42 @@ struct tnode *unoptim(struct tnode *atree)
 			tree = getblk(sizeof(*fp));
 			tree->op = FCON;
 			tree->type = DOUBLE;
-			tree->value = isn++;
-			tree->fvalue = subtre->lvalue;
+			tree->u.tconst.value = isn++;
+			tree->u.ftconst.fvalue = subtre->u.lconst.lvalue;
 			return(optim(tree));
 		}
 		break;
 
 	case ITOF:
-		if (tree->tr1->type==UNSIGN) {
-			tree->tr1 = tnode(ITOL, LONG, tree->tr1);
+		if (tree->u.tnode.tr1->type==UNSIGN) {
+			tree->u.tnode.tr1 = tnode(ITOL, LONG, tree->u.tnode.tr1);
 			tree->op = LTOF;
 			tree = optim(tree);
 		}
 		if (subtre->op!=CON)
 			break;
-		fv = subtre->value;
-		p = &fv;
-		p++;
-		if (*p++==0 && *p++==0 && *p++==0) {
+		fv = subtre->u.tconst.value;
+		{
+		int16_t *wp = (int16_t *)&fv;
+		wp++;
+		if (*wp++==0 && *wp++==0 && *wp++==0) {
 			tree = getblk(sizeof(*fp));
 			tree->op = SFCON;
 			tree->type = DOUBLE;
-			tree->value = * (int16_t *) &fv;
-			tree->fvalue = fv;
+			tree->u.tconst.value = * (int16_t *) &fv;
+			tree->u.ftconst.fvalue = fv;
 			return(tree);
+		}
 		}
 		break;
 
 	case ITOC:
-		p = tree->tr1;
+		p = tree->u.tnode.tr1;
 		/*
 		 * Sign-extend PDP-11 characters
 		 */
 		if (p->op==CON) {
-			p->value = p->value << 8 >> 8;
+			p->u.tconst.value = p->u.tconst.value << 8 >> 8;
 			return(p);
 		} else if (p->op==NAME) {
 			p->type = CHAR;
@@ -364,28 +366,28 @@ struct tnode *unoptim(struct tnode *atree)
 		break;
 
 	case LTOI:
-		p = tree->tr1;
+		p = tree->u.tnode.tr1;
 		switch (p->op) {
 
 		case LCON:
 			p->op = CON;
 			p->type = tree->type;
-			p->value = p->lvalue;
+			p->u.tconst.value = p->u.lconst.lvalue;
 			return(p);
 
 		case NAME:
-			p->offset += 2;
+			p->u.tname.offset += 2;
 			p->type = tree->type;
 			return(p);
 
 		case STAR:
 			p->type = tree->type;
-			p->tr1->type = tree->type+PTR;
-			p->tr1 = tnode(PLUS, tree->type, p->tr1, tconst(2, INT));
+			p->u.tnode.tr1->type = tree->type+PTR;
+			p->u.tnode.tr1 = tnode(PLUS, tree->type, p->u.tnode.tr1, tconst(2, INT));
 			return(optim(p));
 
 		case ITOL:
-			return(p->tr1);
+			return(p->u.tnode.tr1);
 
 		case PLUS:
 		case MINUS:
@@ -393,10 +395,10 @@ struct tnode *unoptim(struct tnode *atree)
 		case ANDN:
 		case OR:
 		case EXOR:
-			p->tr2 = tnode(LTOI, tree->type, p->tr2);
+			p->u.tnode.tr2 = tnode(LTOI, tree->type, p->u.tnode.tr2);
 		case NEG:
 		case COMPL:
-			p->tr1 = tnode(LTOI, tree->type, p->tr1);
+			p->u.tnode.tr1 = tnode(LTOI, tree->type, p->u.tnode.tr1);
 			p->type = tree->type;
 			return(optim(p));
 		}
@@ -404,71 +406,71 @@ struct tnode *unoptim(struct tnode *atree)
 
 	case FSEL:
 		tree->op = AND;
-		tree->tr1 = tree->tr2->tr1;
-		tree->tr2->tr1 = subtre;
-		tree->tr2->op = RSHIFT;
-		tree->tr1->value = (1 << tree->tr1->value) - 1;
+		tree->u.tnode.tr1 = tree->u.tnode.tr2->u.tnode.tr1;
+		tree->u.tnode.tr2->u.tnode.tr1 = subtre;
+		tree->u.tnode.tr2->op = RSHIFT;
+		tree->u.tnode.tr1->u.tconst.value = (1 << tree->u.tnode.tr1->u.tconst.value) - 1;
 		return(optim(tree));
 
 	case FSELR:
 		tree->op = LSHIFT;
 		tree->type = UNSIGN;
-		tree->tr1 = tree->tr2;
-		tree->tr1->op = AND;
-		tree->tr2 = tree->tr2->tr2;
-		tree->tr1->tr2 = subtre;
-		tree->tr1->tr1->value = (1 << tree->tr1->tr1->value) -1;
+		tree->u.tnode.tr1 = tree->u.tnode.tr2;
+		tree->u.tnode.tr1->op = AND;
+		tree->u.tnode.tr2 = tree->u.tnode.tr2->u.tnode.tr2;
+		tree->u.tnode.tr1->u.tnode.tr2 = subtre;
+		tree->u.tnode.tr1->u.tnode.tr1->u.tconst.value = (1 << tree->u.tnode.tr1->u.tnode.tr1->u.tconst.value) -1;
 		return(optim(tree));
 
 	case AMPER:
 		if (subtre->op==STAR)
-			return(subtre->tr1);
-		if (subtre->op==NAME && subtre->class == OFFS) {
+			return(subtre->u.tnode.tr1);
+		if (subtre->op==NAME && subtre->u.tname.class == OFFS) {
 			p = tnode(PLUS, tree->type, subtre, tree);
 			subtre->type = tree->type;
 			tree->op = CON;
 			tree->type = INT;
-			tree->degree = 0;
-			tree->value = subtre->offset;
-			subtre->class = REG;
-			subtre->nloc = subtre->regno;
-			subtre->offset = 0;
+			tree->u.tnode.degree = 0;
+			tree->u.tconst.value = subtre->u.tname.offset;
+			subtre->u.tname.class = REG;
+			subtre->u.tname.nloc = subtre->u.tname.regno;
+			subtre->u.tname.offset = 0;
 			return(optim(p));
 		}
 		break;
 
 	case STAR:
 		if (subtre->op==AMPER) {
-			subtre->tr1->type = tree->type;
-			return(subtre->tr1);
+			subtre->u.tnode.tr1->type = tree->type;
+			return(subtre->u.tnode.tr1);
 		}
 		if (tree->type==STRUCT)
 			break;
-		if (subtre->op==NAME && subtre->class==REG) {
+		if (subtre->op==NAME && subtre->u.tname.class==REG) {
 			subtre->type = tree->type;
-			subtre->class = OFFS;
-			subtre->regno = subtre->nloc;
+			subtre->u.tname.class = OFFS;
+			subtre->u.tname.regno = subtre->u.tname.nloc;
 			return(subtre);
 		}
-		p = subtre->tr1;
+		p = subtre->u.tnode.tr1;
 		if ((subtre->op==INCAFT||subtre->op==DECBEF)&&tree->type!=LONG
-		 && p->op==NAME && p->class==REG && p->type==subtre->type) {
+		 && p->op==NAME && p->u.tname.class==REG && p->type==subtre->type) {
 			p->type = tree->type;
 			p->op = subtre->op==INCAFT? AUTOI: AUTOD;
 			return(p);
 		}
-		if (subtre->op==PLUS && p->op==NAME && p->class==REG) {
-			if (subtre->tr2->op==CON) {
-				p->offset += subtre->tr2->value;
-				p->class = OFFS;
+		if (subtre->op==PLUS && p->op==NAME && p->u.tname.class==REG) {
+			if (subtre->u.tnode.tr2->op==CON) {
+				p->u.tname.offset += subtre->u.tnode.tr2->u.tconst.value;
+				p->u.tname.class = OFFS;
 				p->type = tree->type;
-				p->regno = p->nloc;
+				p->u.tname.regno = p->u.tname.nloc;
 				return(p);
 			}
-			if (subtre->tr2->op==AMPER) {
-				subtre = subtre->tr2->tr1;
-				subtre->class += XOFFS-EXTERN;
-				subtre->regno = p->nloc;
+			if (subtre->u.tnode.tr2->op==AMPER) {
+				subtre = subtre->u.tnode.tr2->u.tnode.tr1;
+				subtre->u.tname.class += XOFFS-EXTERN;
+				subtre->u.tname.regno = p->u.tname.nloc;
 				subtre->type = tree->type;
 				return(subtre);
 			}
@@ -485,30 +487,30 @@ struct tnode *unoptim(struct tnode *atree)
 		if (tree->type==CHAR)
 			tree->type = INT;
 		if (tree->op == subtre->op)
-			return(subtre->tr1);
+			return(subtre->u.tnode.tr1);
 		if (subtre->op==CON) {
-			subtre->value = ~subtre->value;
+			subtre->u.tconst.value = ~subtre->u.tconst.value;
 			return(subtre);
 		}
 		if (subtre->op==LCON) {
-			subtre->lvalue = ~subtre->lvalue;
+			subtre->u.lconst.lvalue = ~subtre->u.lconst.lvalue;
 			return(subtre);
 		}
 		if (subtre->op==ITOL) {
-			if (subtre->tr1->op==CON) {
-				tree = getblk(sizeof(struct lconst));
+			if (subtre->u.tnode.tr1->op==CON) {
+				tree = getblk(sizeof(struct node));
 				tree->op = LCON;
 				tree->type = LONG;
-				if (subtre->tr1->type==UNSIGN)
-					tree->lvalue = ~(int32_t)(unsigned)subtre->tr1->value;
+				if (subtre->u.tnode.tr1->type==UNSIGN)
+					tree->u.lconst.lvalue = ~(int32_t)(unsigned)subtre->u.tnode.tr1->u.tconst.value;
 				else
-					tree->lvalue = ~subtre->tr1->value;
+					tree->u.lconst.lvalue = ~subtre->u.tnode.tr1->u.tconst.value;
 				return(tree);
 			}
-			if (subtre->tr1->type==UNSIGN)
+			if (subtre->u.tnode.tr1->type==UNSIGN)
 				break;
 			subtre->op = tree->op;
-			subtre->type = subtre->tr1->type;
+			subtre->type = subtre->u.tnode.tr1->type;
 			tree->op = ITOL;
 			tree->type = LONG;
 			goto again;
@@ -518,40 +520,40 @@ struct tnode *unoptim(struct tnode *atree)
 		if (tree->type==CHAR)
 			tree->type = INT;
 		if (tree->op==subtre->op)
-			return(subtre->tr1);
+			return(subtre->u.tnode.tr1);
 		if (subtre->op==CON) {
-			subtre->value = -subtre->value;
+			subtre->u.tconst.value = -subtre->u.tconst.value;
 			return(subtre);
 		}
 		if (subtre->op==LCON) {
-			subtre->lvalue = -subtre->lvalue;
+			subtre->u.lconst.lvalue = -subtre->u.lconst.lvalue;
 			return(subtre);
 		}
-		if (subtre->op==ITOL && subtre->tr1->op==CON) {
-			tree = getblk(sizeof(struct lconst));
+		if (subtre->op==ITOL && subtre->u.tnode.tr1->op==CON) {
+			tree = getblk(sizeof(struct node));
 			tree->op = LCON;
 			tree->type = LONG;
-			if (subtre->tr1->type==UNSIGN)
-				tree->lvalue = -(int32_t)(unsigned)subtre->tr1->value;
+			if (subtre->u.tnode.tr1->type==UNSIGN)
+				tree->u.lconst.lvalue = -(int32_t)(unsigned)subtre->u.tnode.tr1->u.tconst.value;
 			else
-				tree->lvalue = -subtre->tr1->value;
+				tree->u.lconst.lvalue = -subtre->u.tnode.tr1->u.tconst.value;
 			return(tree);
 		}
 		/*
 		 * PDP-11 FP negation
 		 */
 		if (subtre->op==SFCON) {
-			subtre->value ^= 0100000;
-			subtre->fvalue.intx[0] ^= 0100000;
+			subtre->u.tconst.value ^= 0100000;
+			subtre->u.ftconst.intx[0] ^= 0100000;
 			return(subtre);
 		}
 		if (subtre->op==FCON) {
-			subtre->fvalue.intx[0] ^= 0100000;
+			subtre->u.ftconst.intx[0] ^= 0100000;
 			return(subtre);
 		}
 	}
 	if ((opdope[tree->op]&LEAF)==0)
-		tree->degree = max(islong(tree->type), degree(subtre));
+		tree->u.tnode.degree = max(islong(tree->type), degree(subtre));
 	return(tree);
 }
 
@@ -565,10 +567,10 @@ struct tnode *unoptim(struct tnode *atree)
  * Pure assignment is handled specially.
  */
 
-int16_t lvfield(struct tnode *at)
+int16_t lvfield(struct node *at)
 {
-	register struct tnode *t, *t1;
-	register struct fasgn *t2;
+	register struct node *t, *t1;
+	register struct node *t2;
 
 	t = at;
 	switch (t->op) {
@@ -577,10 +579,10 @@ int16_t lvfield(struct tnode *at)
 		t2 = getblk(sizeof(*t2));
 		t2->op = FSELA;
 		t2->type = UNSIGN;
-		t1 = t->tr1->tr2;
-		t2->mask = ((1<<t1->tr1->value)-1)<<t1->tr2->value;
-		t2->tr1 = t->tr1;
-		t2->tr2 = t->tr2;
+		t1 = t->u.tnode.tr1->u.tnode.tr2;
+		t2->u.fasgn.mask = ((1<<t1->u.tnode.tr1->u.tconst.value)-1)<<t1->u.tnode.tr2->u.tconst.value;
+		t2->u.tnode.tr1 = t->u.tnode.tr1;
+		t2->u.tnode.tr2 = t->u.tnode.tr2;
 		t = t2;
 
 	case ASANDN:
@@ -592,14 +594,14 @@ int16_t lvfield(struct tnode *at)
 	case INCAFT:
 	case DECBEF:
 	case DECAFT:
-		t1 = t->tr1;
+		t1 = t->u.tnode.tr1;
 		t1->op = FSELR;
-		t->tr1 = t1->tr1;
-		t1->tr1 = t->tr2;
-		t->tr2 = t1;
-		t1 = t1->tr2;
-		t1 = tnode(COMMA, INT, tconst(t1->tr1->value, INT),
-			tconst(t1->tr2->value, INT));
+		t->u.tnode.tr1 = t1->u.tnode.tr1;
+		t1->u.tnode.tr1 = t->u.tnode.tr2;
+		t->u.tnode.tr2 = t1;
+		t1 = t1->u.tnode.tr2;
+		t1 = tnode(COMMA, INT, tconst(t1->u.tnode.tr1->u.tconst.value, INT),
+			tconst(t1->u.tnode.tr2->u.tconst.value, INT));
 		return(optim(tnode(FSELT, UNSIGN, t, t1)));
 
 	}
@@ -611,16 +613,16 @@ int16_t lvfield(struct tnode *at)
 struct acl {
 	int16_t nextl;
 	int16_t nextn;
-	struct tnode *nlist[LSTSIZ];
-	struct tnode *llist[LSTSIZ+1];
+	struct node *nlist[LSTSIZ];
+	struct node *llist[LSTSIZ+1];
 };
 
 int16_t acommute(int16_t atree)
 {
 	struct acl acl;
 	int16_t d, i, op, flt, d1;
-	register struct tnode *t1, **t2, *tree;
-	struct tnode *t;
+	register struct node *t1, **t2, *tree;
+	struct node *t;
 
 	acl.nextl = 0;
 	acl.nextn = 0;
@@ -636,7 +638,7 @@ int16_t acommute(int16_t atree)
 			if (t2[0]->op==CON && t2[-1]->op==CON) {
 				acl.nextl--;
 				t2--;
-				c1_const(op, &t2[0]->value, t2[1]->value);
+				c1_const(op, &t2[0]->u.tconst.value, t2[1]->u.tconst.value);
 			} else if (t = lconst(op, t2[-1], t2[0])) {
 				acl.nextl--;
 				t2--;
@@ -646,8 +648,8 @@ int16_t acommute(int16_t atree)
 	}
 	if (op==PLUS || op==OR) {
 		/* toss out "+0" */
-		if (acl.nextl>0 && (t1 = isconstant(*t2)) && t1->value==0
-		 || (*t2)->op==LCON && (*t2)->lvalue==0) {
+		if (acl.nextl>0 && (t1 = isconstant(*t2)) && t1->u.tconst.value==0
+		 || (*t2)->op==LCON && (*t2)->u.lconst.lvalue==0) {
 			acl.nextl--;
 			t2--;
 		}
@@ -660,15 +662,15 @@ int16_t acommute(int16_t atree)
 		/* subsume constant in "&x+c" */
 		if (op==PLUS && t2[0]->op==CON && t2[-1]->op==AMPER) {
 			t2--;
-			t2[0]->tr1->offset += t2[1]->value;
+			t2[0]->u.tnode.tr1->u.tname.offset += t2[1]->u.tconst.value;
 			acl.nextl--;
 		}
 	} else if (op==TIMES || op==AND) {
 		t1 = acl.llist[acl.nextl];
 		if (t1->op==CON) {
-			if (t1->value==0)
+			if (t1->u.tconst.value==0)
 				return(t1);
-			if (op==TIMES && t1->value==1 && acl.nextl>0)
+			if (op==TIMES && t1->u.tconst.value==1 && acl.nextl>0)
 				if (--acl.nextl <= 0) {
 					t1 = acl.llist[0];
 					if (tree->type == UNSIGN)
@@ -685,34 +687,34 @@ int16_t acommute(int16_t atree)
 		d++;
 	for (i=0; i<acl.nextl; i++) {
 		t1 = acl.nlist[i];
-		t1->tr2 = t = *++t2;
+		t1->u.tnode.tr2 = t = *++t2;
 		d1 = degree(t);
 		/*
 		 * PDP-11 strangeness:
 		 * rt. op of ^ must be in a register.
 		 */
 		if (op==EXOR && dcalc(t, 0)<=12) {
-			t1->tr2 = t = optim(tnode(LOAD, t->type, t));
-			d1 = t->degree;
+			t1->u.tnode.tr2 = t = optim(tnode(LOAD, t->type, t));
+			d1 = t->u.tnode.degree;
 		}
-		t1->degree = d = d==d1? d+islong(t1->type): max(d, d1);
-		t1->tr1 = tree;
+		t1->u.tnode.degree = d = d==d1? d+islong(t1->type): max(d, d1);
+		t1->u.tnode.tr1 = tree;
 		tree = t1;
 		if (tree->type==LONG) {
 			if (tree->op==TIMES)
 				tree = hardlongs(tree);
-			else if (tree->op==PLUS && (t = isconstant(tree->tr1))
-			       && t->value < 0 && t->type!=UNSIGN) {
+			else if (tree->op==PLUS && (t = isconstant(tree->u.tnode.tr1))
+			       && t->u.tconst.value < 0 && t->type!=UNSIGN) {
 				tree->op = MINUS;
-				t->value = - t->value;
-				t = tree->tr1;
-				tree->tr1 = tree->tr2;
-				tree->tr2 = t;
+				t->u.tconst.value = - t->u.tconst.value;
+				t = tree->u.tnode.tr1;
+				tree->u.tnode.tr1 = tree->u.tnode.tr2;
+				tree->u.tnode.tr2 = t;
 			}
 		}
 	}
 	if (tree->op==TIMES && ispow2(tree))
-		tree->degree = max(degree(tree->tr1), islong(tree->type));
+		tree->u.tnode.degree = max(degree(tree->u.tnode.tr1), islong(tree->type));
 	return(tree);
 }
 
@@ -725,35 +727,35 @@ void distrib(struct acl *list)
  * fewest divisors. Reduce this pair to c1*(y+c2*x)
  * and iterate until no reductions occur.
  */
-	register struct tnode **p1, **p2;
-	struct tnode *t;
+	register struct node **p1, **p2;
+	struct node *t;
 	int16_t ndmaj, ndmin;
-	struct tnode **dividend, **divisor;
-	struct tnode **maxnod, **mindiv;
+	struct node **dividend, **divisor;
+	struct node **maxnod, **mindiv;
 
     loop:
 	maxnod = &list->llist[list->nextl];
 	ndmaj = 1000;
 	dividend = 0;
 	for (p1 = list->llist; p1 <= maxnod; p1++) {
-		if ((*p1)->op!=TIMES || (*p1)->tr2->op!=CON)
+		if ((*p1)->op!=TIMES || (*p1)->u.tnode.tr2->op!=CON)
 			continue;
 		ndmin = 0;
 		for (p2 = list->llist; p2 <= maxnod; p2++) {
-			if (p1==p2 || (*p2)->op!=TIMES || (*p2)->tr2->op!=CON)
+			if (p1==p2 || (*p2)->op!=TIMES || (*p2)->u.tnode.tr2->op!=CON)
 				continue;
-			if ((*p1)->tr2->value == (*p2)->tr2->value) {
-				(*p2)->tr2 = (*p1)->tr1;
+			if ((*p1)->u.tnode.tr2->u.tconst.value == (*p2)->u.tnode.tr2->u.tconst.value) {
+				(*p2)->u.tnode.tr2 = (*p1)->u.tnode.tr1;
 				(*p2)->op = PLUS;
-				(*p1)->tr1 = (*p2);
+				(*p1)->u.tnode.tr1 = (*p2);
 				*p1 = optim(*p1);
 				squash(p2, maxnod);
 				list->nextl--;
 				goto loop;
 			}
-			if (((*p2)->tr2->value % (*p1)->tr2->value) == 0)
+			if (((*p2)->u.tnode.tr2->u.tconst.value % (*p1)->u.tnode.tr2->u.tconst.value) == 0)
 				goto contmaj;
-			if (((*p1)->tr2->value % (*p2)->tr2->value) == 0) {
+			if (((*p1)->u.tnode.tr2->u.tconst.value % (*p2)->u.tnode.tr2->u.tconst.value) == 0) {
 				ndmin++;
 				mindiv = p2;
 			}
@@ -772,10 +774,10 @@ void distrib(struct acl *list)
 	p2 = divisor;
 	t->op = PLUS;
 	t->type = (*p1)->type;
-	t->tr1 = (*p1);
-	t->tr2 = (*p2)->tr1;
-	(*p1)->tr2->value /= (*p2)->tr2->value;
-	(*p2)->tr1 = t;
+	t->u.tnode.tr1 = (*p1);
+	t->u.tnode.tr2 = (*p2)->u.tnode.tr1;
+	(*p1)->u.tnode.tr2->u.tconst.value /= (*p2)->u.tnode.tr2->u.tconst.value;
+	(*p2)->u.tnode.tr1 = t;
 	t = optim(*p2);
 	if (p1 < p2) {
 		*p1 = t;
@@ -788,9 +790,9 @@ void distrib(struct acl *list)
 	goto loop;
 }
 
-int16_t squash(struct tnode **p, struct tnode **maxp)
+int16_t squash(struct node **p, struct node **maxp)
 {
-	register struct tnode **np;
+	register struct node **np;
 
 	for (np = p; np < maxp; np++)
 		*np = *(np+1);
@@ -853,26 +855,26 @@ void c1_const(int16_t op, int16_t *vp, int16_t av)
 	error("C error: const");
 }
 
-struct tnode * lconst(int16_t op, struct tnode *lp, struct tnode *rp)
+struct node * lconst(int16_t op, struct node *lp, struct node *rp)
 {
 	int32_t l, r;
 
 	if (lp->op==LCON)
-		l = lp->lvalue;
-	else if (lp->op==ITOL && lp->tr1->op==CON) {
-		if (lp->tr1->type==INT)
-			l = lp->tr1->value;
+		l = lp->u.lconst.lvalue;
+	else if (lp->op==ITOL && lp->u.tnode.tr1->op==CON) {
+		if (lp->u.tnode.tr1->type==INT)
+			l = lp->u.tnode.tr1->u.tconst.value;
 		else
-			l = (unsigned)lp->tr1->value;
+			l = (unsigned)lp->u.tnode.tr1->u.tconst.value;
 	} else
 		return(0);
 	if (rp->op==LCON)
-		r = rp->lvalue;
-	else if (rp->op==ITOL && rp->tr1->op==CON) {
-		if (rp->tr1->type==INT)
-			r = rp->tr1->value;
+		r = rp->u.lconst.lvalue;
+	else if (rp->op==ITOL && rp->u.tnode.tr1->op==CON) {
+		if (rp->u.tnode.tr1->type==INT)
+			r = rp->u.tnode.tr1->u.tconst.value;
 		else
-			r = (unsigned)rp->tr1->value;
+			r = (unsigned)rp->u.tnode.tr1->u.tconst.value;
 	} else
 		return(0);
 	switch (op) {
@@ -934,13 +936,13 @@ struct tnode * lconst(int16_t op, struct tnode *lp, struct tnode *rp)
 		return(0);
 	}
 	if (lp->op==LCON) {
-		lp->lvalue = l;
+		lp->u.lconst.lvalue = l;
 		return(lp);
 	}
-	lp = getblk(sizeof(struct lconst));
+	lp = getblk(sizeof(struct node));
 	lp->op = LCON;
 	lp->type = LONG;
-	lp->lvalue = l;
+	lp->u.lconst.lvalue = l;
 	return(lp);
 }
 
@@ -948,9 +950,9 @@ void insert(int16_t op, int16_t atree, struct acl *alist)
 {
 	register int16_t d;
 	register struct acl *list;
-	register struct tnode *tree;
+	register struct node *tree;
 	int16_t d1, i;
-	struct tnode *t;
+	struct node *t;
 
 	tree = atree;
 	list = alist;
@@ -959,22 +961,22 @@ ins:
 		tree = optim(tree);
 	if (tree->op == op && list->nextn < LSTSIZ-2) {
 		list->nlist[list->nextn++] = tree;
-		insert(op, tree->tr1, list);
-		insert(op, tree->tr2, list);
+		insert(op, tree->u.tnode.tr1, list);
+		insert(op, tree->u.tnode.tr2, list);
 		return;
 	}
 	if (!isfloat(tree)) {
 		/* c1*(x+c2) -> c1*x+c1*c2 */
 		if ((tree->op==TIMES||tree->op==LSHIFT)
-		  && tree->tr2->op==CON && tree->tr2->value>0
-		  && tree->tr1->op==PLUS && tree->tr1->tr2->op==CON) {
-			d = tree->tr2->value;
+		  && tree->u.tnode.tr2->op==CON && tree->u.tnode.tr2->u.tconst.value>0
+		  && tree->u.tnode.tr1->op==PLUS && tree->u.tnode.tr1->u.tnode.tr2->op==CON) {
+			d = tree->u.tnode.tr2->u.tconst.value;
 			if (tree->op==TIMES)
-				tree->tr2->value *= tree->tr1->tr2->value;
+				tree->u.tnode.tr2->u.tconst.value *= tree->u.tnode.tr1->u.tnode.tr2->u.tconst.value;
 			else
-				tree->tr2->value = tree->tr1->tr2->value << d;
-			tree->tr1->tr2->value = d;
-			tree->tr1->op = tree->op;
+				tree->u.tnode.tr2->u.tconst.value = tree->u.tnode.tr1->u.tnode.tr2->u.tconst.value << d;
+			tree->u.tnode.tr1->u.tnode.tr2->u.tconst.value = d;
+			tree->u.tnode.tr1->op = tree->op;
 			tree->op = PLUS;
 			tree = optim(tree);
 			if (op==PLUS)
@@ -993,30 +995,30 @@ ins:
 	list->llist[list->nextl++] = tree;
 }
 
-struct tnode *tnode(int16_t op, int16_t type, struct tnode *tr1, struct tnode *tr2)
+struct node *tnode(int16_t op, int16_t type, struct node *tr1, struct node *tr2)
 {
-	register struct tnode *p;
+	register struct node *p;
 
 	p = getblk(sizeof(*p));
 	p->op = op;
 	p->type = type;
-	p->degree = 0;
-	p->tr1 = tr1;
+	p->u.tnode.degree = 0;
+	p->u.tnode.tr1 = tr1;
 	if (opdope[op]&BINARY)
-		p->tr2 = tr2;
+		p->u.tnode.tr2 = tr2;
 	else
-		p->tr2 = NULL;
+		p->u.tnode.tr2 = NULL;
 	return(p);
 }
 
-struct tconst *tconst(int16_t val, int16_t type)
+struct node *tconst(int16_t val, int16_t type)
 {
-	register struct tconst *p;
+	register struct node *p;
 
 	p = getblk(sizeof(*p));
 	p->op = CON;
 	p->type = type;
-	p->value = val;
+	p->u.tconst.value = val;
 	return(p);
 }
 
@@ -1044,21 +1046,21 @@ int16_t islong(int16_t t)
 	return(1);
 }
 
-struct tnode *isconstant(struct tnode *at)
+struct node *isconstant(struct node *at)
 {
-	register struct tnode *t;
+	register struct node *t;
 
 	t = at;
 	if (t->op==CON || t->op==SFCON)
 		return(t);
-	if (t->op==ITOL && t->tr1->op==CON)
-		return(t->tr1);
+	if (t->op==ITOL && t->u.tnode.tr1->op==CON)
+		return(t->u.tnode.tr1);
 	return(0);
 }
 
-int16_t hardlongs(struct tnode *at)
+int16_t hardlongs(struct node *at)
 {
-	register struct tnode *t;
+	register struct node *t;
 
 	t = at;
 	switch(t->op) {
@@ -1073,7 +1075,7 @@ int16_t hardlongs(struct tnode *at)
 	case ASDIV:
 	case ASMOD:
 		t->op += LASTIMES-ASTIMES;
-		t->tr1 = tnode(AMPER, LONG+PTR, t->tr1);
+		t->u.tnode.tr1 = tnode(AMPER, LONG+PTR, t->u.tnode.tr1);
 		break;
 
 	default:

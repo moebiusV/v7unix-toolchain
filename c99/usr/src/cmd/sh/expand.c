@@ -27,12 +27,12 @@
  *
  */
 
-PROC VOID	addg();
+static VOID addg();
 
 
 static VOID addg(STRING as1, STRING as2, STRING as3);
 int16_t gmatch(STRING s, STRING p);
-int16_t makearg(STRING args);
+void makearg(ARGPTR args);
 
 INT expand(STRING as, int16_t rflg)
 {
@@ -182,10 +182,10 @@ static VOID addg(STRING as1, STRING as2, STRING as3)
 	THEN	*s2++='/';
 		WHILE *s2++ = *++s1 DONE
 	FI
-	makearg(endstak(s2));
+	makearg((ARGPTR)endstak(s2));
 }
 
-int16_t makearg(STRING args)
+void makearg(ARGPTR args)
 {
 	args->argnxt=gchain;
 	gchain=args;

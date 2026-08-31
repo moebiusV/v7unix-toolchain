@@ -1,5 +1,3 @@
-int16_t	errcode;
-
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -9,6 +7,8 @@ int16_t	errcode;
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+
+int16_t	errcode;
 
 char	*sprintf();
 

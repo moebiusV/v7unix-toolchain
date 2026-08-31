@@ -10,70 +10,23 @@
 #define	NULL	0
 
 /*
- *  Tree node for unary and binary
+ * A node is a tagged union.  The leading `op`/`type` pair is common to every
+ * shape (V7 C kept one global member-name space, so a `struct node *` could
+ * reach `value` (tconst), `class`/`offset` (tname), and vice versa).  C99
+ * forbids that, so each divergent member is qualified by its sub-struct.
  */
-struct	tnode {
+struct	node {
 	int16_t	op;
 	int16_t	type;
-	int16_t	degree;
-	struct	tnode *tr1, *tr2;
-};
-
-/*
- * tree names for locals
- */
-struct	tname {
-	int16_t	op;
-	int16_t	type;
-	char	class;
-	char	regno;
-	int16_t	offset;
-	int16_t	nloc;
-};
-
-/*
- * tree names for externals
- */
-struct	xtname {
-	int16_t	op;
-	int16_t	type;
-	char	class;
-	char	regno;
-	int16_t	offset;
-	char	name[NCPS];
-};
-
-struct	tconst {
-	int16_t	op;
-	int16_t	type;
-	int16_t	value;
-};
-
-/*
- * long constants
- */
-struct	lconst {
-	int16_t	op;
-	int16_t	type;
-	int32_t	lvalue;
-};
-
-struct	ftconst {
-	int16_t	op;
-	int16_t	type;
-	int16_t	value;
-	double	fvalue;
-};
-
-/*
- * Node used for field assignemnts
- */
-struct	fasgn {
-	int16_t	op;
-	int16_t	type;
-	int16_t	degree;
-	struct	tnode *tr1, *tr2;
-	int16_t	mask;
+	union {
+		struct { int16_t degree; struct node *tr1, *tr2; } tnode;
+		struct { char class, regno; int16_t offset, nloc; } tname;
+		struct { char class, regno; int16_t offset; char name[NCPS]; } xtname;
+		struct { int16_t value; } tconst;
+		struct { union { int32_t lvalue; int16_t intx[2]; }; } lconst;
+		struct { int16_t value; union { double fvalue; int16_t intx[4]; }; } ftconst;
+		struct { int16_t degree; struct node *tr1, *tr2; int16_t mask; } fasgn;
+	} u;
 };
 
 struct	optab {
@@ -118,12 +71,12 @@ int16_t	opdope[];
 char	*opntab[];
 int16_t	nstack;
 int16_t	nfloat;
-struct	tname	sfuncr;
+struct node	sfuncr;
 char	*funcbase;
 char	*curbase;
 char	*coremax;
-struct tconst czero, cone;
-struct	ftconst	fczero;
+struct node czero, cone;
+struct node	fczero;
 int32_t	totspace;
 /*
  * Some special stuff for long comparisons

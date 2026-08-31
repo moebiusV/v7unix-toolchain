@@ -18,7 +18,7 @@
 int16_t	isn = 1;
 int16_t	peeksym = -1;
 int16_t	line = 1;
-struct	tnode	funcblk { NAME, 0, NULL, NULL, NULL, NULL };
+struct node	funcblk = { NAME, 0, NULL, NULL, NULL, NULL };
 
 struct kwtab {
 	char	*kwname;
@@ -86,7 +86,7 @@ int16_t main(int16_t argc, char *argv[])
 		i = 0;
 		while (*sp)
 			i += *sp++;
-		hshtab[i%HSHSIZ].hflag = FKEYW;
+		hshtab[i%HSHSIZ].u.hshtab.hflag = FKEYW;
 	}
 	coremax = funcbase = curbase = sbrk(0);
 	while(!eof)
@@ -109,12 +109,12 @@ int16_t getcc(void);
 int16_t getnum(void);
 int16_t mapch(int16_t ac);
 int16_t subseq(int16_t c, int16_t a, int16_t b);
-struct hshtab * xprtype(struct hshtab *atyb);
+struct node * xprtype(struct node *atyb);
 
 int16_t lookup(void)
 {
 	int16_t ihash;
-	register struct hshtab *rp;
+	register struct node *rp;
 	register char *sp, *np;
 
 	ihash = 0;
@@ -122,14 +122,14 @@ int16_t lookup(void)
 	while (sp<symbuf+NCPS)
 		ihash += *sp++&0177;
 	rp = &hshtab[ihash%HSHSIZ];
-	if (rp->hflag&FKEYW)
+	if (rp->u.hshtab.hflag&FKEYW)
 		if (findkw())
 			return(KEYW);
-	while (*(np = rp->name)) {
+	while (*(np = rp->u.hshtab.name)) {
 		for (sp=symbuf; sp<symbuf+NCPS;)
 			if (*np++ != *sp++)
 				goto no;
-		if (mossym != (rp->hflag&FMOS))
+		if (mossym != (rp->u.hshtab.hflag&FMOS))
 			goto no;
 		csym = rp;
 		return(NAME);
@@ -141,16 +141,16 @@ int16_t lookup(void)
 		error("Symbol table overflow");
 		exit(1);
 	}
-	rp->hclass = 0;
-	rp->htype = 0;
-	rp->hoffset = 0;
-	rp->subsp = NULL;
-	rp->strp = NULL;
-	rp->hpdown = NULL;
-	rp->hblklev = blklev;
-	rp->hflag |= mossym;
+	rp->u.hshtab.hclass = 0;
+	rp->u.hshtab.htype = 0;
+	rp->u.hshtab.hoffset = 0;
+	rp->u.tnode.subsp = NULL;
+	rp->u.tnode.strp = NULL;
+	rp->u.hshtab.hpdown = NULL;
+	rp->u.hshtab.hblklev = blklev;
+	rp->u.hshtab.hflag |= mossym;
 	sp = symbuf;
-	for (np=rp->name; sp<symbuf+NCPS;)
+	for (np=rp->u.hshtab.name; sp<symbuf+NCPS;)
 		*np++ = *sp++;
 	csym = rp;
 	return(NAME);
@@ -608,14 +608,14 @@ loop:
  * "," or ":" because those delimiters are special
  * in initializer (and some other) expressions.
  */
-struct tnode * tree(void)
+struct node * tree(void)
 {
 	int16_t *op, opst[SSIZE], *pp, prst[SSIZE];
 	register int16_t andflg, o;
-	register struct hshtab *cs;
+	register struct node *cs;
 	int16_t p, ps, os;
-	struct tnode *cmst[CMSIZ];
-	struct lnode *lcp;
+	struct node *cmst[CMSIZ];
+	struct node *lcp;
 
 	curbase = funcbase;
 	op = opst;
@@ -630,22 +630,22 @@ advanc:
 
 	case NAME:
 		cs = csym;
-		if (cs->hclass==TYPEDEF)
+		if (cs->u.hshtab.hclass==TYPEDEF)
 			goto atype;
-		if (cs->hclass==ENUMCON) {
-			*cp++ = cblock(cs->hoffset);
+		if (cs->u.hshtab.hclass==ENUMCON) {
+			*cp++ = cblock(cs->u.hshtab.hoffset);
 			goto tand;
 		}
-		if (cs->hclass==0 && cs->htype==0)
+		if (cs->u.hshtab.hclass==0 && cs->u.hshtab.htype==0)
 			if(nextchar()=='(') {
 				/* set function */
-				cs->hclass = EXTERN;
-				cs->htype = FUNC;
+				cs->u.hshtab.hclass = EXTERN;
+				cs->u.hshtab.htype = FUNC;
 			} else {
-				cs->hclass = STATIC;
-				error("%.8s undefined; func. %.8s", cs->name, funcsym->name);
+				cs->u.hshtab.hclass = STATIC;
+				error("%.8s undefined; func. %.8s", cs->u.hshtab.name, funcsym->u.hshtab.name);
 				if (initflg) {
-					cs->hclass = EXTERN;
+					cs->u.hshtab.hclass = EXTERN;
 					error("(Warning only)");
 					nerror -= 2;
 				}
@@ -659,9 +659,9 @@ advanc:
 
 	case LCON:
 		cs = gblock(sizeof(*lcp));
-		cs->op = LCON;
-		cs->type = LONG;
-		cs->lvalue = lcval;
+		cs->u.tnode.op = LCON;
+		cs->u.tnode.type = LONG;
+		cs->u.lnode.lvalue = lcval;
 		*cp++ = cs;
 		goto tand;
 
@@ -673,8 +673,8 @@ advanc:
 	case STRING:
 		putstr(cval, 0);
 		cs = gblock(sizeof(*cs));
-		cs->hclass = STATIC;
-		cs->hoffset = cval;
+		cs->u.hshtab.hclass = STATIC;
+		cs->u.hshtab.hoffset = cval;
 		*cp++ = block(NAME, ARRAY+CHAR, &nchstr, NULL, cs);
 
 	tand:
@@ -692,7 +692,7 @@ advanc:
 		if (*op != LPARN || andflg)
 			goto syntax;
 		peeksym = o;
-		*cp++ = xprtype(gblock(sizeof(*xprtype())));
+		*cp++ = xprtype(gblock(sizeof(struct node)));
 		if ((o=symbol()) != RPARN)
 			goto syntax;
 		o = CAST;
@@ -854,13 +854,13 @@ syntax:
 	return(0);
 }
 
-struct hshtab * xprtype(struct hshtab *atyb)
+struct node * xprtype(struct node *atyb)
 {
-	register struct hshtab *tyb;
-	struct hshtab typer;
+	register struct node *tyb;
+	struct node typer;
 	int16_t sc;
 	register char *md, *fb;
-	struct tnode *scp;
+	struct node *scp;
 
 	tyb = atyb;
 	fb = funcbase;
@@ -869,13 +869,13 @@ struct hshtab * xprtype(struct hshtab *atyb)
 	funcbase = curbase;
 	sc = DEFXTRN;		/* will cause error if class mentioned */
 	getkeywords(&sc, &typer);
-	tyb->hclass = 0;
-	tyb->hblklev = 0;
+	tyb->u.hshtab.hclass = 0;
+	tyb->u.hshtab.hblklev = 0;
 	decl1(&sc, &typer, 0, tyb);
 	funcbase = fb;
 	maxdecl = md;
 	cp = scp;
-	tyb->op = ETYPE;
+	tyb->u.tnode.op = ETYPE;
 	return(tyb);
 }
 

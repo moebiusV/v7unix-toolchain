@@ -25,7 +25,7 @@ FILE		standin = &stdfile;
 #include <unistd.h>
 #include <stdint.h>
 
-PROC VOID	exfile();
+static VOID exfile();
 
 
 
