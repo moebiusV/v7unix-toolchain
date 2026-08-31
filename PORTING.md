@@ -209,6 +209,14 @@ double as two 16-bit words, and `c0` emits a 32-bit `long` constant as high
 word then low word; both had to reproduce this order exactly or the
 intermediate code would be misread.
 
+The mechanical port initially "fixed" the word split the obvious-but-wrong way:
+V7's `p->lvalue.intx[0]`/`[1]` (high/low) became `((int16_t*)&lvalue)[0]`/`[1]`,
+which reinterprets the *host* `int32_t`'s bytes and so depends on the host's
+endianness — swapping high and low on a little-endian host.  The correct,
+endian-independent form extracts by value: `(uint32_t)v >> 16` (high) and
+`(uint32_t)v & 0177777` (low).  (`pdp11_double`/`pdp11_float` in §4.8 do the
+same for floats.)
+
 ### 4.4 Generic registers — one variable, two types
 
 The code reuses a single register variable as `int` in one arm and a pointer in
@@ -249,6 +257,16 @@ time by feeding the port real V7 source (`tools/v7check.sh`).  Fixed so far:
 - **`c2` — `dualop()` dereferences a `NULL` `code` string** (a `MOV` node whose
   operand string was empty, so `copy()` returned 0).  Not yet fixed at the time
   of writing; see §7.
+- **`c1` — `xdcalc()` reads `p->type` on a `NULL` node.**  `dcalc()` already
+  returns 0 for `p==NULL`, but `xdcalc()` then did `if (d<20 && p->type==CHAR)`
+  with `p` still `NULL`.  Guarded the dereference (`crypt.c` was the first file
+  to trip it).
+- **`c1` — `sreorder()` reads `p->tr1` after `optim()` collapses `p` to a
+  leaf.**  `optim(p)` can return a `NAME`/`CON` node, after which
+  `p->u.tnode.tr1` is the *name* node's `offset`/`nloc` read as a pointer; on
+  V7 that read the null page and skipped the switch, on x86 it faulted.
+  Re-check `opdope[p->op]&LEAF` after each `*treep = p = optim(p)`
+  (`malloc.c`).
 
 The lesson for any further port: grep the original for a bare `->field` on a
 pointer that can be a `copy()`/`alloc()` result, and add the `NULL` guard the
@@ -287,6 +305,27 @@ does not go through the early `xpr` path has exactly one matching `tst (sp)+` /
 `bis (sp)+,r2` / `mov (sp)+,rN` before its `rts pc`, because `opline()` pushed
 the opcode.  When a handler in the C port neither `POP()`s nor `sp++`s, it leaks
 one slot per call — grep each `oplNN`/`section`/`opl17` for the missing pop.
+
+### 4.8 The PDP-11 floating-point format is not IEEE-754
+
+A PDP-11 `double` is four 16-bit words: word 0 = sign(1) + exponent(8,
+excess-128) + the high 7 mantissa bits, words 1-3 the low 48 mantissa bits; the
+implicit leading bit makes the mantissa a fraction in `[0.5, 1.0)`.  A 32-bit
+`float` is the same in two words (23 explicit mantissa bits).  None of that
+matches IEEE-754's sign + excess-1023 exponent + 52-bit fraction, so dumping
+the host `double`'s bytes (`printf("%o;%o;%o;%o", fvalue)`) emitted the wrong
+representation.
+
+`pdp11_double(d, w[4])` / `pdp11_float(d, w[2])` (c12.c) convert the host
+double *by value* via `frexp`/`ldexp` — `frexp` yields `m ∈ [0.5, 1.0)` and
+`e`, then `M = (uint64_t)ldexp(m, 56)` is the 56-bit mantissa with the implicit
+1 in bit 55 — so the result is independent of both the host's byte order and
+its float representation.  The same helper replaces the SFCON ("short float"
+that fits one word) test and the sign-toggle in `optim()` (c12.c), which had
+also been expressed as byte casts.  Remaining known gap: a decimal literal that
+needs more than 53 bits (e.g. `.03`) rounds to IEEE-754's 53 bits on the host,
+where V7's own `atof` rounded to 56, so one or two low mantissa bits can differ
+(`ecvt.o` differs from the V7 image by exactly one word).
 
 ## 5. What the port produced
 

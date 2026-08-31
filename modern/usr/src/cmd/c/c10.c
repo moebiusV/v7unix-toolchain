@@ -513,14 +513,22 @@ int16_t cexpr(struct node *atree, struct table *table, int16_t areg)
 	string = opt->tabstring;
 	p1 = tree->u.tnode.tr1;
 	if (p1->op==FCON && p1->u.tconst.value>0) {
-		printf(".data\nL%d:%o;%o;%o;%o\n.text\n", p1->u.tconst.value, p1->u.ftconst.fvalue);
+		uint16_t w[4];
+		pdp11_double(p1->u.ftconst.fvalue, w);
+		printf(".data\nL%d:%o;%o;%o;%o\n.text\n",
+			p1->u.tconst.value, (unsigned)w[0], (unsigned)w[1],
+			(unsigned)w[2], (unsigned)w[3]);
 		p1->u.tconst.value = -p1->u.tconst.value;
 	}
 	p2 = 0;
 	if (opdope[tree->op]&BINARY) {
 		p2 = tree->u.tnode.tr2;
 		if (p2->op==FCON && p2->u.tconst.value>0) {
-			printf(".data\nL%d:%o;%o;%o;%o\n.text\n", p2->u.tconst.value, p2->u.ftconst.fvalue);
+			uint16_t w[4];
+			pdp11_double(p2->u.ftconst.fvalue, w);
+			printf(".data\nL%d:%o;%o;%o;%o\n.text\n",
+				p2->u.tconst.value, (unsigned)w[0], (unsigned)w[1],
+				(unsigned)w[2], (unsigned)w[3]);
 			p2->u.tconst.value = -p2->u.tconst.value;
 		}
 	}
@@ -862,10 +870,14 @@ int16_t sreorder(struct node **treep, struct table *table, int16_t reg, int16_t 
 	if (p->op==PLUS && recurf)
 		if (reorder(&p->u.tnode.tr2, table, reg))
 			*treep = p = optim(p);
+	if (opdope[p->op]&LEAF)
+		return(0);
 	p1 = p->u.tnode.tr1;
 	if (p->op==STAR || p->op==PLUS) {
 		if (recurf && reorder(&p->u.tnode.tr1, table, reg))
 			*treep = p = optim(p);
+		if (opdope[p->op]&LEAF)
+			return(0);
 		p1 = p->u.tnode.tr1;
 	}
 	if (p1->op==NAME) switch(p->op) {
@@ -1159,10 +1171,16 @@ void doinit(int16_t atype, struct node *atree)
 		} else
 			goto illinit;
 		if (type==FLOAT) {
+			uint16_t w[2];
 			sfval = fval;
-			printf("%o; %o\n", sfval);
-		} else
-			printf("%o; %o; %o; %o\n", fval);
+			pdp11_float(sfval, w);
+			printf("%o; %o\n", (unsigned)w[0], (unsigned)w[1]);
+		} else {
+			uint16_t w[4];
+			pdp11_double(fval, w);
+			printf("%o; %o; %o; %o\n",
+				(unsigned)w[0], (unsigned)w[1], (unsigned)w[2], (unsigned)w[3]);
+		}
 		return;
 
 	case LONG:
@@ -1181,7 +1199,11 @@ void doinit(int16_t atype, struct node *atree)
 			lval = tree->u.lconst.lvalue;
 		else
 			goto illinit;
-		printf("%o; %o\n", lval);
+		/* V7 passed `long` to printf as two 16-bit words (high, then low);
+		   the host's single int32_t needs the same split, endian-independent. */
+		printf("%o; %o\n",
+			(unsigned)((uint32_t)lval >> 16),
+			(unsigned)((uint32_t)lval & 0177777));
 		return;
 	}
 illinit:

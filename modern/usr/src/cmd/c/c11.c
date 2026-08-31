@@ -65,7 +65,12 @@ loop:
 	switch(p->op) {
 
 	case LCON:
-		printf("$%o", flag>10? ((int16_t *)&p->u.lconst.lvalue)[1]:((int16_t *)&p->u.lconst.lvalue)[0]);
+		/* V7 stored a `long` middle-endian and printed its two 16-bit words
+		   through %o (intx[0]=high, intx[1]=low).  Reproduce that word split
+		   endian-independently, masking to 16 bits so %o matches V7's int. */
+		printf("$%o", flag>10
+			? (unsigned)((uint32_t)p->u.lconst.lvalue & 0177777)          /* low  */
+			: (unsigned)((uint32_t)p->u.lconst.lvalue >> 16));            /* high */
 		return;
 
 	case SFCON:
@@ -160,7 +165,7 @@ int16_t xdcalc(struct node *ap, int16_t nrleft)
 
 	p = ap;
 	d = dcalc(p, nrleft);
-	if (d<20 && p->type==CHAR) {
+	if (d<20 && p && p->type==CHAR) {
 		if (nrleft>=1)
 			d = 20;
 		else

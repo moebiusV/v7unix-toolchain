@@ -8,6 +8,56 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <math.h>
+
+/*
+ * PDP-11 floating point (V7's /usr/src/libc fakfp.s etc.): a 64-bit double is
+ * 4 words, word 0 = sign(1) + exponent(8, excess-128) + high 7 mantissa bits,
+ * words 1-3 the low 48 mantissa bits; the implicit leading bit makes the
+ * mantissa a fraction in [0.5, 1.0).  A 32-bit float is the same with 2 words
+ * (23 explicit mantissa bits).  We convert the host's IEEE-754 double *by
+ * value* via frexp/ldexp, so the result is independent of the host's byte
+ * order and of whether its double is IEEE-754.
+ */
+void pdp11_double(double d, uint16_t w[4])
+{
+	int e, sign;
+	double m;
+	uint64_t M;
+
+	sign = 0;
+	if (d < 0) { sign = 1; d = -d; }
+	if (d == 0) {
+		w[0] = (uint16_t)(sign << 15);	/* -0.0 keeps its sign bit */
+		w[1] = w[2] = w[3] = 0;
+		return;
+	}
+	m = frexp(d, &e);		/* m in [0.5, 1.0) */
+	M = (uint64_t)ldexp(m, 56);	/* 56-bit mantissa, leading 1 in bit 55 */
+	w[0] = (uint16_t)((sign << 15) | (((e + 128) & 0xFF) << 7) | ((M >> 48) & 0x7F));
+	w[1] = (uint16_t)((M >> 32) & 0xFFFF);
+	w[2] = (uint16_t)((M >> 16) & 0xFFFF);
+	w[3] = (uint16_t)(M & 0xFFFF);
+}
+
+void pdp11_float(double d, uint16_t w[2])
+{
+	int e, sign;
+	double m;
+	uint32_t M;
+
+	sign = 0;
+	if (d < 0) { sign = 1; d = -d; }
+	if (d == 0) {
+		w[0] = (uint16_t)(sign << 15);
+		w[1] = 0;
+		return;
+	}
+	m = frexp(d, &e);
+	M = (uint32_t)ldexp(m, 24);	/* 24-bit mantissa, leading 1 in bit 23 */
+	w[0] = (uint16_t)((sign << 15) | (((e + 128) & 0xFF) << 7) | ((M >> 16) & 0x7F));
+	w[1] = (uint16_t)(M & 0xFFFF);
+}
 
 struct node *acommute(struct node *atree);
 void c1_const(int16_t op, int16_t *vp, int16_t av);
@@ -42,12 +92,13 @@ struct node *optim(struct node *atree)
 	}
 	dope = opdope[op];
 	if ((dope&LEAF) != 0) {
-		if (op==FCON
-		 && ((int16_t *)&tree->u.ftconst.fvalue)[1]==0
-		 && ((int16_t *)&tree->u.ftconst.fvalue)[2]==0
-		 && ((int16_t *)&tree->u.ftconst.fvalue)[3]==0) {
-			tree->op = SFCON;
-			tree->u.tconst.value = ((int16_t *)&tree->u.ftconst.fvalue)[0];
+		if (op==FCON) {
+			uint16_t w[4];
+			pdp11_double(tree->u.ftconst.fvalue, w);
+			if (w[1]==0 && w[2]==0 && w[3]==0) {
+				tree->op = SFCON;
+				tree->u.tconst.value = (int16_t)w[0];
+			}
 		}
 		return(tree);
 	}
@@ -337,14 +388,17 @@ struct node *unoptim(struct node *atree)
 		if (subtre->op!=CON)
 			break;
 		fv = subtre->u.tconst.value;
-		int16_t *wp = (int16_t *)&fv + 1;
-		if (*wp++==0 && *wp++==0 && *wp++==0) {
-			tree = getblk(sizeof(*fp));
-			tree->op = SFCON;
-			tree->type = DOUBLE;
-			tree->u.tconst.value = * (int16_t *) &fv;
-			tree->u.ftconst.fvalue = fv;
-			return(tree);
+		{
+			uint16_t w[4];
+			pdp11_double(fv, w);
+			if (w[1]==0 && w[2]==0 && w[3]==0) {
+				tree = getblk(sizeof(*fp));
+				tree->op = SFCON;
+				tree->type = DOUBLE;
+				tree->u.tconst.value = (int16_t)w[0];
+				tree->u.ftconst.fvalue = fv;
+				return(tree);
+			}
 		}
 		break;
 
@@ -541,11 +595,11 @@ struct node *unoptim(struct node *atree)
 		 */
 		if (subtre->op==SFCON) {
 			subtre->u.tconst.value ^= 0100000;
-			((int16_t *)&subtre->u.ftconst.fvalue)[0] ^= 0100000;
+			subtre->u.ftconst.fvalue = -subtre->u.ftconst.fvalue;
 			return(subtre);
 		}
 		if (subtre->op==FCON) {
-			((int16_t *)&subtre->u.ftconst.fvalue)[0] ^= 0100000;
+			subtre->u.ftconst.fvalue = -subtre->u.ftconst.fvalue;
 			return(subtre);
 		}
 	}

@@ -106,6 +106,8 @@ extern void popstk(int16_t a);
 extern struct node * pow2(struct node *atree);
 extern void prins(int16_t op, int16_t c, struct instab *itable);
 extern int16_t psoct(int16_t an);
+extern void pdp11_double(double d, uint16_t w[4]);
+extern void pdp11_float(double d, uint16_t w[2]);
 extern void pswitch(struct swtab *afp, struct swtab *alp, int16_t deflab);
 extern int16_t rcexpr(struct node *atree, struct table *atable, int16_t reg);
 extern int16_t regerr(void);
