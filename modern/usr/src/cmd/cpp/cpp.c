@@ -912,10 +912,15 @@ int16_t main(int16_t argc, char *argv[])
 	[i don't see what the problem is.  jfr]
 */
 				} else if (fout==stdout) {
-					char _sobuf[BUFSZ];	/* host fix: V7's libc exported this */
+					/* host fix: V7 reused libc's exported _sobuf as fout's
+					   buffer, and V7's setbuf() took a BUFSIZ==512 buffer.
+					   A modern libc allocates its own buffer in fopen() and
+					   its setbuf() expects a full BUFSIZ (8192), so the old
+					   "char _sobuf[BUFSZ]" stack buffer both overflowed and
+					   went out of scope.  Just let fopen() buffer the file. */
 					if (NULL==(fout=fopen(argv[i], "w"))) {
 						pperror("Can't create %s", argv[i]); exit(8);
-					} else {fclose(stdout); setbuf(fout,_sobuf);}
+					} else fclose(stdout);
 				} else pperror("extraneous name %s", argv[i]);
 			}
 		}

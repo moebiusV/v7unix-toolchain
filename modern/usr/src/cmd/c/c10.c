@@ -835,7 +835,9 @@ int16_t reorder(struct node **treep, struct table *table, int16_t reg)
 
 	p = *treep;
 	o = p->op;
-	if (opdope[o]&LEAF || o==LOGOR || o==LOGAND)
+	/* op 0 is c0's NULLOP placeholder (no operands); V7 read its NULL tr1
+	   as page 0 (=0) and skipped, a modern host segfaults on that read. */
+	if (o==0 || opdope[o]&LEAF || o==LOGOR || o==LOGAND)
 		return(0);
 	while(sreorder(&p->u.tnode.tr1, regtab, reg, 1))
 		;
@@ -865,7 +867,8 @@ int16_t sreorder(struct node **treep, struct table *table, int16_t reg, int16_t 
 	register struct node *p, *p1;
 
 	p = *treep;
-	if (opdope[p->op]&LEAF)
+	/* op 0 is NULLOP: a no-op node with NULL tr1 (see reorder above). */
+	if (p->op==0 || (opdope[p->op]&LEAF))
 		return(0);
 	if (p->op==PLUS && recurf)
 		if (reorder(&p->u.tnode.tr2, table, reg))

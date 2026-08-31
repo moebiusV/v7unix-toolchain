@@ -791,7 +791,7 @@ void getree(void)
 	register struct node **sp;
 	register int16_t t, op;
 	struct node *tn;
-	static char s[9];
+	static char s[10];	/* '_' + 8-char name + NUL (V7's [9] overflowed) */
 	struct swtab *swp;
 	char numbuf[64];
 	struct node *np;
