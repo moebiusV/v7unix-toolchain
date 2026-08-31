@@ -13,6 +13,6 @@ ld_CFLAGS = -std=c99 -O2
 check-local:
 	$(SHELL) $(srcdir)/tests/run-tests.sh ./ld as/as
 
-SUBDIRS = c as cpp
+SUBDIRS = c as cpp make yacc
 
 EXTRA_DIST = README tests

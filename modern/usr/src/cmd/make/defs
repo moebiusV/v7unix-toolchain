@@ -1,0 +1,177 @@
+#define _DEFAULT_SOURCE 1	/* un-hide POSIX decls (dirfd, fork, …) under -std=c99 */
+
+#include <stdio.h>
+#include <ctype.h>
+#include <dirent.h>
+
+typedef int TIMETYPE;		/* V7 `long int` = 32-bit */
+
+enum {
+	NO = 0,
+	YES = 1,
+	HASHSIZE = 509,
+	NLEFTS = 40,
+	NCHARS = 500,
+	NINTS = 250,
+	INMAX = 1500,
+	OUTMAX = 2500,
+	QBUFMAX = 1500,
+	ALLDEPS = 1,
+	SOMEDEPS = 2,
+	META = 01,
+	TERMINAL = 02,
+};
+
+extern char funny[128];
+
+
+extern int sigivalue;
+extern int sigqvalue;
+extern int childpid;
+extern int dbgflag;
+extern int prtrflag;
+extern int silflag;
+extern int noexflag;
+extern int keepgoing;
+extern int noruleflag;
+extern int touchflag;
+extern int questflag;
+extern int ndocoms;
+extern int ignerr;
+extern int okdel;
+extern int inarglist;
+extern char *prompt;
+extern char junkname[ ];
+
+extern FILE *fin;
+extern char (*linesptr)[64];
+
+
+
+struct nameblock
+	{
+	struct nameblock *nxtnameblock;
+	char *namep;
+	struct lineblock *linep;
+	int done:3;
+	int septype:3;
+	TIMETYPE modtime;
+	};
+
+extern struct nameblock *mainname ;
+extern struct nameblock *firstname;
+
+struct lineblock
+	{
+	struct lineblock *nxtlineblock;
+	struct depblock *depp;
+	struct shblock *shp;
+	};
+extern struct lineblock *sufflist;
+
+struct depblock
+	{
+	struct depblock *nxtdepblock;
+	struct nameblock *depname;
+	};
+
+struct shblock
+	{
+	struct shblock *nxtshblock;
+	char *shbp;
+	};
+
+struct varblock
+	{
+	struct varblock *nxtvarblock;
+	char *varname;
+	char *varval;
+	int noreset:1;
+	int used:1;
+	};
+extern struct varblock *firstvar;
+
+struct pattern
+	{
+	struct pattern *nxtpattern;
+	char *patval;
+	};
+extern struct pattern *firstpat;
+
+struct opendir
+	{
+	struct opendir *nxtopendir;
+	DIR * dirfc;
+	char *dirn;
+	};
+extern struct opendir *firstod;
+
+
+struct chain
+	{
+	struct chain *nextp;
+	char *datap;
+	};
+
+/* functions (prototypes reconstructed from their definitions).
+ * The original defs listed only a few and let every other cross-file function
+ * be declared implicitly by K&R; C99 has no implicit declarations and make is
+ * split across six files, so each needs an explicit prototype here. */
+
+/* misc.c */
+int hashloc(char *s);
+struct nameblock *srchname(char *s);
+struct nameblock *makename(char *s);
+int hasslash(char *s);
+char *copys(char *s);
+char *concat(char *a, char *b, char *c);
+int suffix(char *a, char *b, char *p);
+void *ckalloc(int n);
+char *subst(char *a, char *b);
+int setvar(char *v, char *s);
+int eqsign(char *a);
+struct varblock *varptr(char *v);
+int fatal1(char *s, char *t);
+int fatal(char *s);
+int yyerror(char *s);
+struct chain *appendq(struct chain *head, char *tail);
+char *mkqlist(struct chain *p);
+
+/* dosys.c */
+int dosys(char *comstring, int nohalt);
+int metas(char *s);
+int doshell(char *comstring, int nohalt);
+int await(void);
+void doclose(void);
+int doexec(char *str);
+void touch(int force, char *name);
+
+/* doname.c */
+int doname(struct nameblock *p, int reclevel, TIMETYPE *tval);
+int docom(struct shblock *q);
+int docom1(char *comstring, int nohalt, int noprint);
+void expand(struct depblock *q);
+
+/* files.c */
+TIMETYPE exists(char *filename);
+TIMETYPE prestime(void);
+struct depblock *srchdir(char *pat, int mkchain, struct depblock *nextdbl);
+TIMETYPE lookarch(char *filename);
+void clarch(void);
+void openarch(char *f);
+int getarch(void);
+void getobj(void);
+int eqstr(char *a, char *b, int n);
+
+/* main.c */
+void intrupt(int sig);
+int isprecious(char *p);
+void enbint(void (*k)(int));
+int rddescf(char *descfile);
+int rdd1(FILE *k);
+int printdesc(int prntflag);
+
+/* gram.c (generated from gram.y by yacc) */
+extern int yylineno;
+extern char *zznextc;
+int yyparse(void);

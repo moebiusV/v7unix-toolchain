@@ -492,3 +492,86 @@ And the smaller ones: K&R functions with a comment in their header are skipped
 (`metas`/`concat`/`srchdir`/`enbint`), `char *calloc();` clashes with
 `stdlib.h`'s `void *calloc()`, and K&R "generic arg" calls (`error("x")` now
 that `error` takes two args) need their arity padded.
+
+### 8.4 `make`/`yacc` ported (2026-08-30) — extra moves and gotchas
+
+Both tools now build in `modern/usr/src/cmd/{make,yacc}/` (autotools, `-std=c99`),
+wire into `configure.ac`/`SUBDIRS`, and `make check` stays green.  Beyond the
+moves in §8.1/§8.2, these came up during the actual port:
+
+* **`SHELLCOM` → `shellcom` is not a header constant.**  `#define SHELLCOM
+  "/bin/sh"` becomes `const char shellcom[]`, but a *definition* in the shared
+  `defs` header gives every `.o` its own copy → multiple-definition at link.
+  Declare it `static` in the one file that uses it (`dosys.c`), not in `defs`.
+
+* **`-std=c99` hides POSIX decls.**  `dirfd`, `fork`, `wait`, `execl`, `execvp`
+  are all undeclared under strict C99 (glibc's `__STRICT_ANSI__`).  `defs` starts
+  with `#define _DEFAULT_SOURCE 1` before any include (the feature-test carve-out).
+
+* **yacc `ACTNAME` → `actname` collides with a local.**  `setup()` declares its
+  own `char actname[8];` (for the `$$%d` mid-rule nonterminal), which shadows the
+  new global `const char *actname`.  Rename the local to `aname[8]`, else
+  `fopen(actname, "w")` opens a garbage name and yacc dies with "cannot open temp
+  file" before reading any grammar.
+
+* **y4.c's `#define a amem` is not sed-safe.**  The bare `a` also occurs as the
+  English article in comments and in the *error-string* literals `"a array
+  overflow"` / `"clobber of a array"`.  A naive `s/\ba\b/amem/` corrupts those
+  strings and changes yacc's output/errors.  Resolve the alias in code only (the
+  other aliases `mem`/`pa`/`yypact`/`greed` are sed-safe, but note `yypact` also
+  names the *output table* `arout("yypact", …)` — keep that string verbatim).
+
+* **`enum` vs the sizes.**  yacc's `HUGE` sizes and `WORD32` word-packing are
+  folded into `dextern` as an `enum` + `static inline` accessors (`bit`/`setbit`/
+  `nwords`/`assoc`/`plevel`/`toktype`/…), and the `TLOOP`/`PLOOP`/`WSLOOP`/
+  `ITMLOOP` loop macros are expanded inline (they are `for`-headers, so they
+  cannot become functions).  `yaccpar` stays byte-for-byte V7's (K&R `yyparse`).
+
+### 8.5 Why the macro habit at all — early Unix C as a Lisp
+
+The `TLOOP`/`PLOOP`/`WSLOOP`/`BIT`/`ASSOC` layer that §8.2 dissolves is not a
+porting artifact — it is verbatim V7.  Every one of those `#define`s is in
+S. C. Johnson's `yacc` (1978), in the shared `dextern` header, carried forward
+unchanged through `orig → c99` and only expanded away in `modern/`:
+
+    #define TLOOP(i)   for(i=1;i<=ntokens;++i)
+    #define NTLOOP(i)  for(i=0;i<=nnonter;++i)
+    #define PLOOP(s,i) for(i=s;i<nprod;++i)
+    #define WSLOOP(s,j) for(j=s;j<cwp;++j)
+    #define ITMLOOP(i,p,q) q=pstate[i+1];for(p=pstate[i];p<q;++p)
+    #define BIT(a,i)   ((a)[(i)>>5] & (1<<((i)&037)))
+    #define ASSOC(i)   ((i)&03)
+    #define PLEVEL(i)  (((i)>>4)&077)
+
+The "Lispish" reading is exactly right: `#define TLOOP(i) for(…)` is a macro
+that *manufactures a new loop construct* — the same shape as a Lisp `defmacro`
+that emits a `do` form.  It is a small domain-specific language over C: named
+iteration idioms (`TLOOP` = "for each token", `PLOOP` = "for each production")
+and named bit-slicing accessors (`ASSOC`/`PLEVEL`/`TYPE`).
+
+There were two concrete reasons, and only one of them is aesthetic:
+
+* **Machine dependence — the real driver.**  On the PDP-11 `int` is 16 bits, on
+  a VAX 32.  So `BIT`/`SETBIT`/`NWORDS` each have two bodies under
+  `#ifdef WORD32`/`#else` (shift by 5 vs shift by 4), and `#ifdef HUGE`/
+  `#ifdef MEDIUM` select a memory budget.  The macro layer was the portability
+  shim that let one source tree compile for both word sizes.
+* **Bit-packing as storage.**  `toklev[]` packs associativity (2 bits),
+  precedence (5 bits) and type (6 bits) into a single 16-bit word — memory was
+  precious — so `ASSOC`/`PLEVEL`/`TYPE` are the *names* for those bit-fields,
+  doing by macro what a `struct` with bitfields does directly.
+
+The loop constructors are the genuinely Lispish part: `TLOOP`/`PLOOP`/`WSLOOP`
+exist purely so the algorithm reads "for each token / production / working-set
+entry" instead of spelling the bounds every time — idiom-abstraction, not
+necessity.
+
+This was house style, not a one-off.  `make` has the same thing (`ALLOC(type)`,
+`unequal`, `FSTATIC`), and the original `sh` is full of it.  In 1978 the
+preprocessor was the only metaprogramming tool there was, and the Bell Labs
+people came out of the Lisp/Macro tradition, so they reached for it.  The
+no-`#define` rule for `modern/` is the 2026 counter-move against exactly this:
+where Johnson wrote `TLOOP(i)` because a 16-bit-word abstraction had to be
+written once, the modern port writes `for (i=1; i<=ntokens; ++i)` inline and a
+real `static inline int bit(int *a, int i)` — type-checked, debuggable,
+greppable.  Same behaviour, no macro layer.

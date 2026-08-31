@@ -1,0 +1,240 @@
+#include <stdio.h>
+#include <ctype.h>
+#include "files"
+
+/*  MANIFEST CONSTANT DEFINITIONS.
+ *  These are the HUGE (not MEDIUM) sizes — the host has plenty of memory and
+ *  the largest V7 grammar (mip/cgram.y) needs 6461 words of storage, which
+ *  MEDIUM (5200) cannot hold.  The 32-bit word packing (WORD32) is assumed:
+ *  the host's `int` is 32 bits, so lookahead sets pack 32 bits per word and
+ *  `TBITSET` is (32+NTERMS)/32. */
+
+enum {
+	/* base of nonterminal internal numbers */
+	NTBASE = 010000,
+
+	/* internal codes for error and accept actions */
+	ERRCODE = 8190,
+	ACCEPTCODE = 8191,
+
+	/* sizes and limits (HUGE) */
+	ACTSIZE = 12000,
+	MEMSIZE = 12000,
+	NSTATES = 750,
+	NTERMS = 127,
+	NPROD = 600,
+	NNONTERM = 300,
+	TEMPSIZE = 1200,
+	CNAMSZ = 5000,
+	LSETSIZE = 600,
+	WSETSIZE = 350,
+
+	NAMESIZE = 50,
+	NTYPES = 63,
+
+	/* associativities */
+	NOASC = 0,
+	LASC = 1,
+	RASC = 2,
+	BASC = 3,
+
+	/* flags for state generation */
+	DONE = 0,
+	MUSTDO = 1,
+	MUSTLOOKAHEAD = 2,
+
+	/* flags for a rule having an action, and being reduced */
+	ACTFLAG = 04,
+	REDFLAG = 010,
+
+	/* output parser flags */
+	YYFLAG1 = (-1000),
+};
+
+/* 32-bit word size: lookahead sets pack 32 bits per word, so the bit-index
+ * macros become real functions.  (The 16-bit V7 path is gone — the host's
+ * int is 32 bits.) */
+
+#define TBITSET ((32+NTERMS)/32)
+
+/* BIT() in v7 */ static inline int bit(int *a, int i) { return a[i>>5] & (1 << (i & 037)); }
+/* SETBIT() in v7 */ static inline void setbit(int *a, int i) { a[i>>5] |= (1 << (i & 037)); }
+/* NWORDS() in v7 */ static inline int nwords(int n) { return (n + 32) / 32; }
+
+/* associativity / precedence / type accessors and setters */
+
+/* ASSOC() in v7 */ static inline int assoc(int i) { return i & 03; }
+/* PLEVEL() in v7 */ static inline int plevel(int i) { return (i >> 4) & 077; }
+/* TYPE() in v7 */ static inline int toktype(int i) { return (i >> 10) & 077; }
+
+/* SETASC() in v7 */ static inline void setasc(int *i, int j) { *i |= j; }
+/* SETPLEV() in v7 */ static inline void setplev(int *i, int j) { *i |= (j << 4); }
+/* SETTYPE() in v7 */ static inline void settype(int *i, int j) { *i |= (j << 10); }
+
+/* I/O descriptors */
+
+extern FILE * finput;		/* input file */
+extern FILE * faction;		/* file for saving actions */
+extern FILE *fdefine;		/* file for # defines */
+extern FILE * ftable;		/* y.tab.c file */
+extern FILE * ftemp;		/* tempfile to pass 2 */
+extern FILE * foutput;		/* y.output file */
+
+/* output/temp file names (defined in y2.c) */
+
+extern const char *tempname;
+extern const char *actname;
+extern const char *ofile;
+extern const char *fileu;
+extern const char *filed;
+
+/* structure declarations */
+
+struct looksets {
+	int lset[TBITSET];
+	};
+
+struct item {
+	int *pitem;
+	struct looksets *look;
+	};
+
+struct toksymb {
+	char *name;
+	int value;
+	};
+
+struct ntsymb {
+	char *name;
+	int tvalue;
+	};
+
+struct wset {
+	int *pitem;
+	int flag;
+	struct looksets ws;
+	};
+
+	/* token information */
+
+extern int ntokens ;	/* number of tokens */
+extern struct toksymb tokset[];
+extern int toklev[];	/* vector with the precedence of the terminals */
+
+	/* nonterminal information */
+
+extern int nnonter ;	/* the number of nonterminals */
+extern struct ntsymb nontrst[];
+
+	/* grammar rule information */
+
+extern int nprod ;	/* number of productions */
+extern int *prdptr[];	/* pointers to descriptions of productions */
+extern int levprd[] ;	/* contains production levels to break conflicts */
+
+	/* state information */
+
+extern int nstate ;		/* number of states */
+extern struct item *pstate[];	/* pointers to the descriptions of the states */
+extern int tystate[];	/* contains type information about the states */
+extern int defact[];	/* the default action of the state */
+extern int tstates[];	/* the states deriving each token */
+extern int ntstates[];	/* the states deriving each nonterminal */
+extern int mstates[];	/* the continuation of the chains begun in tstates and ntstates */
+
+	/* lookahead set information */
+
+extern struct looksets lkst[];
+extern int nolook;  /* flag to turn off lookahead computations */
+
+	/* working set information */
+
+extern struct wset wsets[];
+extern struct wset *cwp;
+
+	/* storage for productions */
+
+extern int mem0[];
+extern int *mem;
+
+	/* storage for action table */
+
+extern int amem[];  /* action table storage */
+extern int *memp ;		/* next free action table position */
+extern int indgo[];		/* index to the stored goto table */
+
+	/* temporary vector, indexable by states, terms, or ntokens */
+
+extern int temp1[];
+extern int lineno; /* current line number */
+
+	/* statistics collection variables */
+
+extern int zzgoent ;
+extern int zzgobest ;
+extern int zzacent ;
+extern int zzexcp ;
+extern int zzclose ;
+extern int zzrrconf ;
+extern int zzsrconf ;
+
+	/* function declarations.  The original dextern listed only the few
+	 * "strange type" (non-int) functions and let every int-returning function
+	 * be declared implicitly by K&R.  C99 has no implicit declarations and
+	 * yacc is split across four files, so every cross-file function needs an
+	 * explicit prototype here. */
+
+	/* y1.c */
+char *chcopy(char *p, char *q);
+char *writem(int *pp);
+char *symnam(int i);
+int summary(void);
+void error(char *s, ...);	/* fatal error: printf-style, varargs */
+int aryfil(int *v, int n, int c);
+int setunion(int *a, int *b);
+int prlook(struct looksets *p);
+int cpres(void);
+void cpfir(void);
+int state(int c);
+int putitem(int *ptr, struct looksets *lptr);
+int cempty(void);
+int stagen(void);
+int closure(int i);
+struct looksets *flset(struct looksets *p);
+int others(void);
+
+	/* y2.c */
+int setup(int argc, char *argv[]);
+int finact(void);
+int defin(int t, char *s);
+int defout(void);
+char *cstash(char *s);
+int gettok(void);
+int fdtype(int t);
+int chfind(int t, char *s);
+void cpyunion(void);
+void cpycode(void);
+int skipcom(void);
+void cpyact(int offset);
+
+	/* y3.c */
+int output(void);
+int apack(int *p, int n);
+int go2out(void);
+int go2gen(int c);
+void precftn(int r, int t, int s);
+void wract(int i);
+void wrstate(int i);
+int wdef(char *s, int n);
+int warray(char *s, int *v, int n);
+int hideprod(void);
+
+	/* y4.c */
+int callopt(void);
+int gin(int i);
+void stin(int i);
+int nxti(void);
+void osummary(void);
+int aoutput(void);
+int arout(char *s, int *v, int n);
+int gtnm(void);

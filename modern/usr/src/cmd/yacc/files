@@ -1,0 +1,12 @@
+	/* This header configures yacc for the modern host.
+	 *
+	 * The original V7 `files` selected a program size (MEDIUM) and the
+	 * compiled-in location of the parser skeleton (`PARSER`).  On a 32-bit-int
+	 * host both are folded into `dextern` (the HUGE sizes are an enum, the
+	 * bit-packing is 32-bit functions), leaving only the skeleton path here:
+	 * a compile-time default overridable at configure time, with the
+	 * YACCPARSER env var taking precedence at run time (see y1.c others()). */
+
+#ifndef YACC_PARSER_PATH
+#define YACC_PARSER_PATH "/usr/local/libexec/v7unix/yaccpar"
+#endif

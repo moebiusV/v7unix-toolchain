@@ -1,0 +1,188 @@
+
+#include <stdio.h>
+#include <ctype.h>
+#include <stdint.h>
+
+#define SHELLCOM "/bin/sh"
+typedef int32_t TIMETYPE;	/* V7 `long int` = 32-bit */
+
+#ifdef unix
+/*  to install metering, add a statement like */
+#define METERFILE "/usr/sif/make/Meter"
+/* to turn metering on, set external variable meteron to 1 */
+#endif
+
+/* define FSTATIC to be static on systems with C compilers
+   supporting file-static; otherwise define it to be null
+*/
+#define FSTATIC static
+
+#define NO 0
+#define YES 1
+
+#define unequal strcmp
+#define HASHSIZE 509
+#define NLEFTS 40
+#define NCHARS 500
+#define NINTS  250
+#define INMAX 1500
+#define OUTMAX 2500
+#define QBUFMAX 1500
+
+#define ALLDEPS  1
+#define SOMEDEPS 2
+
+#define META 01
+#define TERMINAL 02
+extern char funny[128];
+
+
+#define ALLOC(x) (struct x *) ckalloc(sizeof(struct x))
+
+extern int16_t sigivalue;
+extern int16_t sigqvalue;
+extern int16_t waitpid;
+extern int16_t dbgflag;
+extern int16_t prtrflag;
+extern int16_t silflag;
+extern int16_t noexflag;
+extern int16_t keepgoing;
+extern int16_t noruleflag;
+extern int16_t touchflag;
+extern int16_t questflag;
+extern int16_t ndocoms;
+extern int16_t ignerr;
+extern int16_t okdel;
+extern int16_t inarglist;
+extern char *prompt;
+extern char junkname[ ];
+
+
+
+struct nameblock
+	{
+	struct nameblock *nxtnameblock;
+	char *namep;
+	struct lineblock *linep;
+	int16_t done:3;
+	int16_t septype:3;
+	TIMETYPE modtime;
+	};
+
+extern struct nameblock *mainname ;
+extern struct nameblock *firstname;
+
+struct lineblock
+	{
+	struct lineblock *nxtlineblock;
+	struct depblock *depp;
+	struct shblock *shp;
+	};
+extern struct lineblock *sufflist;
+
+struct depblock
+	{
+	struct depblock *nxtdepblock;
+	struct nameblock *depname;
+	};
+
+struct shblock
+	{
+	struct shblock *nxtshblock;
+	char *shbp;
+	};
+
+struct varblock
+	{
+	struct varblock *nxtvarblock;
+	char *varname;
+	char *varval;
+	int16_t noreset:1;
+	int16_t used:1;
+	};
+extern struct varblock *firstvar;
+
+struct pattern
+	{
+	struct pattern *nxtpattern;
+	char *patval;
+	};
+extern struct pattern *firstpat;
+
+struct opendir
+	{
+	struct opendir *nxtopendir;
+	FILE * dirfc;
+	char *dirn;
+	};
+extern struct opendir *firstod;
+
+
+struct chain
+	{
+	struct chain *nextp;
+	char *datap;
+	};
+
+/* functions (prototypes reconstructed from their definitions).
+ * The original defs listed only a few and let every other cross-file function
+ * be declared implicitly by K&R; C99 has no implicit declarations and make is
+ * split across six files, so each needs an explicit prototype here. */
+
+/* misc.c */
+int16_t hashloc(char *s);
+struct nameblock *srchname(char *s);
+struct nameblock *makename(char *s);
+int16_t hasslash(char *s);
+char *copys(char *s);
+char *concat(char *a, char *b, char *c);
+int16_t suffix(char *a, char *b, char *p);
+int16_t *ckalloc(int16_t n);
+char *subst(char *a, char *b);
+int16_t setvar(char *v, char *s);
+int16_t eqsign(char *a);
+struct varblock *varptr(char *v);
+int16_t fatal1(char *s, char *t);
+int16_t fatal(char *s);
+int16_t yyerror(char *s);
+struct chain *appendq(struct chain *head, char *tail);
+char *mkqlist(struct chain *p);
+
+/* dosys.c */
+int16_t dosys(char *comstring, int16_t nohalt);
+int16_t metas(char *s);
+int16_t doshell(char *comstring, int16_t nohalt);
+int16_t await(void);
+void doclose(void);
+int16_t doexec(char *str);
+void touch(int16_t force, char *name);
+
+/* doname.c */
+int16_t doname(struct nameblock *p, int16_t reclevel, TIMETYPE *tval);
+int16_t docom(struct shblock *q);
+int16_t docom1(char *comstring, int16_t nohalt, int16_t noprint);
+void expand(struct depblock *q);
+
+/* files.c */
+TIMETYPE exists(char *filename);
+TIMETYPE prestime(void);
+struct depblock *srchdir(char *pat, int16_t mkchain, struct depblock *nextdbl);
+TIMETYPE lookarch(char *filename);
+int16_t clarch(void);
+int16_t openarch(char *f);
+int16_t getarch(void);
+int16_t getobj(void);
+int16_t eqstr(char *a, char *b, int16_t n);
+
+/* main.c */
+int16_t intrupt(void);
+int16_t isprecious(char *p);
+void enbint(int16_t (*k)(int16_t));
+int16_t rddescf(char *descfile);
+int16_t rdd1(FILE *k);
+int16_t printdesc(int16_t prntflag);
+
+/* gram.c (generated from gram.y by yacc) */
+extern int16_t yylineno;
+extern char *zznextc;
+int16_t yyparse(void);

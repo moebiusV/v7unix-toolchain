@@ -4687,7 +4687,7 @@ printf "%s\n" "#define V7_INCLUDEDIR \"$ac_v7_dir\"" >>confdefs.h
   exec_prefix=$ac_saved_exec_prefix
 
 
-ac_config_files="$ac_config_files Makefile modern/usr/src/cmd/Makefile modern/usr/src/cmd/c/Makefile modern/usr/src/cmd/as/Makefile modern/usr/src/cmd/cpp/Makefile lib/Makefile man/Makefile"
+ac_config_files="$ac_config_files Makefile modern/usr/src/cmd/Makefile modern/usr/src/cmd/c/Makefile modern/usr/src/cmd/as/Makefile modern/usr/src/cmd/cpp/Makefile modern/usr/src/cmd/make/Makefile modern/usr/src/cmd/yacc/Makefile lib/Makefile man/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -5431,6 +5431,8 @@ do
     "modern/usr/src/cmd/c/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/c/Makefile" ;;
     "modern/usr/src/cmd/as/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/as/Makefile" ;;
     "modern/usr/src/cmd/cpp/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/cpp/Makefile" ;;
+    "modern/usr/src/cmd/make/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/make/Makefile" ;;
+    "modern/usr/src/cmd/yacc/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/yacc/Makefile" ;;
     "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
     "man/Makefile") CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;
 

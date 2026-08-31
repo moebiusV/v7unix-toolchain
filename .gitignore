@@ -10,11 +10,19 @@ modern/usr/src/cmd/c/c2
 modern/usr/src/cmd/as/as
 modern/usr/src/cmd/as/as2
 modern/usr/src/cmd/cpp/cpp
+modern/usr/src/cmd/make/make
+modern/usr/src/cmd/yacc/yacc
 
 # bison/yacc-generated parser (from modern/usr/src/cmd/cpp/cpy.y)
 modern/usr/src/cmd/cpp/cpy.c
 modern/usr/src/cmd/cpp/y.tab.c
 modern/usr/src/cmd/cpp/y.tab.h
+
+# bison-generated parser (from modern/usr/src/cmd/make/gram.y)
+modern/usr/src/cmd/make/gram.c
+modern/usr/src/cmd/make/gram.h
+modern/usr/src/cmd/make/y.tab.c
+modern/usr/src/cmd/make/y.tab.h
 
 # c2 generated source (modern/usr/src/cmd/c: build-host.py -> c2.host.c)
 modern/usr/src/cmd/c/c2.host.c
