@@ -485,8 +485,17 @@ and a decoded `0.03` double emits the same four words (`36765 141217 56050
 
 Still open:
 
-* **`adb`** (bucket 2) — modernize `cmd/adb/*.c` to the c99/pcc dialect so pcc
-  cross-compiles it for pdp11.
+* **`adb`** (bucket 2) — source modernization is done (`c99/usr/src/cmd/adb/`,
+  20 files): all K&R-isms hand-fixed (anonymous structs tagged, V7
+  "initializer-without-`=`" and space-separated declarators, `corhdr`/`fw`
+  member puns via casts/union, `printf`→`aprintf`/`access`→`adaccess`, `aprintf`
+  made variadic, `printdbl`/`printoct` over-call arg-splits, cross-file
+  prototypes in `defs.h`).  `c99/usr/include/` now carries the modernized V7
+  headers (`setjmp.h`/`sgtty.h`/`time.h` gained the prototypes V7 omitted).
+  Passes a strict host `gcc -fsyntax-only -std=c99` with 0 errors (remaining
+  warnings are x86-64 vs PDP-11 word-size noise).  **Blocked on pcc**: the
+  actual cross-compile for pdp11 can't be verified until pcc is built (the pcc
+  backend is a separate work item).
 
 ## 8. The build tools: make, yacc — a third kind of port
 
