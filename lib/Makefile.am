@@ -13,8 +13,8 @@ v7unix_lib_DATA = crt0.o fcrt0.o mcrt0.o fmcrt0.o libc.a
 
 # libc.a: compile V7's /usr/src/libc (compall order) and archive it (mklib
 # order) with the ported toolchain, inside the v7check harness (V7 headers +
-# cc/as/ld on PATH).  The member bytes are byte-identical to the V7 image's.
-libc.a: $(srcdir)/build-libc.sh $(top_srcdir)/tools/mkvar.py $(top_srcdir)/tools/v7check.sh
+# cc/as/ld/ar on PATH).  The member bytes are byte-identical to the V7 image's.
+libc.a: $(srcdir)/build-libc.sh $(top_builddir)/modern/usr/src/cmd/ar $(top_srcdir)/tools/v7check.sh
 	$(top_srcdir)/tools/v7check.sh $(srcdir)/build-libc.sh $@
 
 CLEANFILES = $(v7unix_lib_DATA)

@@ -8,6 +8,7 @@ modern/usr/src/cmd/cp
 modern/usr/src/cmd/mv
 modern/usr/src/cmd/rm
 modern/usr/src/cmd/cmp
+modern/usr/src/cmd/ar
 modern/usr/src/cmd/c/c0
 modern/usr/src/cmd/c/c1
 modern/usr/src/cmd/c/c2

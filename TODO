@@ -11,7 +11,7 @@ Remaining
   Step 1 — build the toolchain, pure C: make, yacc, cp, rm, cmp, touch, ls,
   diff (all pure C; cc/cpp/c0/c1/c2/as/as2/ld already done).
   Step 2 — toolchain .s: none.
-  Step 3 — whole tree, pure C: lex, ar, sh, sed, tar, tp, grep, mv, ln, mkdir,
+  Step 3 — whole tree, pure C: lex, sh, sed, tar, tp, grep, mv, ln, mkdir,
   chmod, chown, cat, echo, pr, strip, size, install, du, and the rest.
   Step 4 — whole tree, assembly: factor, primes, bas, roff, standalone.
 

@@ -15,7 +15,7 @@ set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 topdir=$(CDPATH= cd -- "$here/.." && pwd -P)
 SRC="$topdir/orig/usr/src/libc"
-MKVAR="$topdir/tools/mkvar.py"
+AR="$topdir/modern/usr/src/cmd/ar"
 OUT=${1:-"$topdir/lib/libc.a"}
 # Make OUT absolute now; we cd into a temp build dir next, which would break a
 # relative output path.
@@ -186,5 +186,5 @@ cc -c "$SRC/crt/csv.s"
 
 echo "build-libc: archiving 153 members (mklib order)"
 set -- "$BLD/getgrgid.o" "$BLD/getgrnam.o" "$BLD/getgrent.o" "$BLD/getpass.o" "$BLD/getpwnam.o" "$BLD/getpwuid.o" "$BLD/getpwent.o" "$BLD/timezone.o" "$BLD/fgetc.o" "$BLD/fputc.o" "$BLD/getchar.o" "$BLD/putchar.o" "$BLD/popen.o" "$BLD/freopen.o" "$BLD/fgets.o" "$BLD/fputs.o" "$BLD/getpw.o" "$BLD/fseek.o" "$BLD/ftell.o" "$BLD/rew.o" "$BLD/rdwr.o" "$BLD/system.o" "$BLD/fopen.o" "$BLD/fdopen.o" "$BLD/scanf.o" "$BLD/doscan.o" "$BLD/fprintf.o" "$BLD/gets.o" "$BLD/getw.o" "$BLD/printf.o" "$BLD/puts.o" "$BLD/putw.o" "$BLD/sprintf.o" "$BLD/ungetc.o" "$BLD/filbuf.o" "$BLD/setbuf.o" "$BLD/fltpr.o" "$BLD/doprnt.o" "$BLD/gcvt.o" "$BLD/ffltpr.o" "$BLD/strout.o" "$BLD/flsbuf.o" "$BLD/endopen.o" "$BLD/findiop.o" "$BLD/clrerr.o" "$BLD/data.o" "$BLD/cuexit.o" "$BLD/execvp.o" "$BLD/getenv.o" "$BLD/getlogin.o" "$BLD/perror.o" "$BLD/sleep.o" "$BLD/ttyslot.o" "$BLD/ttyname.o" "$BLD/abort.o" "$BLD/abs.o" "$BLD/atof.o" "$BLD/atoi.o" "$BLD/atol.o" "$BLD/crypt.o" "$BLD/ctime.o" "$BLD/calloc.o" "$BLD/malloc.o" "$BLD/ecvt.o" "$BLD/errlst.o" "$BLD/fakcu.o" "$BLD/fakfp.o" "$BLD/frexp11.o" "$BLD/isatty.o" "$BLD/l3.o" "$BLD/ldexp11.o" "$BLD/ldfps.o" "$BLD/mktemp.o" "$BLD/modf11.o" "$BLD/mon.o" "$BLD/mpx.o" "$BLD/nlist.o" "$BLD/qsort.o" "$BLD/rand.o" "$BLD/setjmp.o" "$BLD/stty.o" "$BLD/swab.o" "$BLD/tell.o" "$BLD/ctype_.o" "$BLD/index.o" "$BLD/rindex.o" "$BLD/strcat.o" "$BLD/strncat.o" "$BLD/strcmp.o" "$BLD/strncmp.o" "$BLD/strcpy.o" "$BLD/strncpy.o" "$BLD/strlen.o" "$BLD/access.o" "$BLD/acct.o" "$BLD/alarm.o" "$BLD/chdir.o" "$BLD/chroot.o" "$BLD/chmod.o" "$BLD/chown.o" "$BLD/close.o" "$BLD/creat.o" "$BLD/dup.o" "$BLD/execl.o" "$BLD/execle.o" "$BLD/execv.o" "$BLD/execve.o" "$BLD/exit.o" "$BLD/fork.o" "$BLD/fstat.o" "$BLD/getgid.o" "$BLD/getpid.o" "$BLD/getuid.o" "$BLD/ioctl.o" "$BLD/kill.o" "$BLD/link.o" "$BLD/lock.o" "$BLD/lseek.o" "$BLD/mknod.o" "$BLD/mount.o" "$BLD/mpxcall.o" "$BLD/nice.o" "$BLD/open.o" "$BLD/pause.o" "$BLD/phys.o" "$BLD/pipe.o" "$BLD/profil.o" "$BLD/ptrace.o" "$BLD/read.o" "$BLD/sbrk.o" "$BLD/setgid.o" "$BLD/setuid.o" "$BLD/signal.o" "$BLD/stat.o" "$BLD/stime.o" "$BLD/sync.o" "$BLD/time.o" "$BLD/times.o" "$BLD/umask.o" "$BLD/umount.o" "$BLD/unlink.o" "$BLD/utime.o" "$BLD/wait.o" "$BLD/write.o" "$BLD/aldiv.o" "$BLD/almul.o" "$BLD/alrem.o" "$BLD/cerror.o" "$BLD/ldiv.o" "$BLD/lmul.o" "$BLD/lrem.o" "$BLD/mcount.o" "$BLD/csv.o"
-python3 "$MKVAR" "$OUT" "$@"
+"$AR" rc "$OUT" "$@"
 echo "build-libc: wrote $OUT"

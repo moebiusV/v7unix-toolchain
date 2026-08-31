@@ -5,13 +5,14 @@
 
 AM_CFLAGS = -std=c99 -O1
 
-v7unix_libexec_PROGRAMS = cc ld cp mv rm cmp
+v7unix_libexec_PROGRAMS = cc ld cp mv rm cmp ar
 cc_SOURCES = cc.c
 ld_SOURCES = ld.c
 cp_SOURCES = cp.c
 mv_SOURCES = mv.c
 rm_SOURCES = rm.c
 cmp_SOURCES = cmp.c
+ar_SOURCES = ar.c
 ld_CFLAGS = -std=c99 -O2
 
 check-local:

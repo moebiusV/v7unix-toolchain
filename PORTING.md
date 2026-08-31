@@ -465,12 +465,19 @@ tree with *no* host commands.  `cpio` is not used at all.  Directory split
 (see CROSSCOMPILE.md §7): phase-1 commands (`sh` `mv` `cp` `rm` `cmp`) live in
 `modern/`; whole-tree-only commands in `modern2/`.
 
-`ar` is the one deliberate shortcut so far: rather than port the full `ar`
-(create/extract/delete/replace), `lib/build-libc.sh` builds V7's own
-`/usr/src/libc` and `tools/mkvar.py` writes the V7 archive format directly —
-`ARMAG` (`0xff65`), then per member a 26-byte `ar_hdr` (`ar_name[14]`,
-`ar_date`/`ar_size` as middle-endian 32-bit, `ar_uid`/`ar_gid`/`ar_mode`), then
-the member bytes padded to even.  The full `ar` port stays on the §7 list.
+`ar` is now ported (`modern/usr/src/cmd/ar.c`, from V7 `ar.c`; the one-off
+`arcv.c` old-format converter is not needed).  Its only real host obstacle is
+the same middle-endian 32-bit handling as `ld` (§4.3/§4.9): `ar_date`/`ar_size`
+are carried as `int16_t[2]` and converted with `mkl()`/`mkint()`, and `ARMAG`
+is written with a fixed-width `uint16_t` rather than V7's `int`/`sizeof(int)`
+(2 bytes on the PDP-11, 4 on the host; `short` would be wrong — C only
+guarantees it to be *at least* 16 bits — and the magic `0xff65` overflows
+signed 16-bit, so it is unsigned).  Two V7 identifiers clash with the
+host libc (the global `tmpnam`, and `select()`), so they are renamed
+`tmpnam_ar`/`select_ar` (the `_<tool>` suffix, as `sh` uses `_sh`); the mktemp
+templates need six X's (glibc), and `%D` becomes `%ld`.
+`lib/build-libc.sh` now archives with `ar rc` (mklib's own command) instead of
+the former `tools/mkvar.py` Python shortcut.
 
 ### 8.1 `make` — host adaptations
 

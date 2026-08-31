@@ -14,7 +14,7 @@ startup and the C library.  They install to `${libdir}/v7unix/`.
                                        compiles each source (compall order)
                                        with the ported cc/as, then archives the
                                        members (mklib order) into a V7-format
-                                       archive with tools/mkvar.py.
+                                       archive with the ported ar.
 
 `libc.a` carries csv/cret/cerror, the arithmetic helpers, printf, write, exit,
 and the rest of V7's C library, compiled by our own toolchain.  Its member
