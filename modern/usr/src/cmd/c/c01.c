@@ -102,7 +102,11 @@ void build(int16_t op)
 	case COMMA:
 	case LOGAND:
 	case LOGOR:
-		*cp++ = block(op, t, NULL, NULL, p1, p2);
+		/* comma/seqnc yield their right operand's value, so carry its struct
+		   pointer too; V7 passed NULL and read page-0 garbage for the size,
+		   which a modern host cannot do.  (LOGAND/LOGOR's p2 is an int, whose
+		   strp is already NULL, so this is a no-op for them.) */
+		*cp++ = block(op, t, p2->u.tnode.subsp, p2->u.tnode.strp, p1, p2);
 		return;
 
 	case EXCLA:

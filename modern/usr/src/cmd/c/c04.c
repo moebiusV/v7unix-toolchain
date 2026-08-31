@@ -61,7 +61,10 @@ void rcexpr(struct node *atp)
 	/*
 	 * Special optimization
 	 */
-	if ((tp=atp)->u.tnode.op==INIT && tp->u.tnode.tr1->u.tnode.op==CON) {
+	/* V7 read tp->tr1->op through a NULL tr1 (page-0 garbage, which is not
+	   CON) for a bare INIT; a modern host faults on the NULL. */
+	if ((tp=atp)->u.tnode.op==INIT && tp->u.tnode.tr1 != NULL
+	    && tp->u.tnode.tr1->u.tnode.op==CON) {
 		if (tp->u.tnode.type==CHAR) {
 			outcode("B1N0", BDATA, tp->u.tnode.tr1->u.cnode.value);
 			return;
@@ -229,9 +232,11 @@ int16_t length(struct node *acs)
 		break;
 
 	case STRUCT:
-		/* V7 read cs->strp->ssize through a NULL strp (page 0 = 0) and
-		   reported an undefined structure; a modern host must not deref
-		   the NULL. */
+		/* V7 read cs->strp->ssize through a NULL strp -- page-0 garbage
+		   (non-zero), so the ssize==0 check silently passed and it used the
+		   garbage size.  A modern host must not deref NULL.  With strp now
+		   propagated (c01.c's comma/seqnc fix) this is unreachable for
+		   well-formed input, so it is a defensive guard only. */
 		if (cs->u.tnode.strp == NULL)
 			elsz = 0;
 		else
