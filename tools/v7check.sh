@@ -49,31 +49,32 @@ LIB="$TOPDIR/lib"
 rm -rf "$FROOT"
 mkdir -p "$FROOT/bin" "$FROOT/lib" "$FROOT/usr/include/sys"
 
-# bin/: the tools the makefiles invoke by bare name.
-ln -s "$MODERN/usr/src/cmd/cc"        "$FROOT/bin/cc"
-ln -s "$MODERN/usr/src/cmd/ld"        "$FROOT/bin/ld"
-ln -s "$MODERN/usr/src/cmd/as/as"     "$FROOT/bin/as"
-ln -s "$MODERN/usr/src/cmd/as/as2"    "$FROOT/bin/as2"
-ln -s "$MODERN/usr/src/cmd/cpp/cpp"   "$FROOT/bin/cpp"
-ln -s "$MODERN/usr/src/cmd/make/make" "$FROOT/bin/make"
-ln -s "$MODERN/usr/src/cmd/yacc/yacc" "$FROOT/bin/yacc"
-ln -s "$MODERN/usr/src/cmd/ar"        "$FROOT/bin/ar"
-ln -s "$MODERN/usr/src/cmd/c/cvopt"   "$FROOT/bin/cvopt"
+# bin/: the tools the makefiles invoke by bare name.  Copied, not symlinked,
+# so froot/ is self-contained (it could be chrooted into).
+cp "$MODERN/usr/src/cmd/cc"        "$FROOT/bin/cc"
+cp "$MODERN/usr/src/cmd/ld"        "$FROOT/bin/ld"
+cp "$MODERN/usr/src/cmd/as/as"     "$FROOT/bin/as"
+cp "$MODERN/usr/src/cmd/as/as2"    "$FROOT/bin/as2"
+cp "$MODERN/usr/src/cmd/cpp/cpp"   "$FROOT/bin/cpp"
+cp "$MODERN/usr/src/cmd/make/make" "$FROOT/bin/make"
+cp "$MODERN/usr/src/cmd/yacc/yacc" "$FROOT/bin/yacc"
+cp "$MODERN/usr/src/cmd/ar"        "$FROOT/bin/ar"
+cp "$MODERN/usr/src/cmd/c/cvopt"   "$FROOT/bin/cvopt"
 
 # lib/: the passes + target runtime (cc/as/yacc resolve these via V7_*).
-ln -s "$MODERN/usr/src/cmd/c/c0"    "$FROOT/lib/c0"
-ln -s "$MODERN/usr/src/cmd/c/c1"    "$FROOT/lib/c1"
-ln -s "$MODERN/usr/src/cmd/c/c2"    "$FROOT/lib/c2"
-ln -s "$MODERN/usr/src/cmd/c/cvopt" "$FROOT/lib/cvopt"
-ln -s "$MODERN/usr/src/cmd/cpp/cpp" "$FROOT/lib/cpp"
-ln -s "$MODERN/usr/src/cmd/as/as2"  "$FROOT/lib/as2"
-ln -s "$MODERN/usr/src/cmd/yacc/yaccpar" "$FROOT/lib/yaccpar"
+cp "$MODERN/usr/src/cmd/c/c0"    "$FROOT/lib/c0"
+cp "$MODERN/usr/src/cmd/c/c1"    "$FROOT/lib/c1"
+cp "$MODERN/usr/src/cmd/c/c2"    "$FROOT/lib/c2"
+cp "$MODERN/usr/src/cmd/c/cvopt" "$FROOT/lib/cvopt"
+cp "$MODERN/usr/src/cmd/cpp/cpp" "$FROOT/lib/cpp"
+cp "$MODERN/usr/src/cmd/as/as2"  "$FROOT/lib/as2"
+cp "$MODERN/usr/src/cmd/yacc/yaccpar" "$FROOT/lib/yaccpar"
 for f in crt0.o fcrt0.o mcrt0.o fmcrt0.o libc.a; do
-	ln -s "$LIB/$f" "$FROOT/lib/$f"
+	cp "$LIB/$f" "$FROOT/lib/$f"
 done
 
 # usr/src/: the reference source tree (orig/usr/src).
-ln -s "$TOPDIR/orig/usr/src" "$FROOT/usr/src"
+cp -r "$TOPDIR/orig/usr/src" "$FROOT/usr/src"
 
 # usr/include/: gunzip the V7 headers out of the unixtree checkout.
 if [ ! -d "$UNIXTREE/V7/usr/include" ]; then

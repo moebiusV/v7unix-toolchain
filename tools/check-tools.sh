@@ -77,6 +77,12 @@ cp "$ORIG/usr/src/cmd/yacc/"* .
 make all
 chk yacc yacc "$ORIG/bin/yacc"
 
+# sh -- sh/makefile (many .c files; exercises c0's struct/pointer paths)
+mkdir -p "$B/sh"; cd "$B/sh"
+cp "$ORIG/usr/src/cmd/sh/"* .
+make
+chk sh sh "$ORIG/bin/sh"
+
 # crt0.o + friends -- V7 /usr/src/libc/csu, assembled by as (-u for externals)
 mkdir -p "$B/csu"; cd "$B/csu"
 for f in crt0 fcrt0 mcrt0 fmcrt0; do
