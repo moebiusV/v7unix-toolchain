@@ -620,7 +620,12 @@ struct node * tree(void)
 	register int16_t andflg, o;
 	register struct node *cs;
 	int16_t p, ps, os;
-	struct node *cmst[CMSIZ];
+	/* V7 kept cmst as a stack array and let the global `cp` keep pointing
+	   into it after tree() returned -- doret()/dogoto() push more nodes onto
+	   it.  On a modern host that is a use-after-return.  Heap-allocate it so
+	   it outlives the call (and each tree() call gets its own, so a nested
+	   cast/declarator parse can't clobber an outer one). */
+	struct node **cmst = malloc(CMSIZ * sizeof(struct node *));
 	struct node *lcp;
 
 	curbase = funcbase;

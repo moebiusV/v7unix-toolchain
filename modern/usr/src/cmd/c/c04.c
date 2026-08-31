@@ -229,7 +229,14 @@ int16_t length(struct node *acs)
 		break;
 
 	case STRUCT:
-		if ((elsz = cs->u.tnode.strp->ssize) == 0)
+		/* V7 read cs->strp->ssize through a NULL strp (page 0 = 0) and
+		   reported an undefined structure; a modern host must not deref
+		   the NULL. */
+		if (cs->u.tnode.strp == NULL)
+			elsz = 0;
+		else
+			elsz = cs->u.tnode.strp->ssize;
+		if (elsz == 0)
 			error("Undefined structure");
 		break;
 	default:
