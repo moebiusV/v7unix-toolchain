@@ -5,14 +5,18 @@
 
 AM_CFLAGS = -std=c99 -O1
 
-v7unix_libexec_PROGRAMS = cc ld
+v7unix_libexec_PROGRAMS = cc ld cp mv rm cmp
 cc_SOURCES = cc.c
 ld_SOURCES = ld.c
+cp_SOURCES = cp.c
+mv_SOURCES = mv.c
+rm_SOURCES = rm.c
+cmp_SOURCES = cmp.c
 ld_CFLAGS = -std=c99 -O2
 
 check-local:
 	$(SHELL) $(srcdir)/tests/run-tests.sh ./ld as/as
 
-SUBDIRS = c as cpp make yacc
+SUBDIRS = c as cpp make yacc sh
 
 EXTRA_DIST = README tests

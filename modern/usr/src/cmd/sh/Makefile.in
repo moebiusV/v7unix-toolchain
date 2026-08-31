@@ -14,10 +14,13 @@
 
 @SET_MAKE@
 
-# cmd — the V7 compiler driver (cc) and linker (ld), host-ported.
+# sh — the V7 Bourne shell (S. R. Bourne, 1978), host-ported.
 #
-# Both are single source files (cc.c, ld.c) exactly as in the V7 tree; the
-# passes they invoke live in the subdirectories c/, as/ and cpp/.
+# 21 C files sharing a tangle of headers.  V7 wrote its control flow through
+# the ALGOL-ish macros in mac.h (IF/THEN/FI, WHILE/DO/OD, FOR/DONE, …); the
+# modern tree expands those inline, turns the type vocabulary in mode.h into
+# real typedefs, the constants into enums and the value macros into functions.
+# The full story is in PORTING.md §8.6.
 
 VPATH = @srcdir@
 am__is_gnu_make = { \
@@ -93,9 +96,8 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-v7unix_libexec_PROGRAMS = cc$(EXEEXT) ld$(EXEEXT) cp$(EXEEXT) \
-	mv$(EXEEXT) rm$(EXEEXT) cmp$(EXEEXT)
-subdir = modern/usr/src/cmd
+v7unix_libexec_PROGRAMS = sh$(EXEEXT)
+subdir = modern/usr/src/cmd/sh
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -107,26 +109,14 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(v7unix_libexecdir)"
 PROGRAMS = $(v7unix_libexec_PROGRAMS)
-am_cc_OBJECTS = cc.$(OBJEXT)
-cc_OBJECTS = $(am_cc_OBJECTS)
-cc_LDADD = $(LDADD)
-am_cmp_OBJECTS = cmp.$(OBJEXT)
-cmp_OBJECTS = $(am_cmp_OBJECTS)
-cmp_LDADD = $(LDADD)
-am_cp_OBJECTS = cp.$(OBJEXT)
-cp_OBJECTS = $(am_cp_OBJECTS)
-cp_LDADD = $(LDADD)
-am_ld_OBJECTS = ld-ld.$(OBJEXT)
-ld_OBJECTS = $(am_ld_OBJECTS)
-ld_LDADD = $(LDADD)
-ld_LINK = $(CCLD) $(ld_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o \
-	$@
-am_mv_OBJECTS = mv.$(OBJEXT)
-mv_OBJECTS = $(am_mv_OBJECTS)
-mv_LDADD = $(LDADD)
-am_rm_OBJECTS = rm.$(OBJEXT)
-rm_OBJECTS = $(am_rm_OBJECTS)
-rm_LDADD = $(LDADD)
+am_sh_OBJECTS = args.$(OBJEXT) blok.$(OBJEXT) builtin.$(OBJEXT) \
+	cmd.$(OBJEXT) ctype.$(OBJEXT) data.$(OBJEXT) error.$(OBJEXT) \
+	expand.$(OBJEXT) fault.$(OBJEXT) io.$(OBJEXT) macro.$(OBJEXT) \
+	main.$(OBJEXT) msg.$(OBJEXT) name.$(OBJEXT) print.$(OBJEXT) \
+	service.$(OBJEXT) setbrk.$(OBJEXT) stak.$(OBJEXT) \
+	string.$(OBJEXT) word.$(OBJEXT) xec.$(OBJEXT)
+sh_OBJECTS = $(am_sh_OBJECTS)
+sh_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -142,14 +132,15 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/build-aux/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/cc.Po ./$(DEPDIR)/cmp.Po \
-	./$(DEPDIR)/cp.Po ./$(DEPDIR)/ld-ld.Po ./$(DEPDIR)/mv.Po \
-	./$(DEPDIR)/rm.Po
+am__depfiles_remade = ./$(DEPDIR)/args.Po ./$(DEPDIR)/blok.Po \
+	./$(DEPDIR)/builtin.Po ./$(DEPDIR)/cmd.Po ./$(DEPDIR)/ctype.Po \
+	./$(DEPDIR)/data.Po ./$(DEPDIR)/error.Po ./$(DEPDIR)/expand.Po \
+	./$(DEPDIR)/fault.Po ./$(DEPDIR)/io.Po ./$(DEPDIR)/macro.Po \
+	./$(DEPDIR)/main.Po ./$(DEPDIR)/msg.Po ./$(DEPDIR)/name.Po \
+	./$(DEPDIR)/print.Po ./$(DEPDIR)/service.Po \
+	./$(DEPDIR)/setbrk.Po ./$(DEPDIR)/stak.Po \
+	./$(DEPDIR)/string.Po ./$(DEPDIR)/word.Po ./$(DEPDIR)/xec.Po
 am__mv = mv -f
-AM_V_lt = $(am__v_lt_@AM_V@)
-am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-am__v_lt_0 = --silent
-am__v_lt_1 = 
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 AM_V_CC = $(am__v_CC_@AM_V@)
@@ -162,31 +153,13 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(cc_SOURCES) $(cmp_SOURCES) $(cp_SOURCES) $(ld_SOURCES) \
-	$(mv_SOURCES) $(rm_SOURCES)
-DIST_SOURCES = $(cc_SOURCES) $(cmp_SOURCES) $(cp_SOURCES) \
-	$(ld_SOURCES) $(mv_SOURCES) $(rm_SOURCES)
-RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
-	ctags-recursive dvi-recursive html-recursive info-recursive \
-	install-data-recursive install-dvi-recursive \
-	install-exec-recursive install-html-recursive \
-	install-info-recursive install-pdf-recursive \
-	install-ps-recursive install-recursive installcheck-recursive \
-	installdirs-recursive pdf-recursive ps-recursive \
-	tags-recursive uninstall-recursive
+SOURCES = $(sh_SOURCES)
+DIST_SOURCES = $(sh_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
-RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
-  distclean-recursive maintainer-clean-recursive
-am__recursive_targets = \
-  $(RECURSIVE_TARGETS) \
-  $(RECURSIVE_CLEAN_TARGETS) \
-  $(am__extra_recursive_targets)
-AM_RECURSIVE_TARGETS = $(am__recursive_targets:-recursive=) TAGS CTAGS \
-	distdir distdir-am
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -204,35 +177,9 @@ am__define_uniq_tagged_files = \
   unique=`for i in $$list; do \
     if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
   done | $(am__uniquify_input)`
-DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in \
-	$(top_srcdir)/build-aux/depcomp README
+	$(top_srcdir)/build-aux/depcomp
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-am__relativize = \
-  dir0=`pwd`; \
-  sed_first='s,^\([^/]*\)/.*$$,\1,'; \
-  sed_rest='s,^[^/]*/*,,'; \
-  sed_last='s,^.*/\([^/]*\)$$,\1,'; \
-  sed_butlast='s,/*[^/]*$$,,'; \
-  while test -n "$$dir1"; do \
-    first=`echo "$$dir1" | sed -e "$$sed_first"`; \
-    if test "$$first" != "."; then \
-      if test "$$first" = ".."; then \
-        dir2=`echo "$$dir0" | sed -e "$$sed_last"`/"$$dir2"; \
-        dir0=`echo "$$dir0" | sed -e "$$sed_butlast"`; \
-      else \
-        first2=`echo "$$dir2" | sed -e "$$sed_first"`; \
-        if test "$$first2" = "$$first"; then \
-          dir2=`echo "$$dir2" | sed -e "$$sed_rest"`; \
-        else \
-          dir2="../$$dir2"; \
-        fi; \
-        dir0="$$dir0"/"$$first"; \
-      fi; \
-    fi; \
-    dir1=`echo "$$dir1" | sed -e "$$sed_rest"`; \
-  done; \
-  reldir="$$dir2"
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
@@ -331,17 +278,18 @@ top_srcdir = @top_srcdir@
 v7unix_includedir = @v7unix_includedir@
 v7unix_libdir = @v7unix_libdir@
 v7unix_libexecdir = @v7unix_libexecdir@
+AM_CPPFLAGS = -I$(srcdir)
 AM_CFLAGS = -std=c99 -O1
-cc_SOURCES = cc.c
-ld_SOURCES = ld.c
-cp_SOURCES = cp.c
-mv_SOURCES = mv.c
-rm_SOURCES = rm.c
-cmp_SOURCES = cmp.c
-ld_CFLAGS = -std=c99 -O2
-SUBDIRS = c as cpp make yacc sh
-EXTRA_DIST = README tests
-all: all-recursive
+sh_SOURCES = \
+	args.c blok.c builtin.c cmd.c ctype.c data.c error.c expand.c \
+	fault.c io.c macro.c main.c msg.c name.c print.c service.c \
+	setbrk.c stak.c string.c word.c xec.c
+
+EXTRA_DIST = \
+	brkincr.h ctype.h defs.h dup.h mac.h mode.h name.h stak.h sym.h \
+	timeout.h
+
+all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .o .obj
@@ -354,9 +302,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign modern/usr/src/cmd/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign modern/usr/src/cmd/sh/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign modern/usr/src/cmd/Makefile
+	  $(AUTOMAKE) --foreign modern/usr/src/cmd/sh/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -417,29 +365,9 @@ uninstall-v7unix_libexecPROGRAMS:
 clean-v7unix_libexecPROGRAMS:
 	-$(am__rm_f) $(v7unix_libexec_PROGRAMS)
 
-cc$(EXEEXT): $(cc_OBJECTS) $(cc_DEPENDENCIES) $(EXTRA_cc_DEPENDENCIES) 
-	@rm -f cc$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(cc_OBJECTS) $(cc_LDADD) $(LIBS)
-
-cmp$(EXEEXT): $(cmp_OBJECTS) $(cmp_DEPENDENCIES) $(EXTRA_cmp_DEPENDENCIES) 
-	@rm -f cmp$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(cmp_OBJECTS) $(cmp_LDADD) $(LIBS)
-
-cp$(EXEEXT): $(cp_OBJECTS) $(cp_DEPENDENCIES) $(EXTRA_cp_DEPENDENCIES) 
-	@rm -f cp$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(cp_OBJECTS) $(cp_LDADD) $(LIBS)
-
-ld$(EXEEXT): $(ld_OBJECTS) $(ld_DEPENDENCIES) $(EXTRA_ld_DEPENDENCIES) 
-	@rm -f ld$(EXEEXT)
-	$(AM_V_CCLD)$(ld_LINK) $(ld_OBJECTS) $(ld_LDADD) $(LIBS)
-
-mv$(EXEEXT): $(mv_OBJECTS) $(mv_DEPENDENCIES) $(EXTRA_mv_DEPENDENCIES) 
-	@rm -f mv$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(mv_OBJECTS) $(mv_LDADD) $(LIBS)
-
-rm$(EXEEXT): $(rm_OBJECTS) $(rm_DEPENDENCIES) $(EXTRA_rm_DEPENDENCIES) 
-	@rm -f rm$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(rm_OBJECTS) $(rm_LDADD) $(LIBS)
+sh$(EXEEXT): $(sh_OBJECTS) $(sh_DEPENDENCIES) $(EXTRA_sh_DEPENDENCIES) 
+	@rm -f sh$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(sh_OBJECTS) $(sh_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -447,12 +375,27 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cc.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cmp.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cp.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ld-ld.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mv.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rm.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/args.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/blok.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/builtin.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cmd.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ctype.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/data.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/error.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/expand.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fault.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/macro.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/msg.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/name.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/print.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/service.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/setbrk.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stak.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/string.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/word.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xec.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -476,75 +419,14 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 
-ld-ld.o: ld.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ld_CFLAGS) $(CFLAGS) -MT ld-ld.o -MD -MP -MF $(DEPDIR)/ld-ld.Tpo -c -o ld-ld.o `test -f 'ld.c' || echo '$(srcdir)/'`ld.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ld-ld.Tpo $(DEPDIR)/ld-ld.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ld.c' object='ld-ld.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ld_CFLAGS) $(CFLAGS) -c -o ld-ld.o `test -f 'ld.c' || echo '$(srcdir)/'`ld.c
-
-ld-ld.obj: ld.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ld_CFLAGS) $(CFLAGS) -MT ld-ld.obj -MD -MP -MF $(DEPDIR)/ld-ld.Tpo -c -o ld-ld.obj `if test -f 'ld.c'; then $(CYGPATH_W) 'ld.c'; else $(CYGPATH_W) '$(srcdir)/ld.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ld-ld.Tpo $(DEPDIR)/ld-ld.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ld.c' object='ld-ld.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ld_CFLAGS) $(CFLAGS) -c -o ld-ld.obj `if test -f 'ld.c'; then $(CYGPATH_W) 'ld.c'; else $(CYGPATH_W) '$(srcdir)/ld.c'; fi`
-
-# This directory's subdirectories are mostly independent; you can cd
-# into them and run 'make' without going through this Makefile.
-# To change the values of 'make' variables: instead of editing Makefiles,
-# (1) if the variable is set in 'config.status', edit 'config.status'
-#     (which will cause the Makefiles to be regenerated when you run 'make');
-# (2) otherwise, pass the desired values on the 'make' command line.
-$(am__recursive_targets):
-	@fail=; \
-	if $(am__make_keepgoing); then \
-	  failcom='fail=yes'; \
-	else \
-	  failcom='exit 1'; \
-	fi; \
-	dot_seen=no; \
-	target=`echo $@ | sed s/-recursive//`; \
-	case "$@" in \
-	  distclean-* | maintainer-clean-*) list='$(DIST_SUBDIRS)' ;; \
-	  *) list='$(SUBDIRS)' ;; \
-	esac; \
-	for subdir in $$list; do \
-	  echo "Making $$target in $$subdir"; \
-	  if test "$$subdir" = "."; then \
-	    dot_seen=yes; \
-	    local_target="$$target-am"; \
-	  else \
-	    local_target="$$target"; \
-	  fi; \
-	  ($(am__cd) $$subdir && $(MAKE) $(AM_MAKEFLAGS) $$local_target) \
-	  || eval $$failcom; \
-	done; \
-	if test "$$dot_seen" = "no"; then \
-	  $(MAKE) $(AM_MAKEFLAGS) "$$target-am" || exit 1; \
-	fi; test -z "$$fail"
-
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
-tags: tags-recursive
+tags: tags-am
 TAGS: tags
 
 tags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
 	set x; \
 	here=`pwd`; \
-	if ($(ETAGS) --etags-include --version) >/dev/null 2>&1; then \
-	  include_option=--etags-include; \
-	  empty_fix=.; \
-	else \
-	  include_option=--include; \
-	  empty_fix=; \
-	fi; \
-	list='$(SUBDIRS)'; for subdir in $$list; do \
-	  if test "$$subdir" = .; then :; else \
-	    test ! -f $$subdir/TAGS || \
-	      set "$$@" "$$include_option=$$here/$$subdir/TAGS"; \
-	  fi; \
-	done; \
 	$(am__define_uniq_tagged_files); \
 	shift; \
 	if test -z "$(ETAGS_ARGS)$$*$$unique"; then :; else \
@@ -557,7 +439,7 @@ tags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
 	      $$unique; \
 	  fi; \
 	fi
-ctags: ctags-recursive
+ctags: ctags-am
 
 CTAGS: ctags
 ctags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
@@ -570,7 +452,7 @@ GTAGS:
 	here=`$(am__cd) $(top_builddir) && pwd` \
 	  && $(am__cd) $(top_srcdir) \
 	  && gtags -i $(GTAGS_ARGS) "$$here"
-cscopelist: cscopelist-recursive
+cscopelist: cscopelist-am
 
 cscopelist-am: $(am__tagged_files)
 	list='$(am__tagged_files)'; \
@@ -622,49 +504,22 @@ distdir-am: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
-	@list='$(DIST_SUBDIRS)'; for subdir in $$list; do \
-	  if test "$$subdir" = .; then :; else \
-	    $(am__make_dryrun) \
-	      || test -d "$(distdir)/$$subdir" \
-	      || $(MKDIR_P) "$(distdir)/$$subdir" \
-	      || exit 1; \
-	    dir1=$$subdir; dir2="$(distdir)/$$subdir"; \
-	    $(am__relativize); \
-	    new_distdir=$$reldir; \
-	    dir1=$$subdir; dir2="$(top_distdir)"; \
-	    $(am__relativize); \
-	    new_top_distdir=$$reldir; \
-	    echo " (cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) top_distdir="$$new_top_distdir" distdir="$$new_distdir" \\"; \
-	    echo "     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)"; \
-	    ($(am__cd) $$subdir && \
-	      $(MAKE) $(AM_MAKEFLAGS) \
-	        top_distdir="$$new_top_distdir" \
-	        distdir="$$new_distdir" \
-		am__remove_distdir=: \
-		am__skip_length_check=: \
-		am__skip_mode_fix=: \
-	        distdir) \
-	      || exit 1; \
-	  fi; \
-	done
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) check-local
-check: check-recursive
+check: check-am
 all-am: Makefile $(PROGRAMS)
-installdirs: installdirs-recursive
-installdirs-am:
+installdirs:
 	for dir in "$(DESTDIR)$(v7unix_libexecdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-install: install-recursive
-install-exec: install-exec-recursive
-install-data: install-data-recursive
-uninstall: uninstall-recursive
+install: install-am
+install-exec: install-exec-am
+install-data: install-data-am
+uninstall: uninstall-am
 
 install-am: all-am
 	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am
 
-installcheck: installcheck-recursive
+installcheck: installcheck-am
 install-strip:
 	if test -z '$(STRIP)'; then \
 	  $(MAKE) $(AM_MAKEFLAGS) INSTALL_PROGRAM="$(INSTALL_STRIP_PROGRAM)" \
@@ -686,107 +541,133 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-clean: clean-recursive
+clean: clean-am
 
 clean-am: clean-generic clean-v7unix_libexecPROGRAMS mostlyclean-am
 
-distclean: distclean-recursive
-	-rm -f ./$(DEPDIR)/cc.Po
-	-rm -f ./$(DEPDIR)/cmp.Po
-	-rm -f ./$(DEPDIR)/cp.Po
-	-rm -f ./$(DEPDIR)/ld-ld.Po
-	-rm -f ./$(DEPDIR)/mv.Po
-	-rm -f ./$(DEPDIR)/rm.Po
+distclean: distclean-am
+	-rm -f ./$(DEPDIR)/args.Po
+	-rm -f ./$(DEPDIR)/blok.Po
+	-rm -f ./$(DEPDIR)/builtin.Po
+	-rm -f ./$(DEPDIR)/cmd.Po
+	-rm -f ./$(DEPDIR)/ctype.Po
+	-rm -f ./$(DEPDIR)/data.Po
+	-rm -f ./$(DEPDIR)/error.Po
+	-rm -f ./$(DEPDIR)/expand.Po
+	-rm -f ./$(DEPDIR)/fault.Po
+	-rm -f ./$(DEPDIR)/io.Po
+	-rm -f ./$(DEPDIR)/macro.Po
+	-rm -f ./$(DEPDIR)/main.Po
+	-rm -f ./$(DEPDIR)/msg.Po
+	-rm -f ./$(DEPDIR)/name.Po
+	-rm -f ./$(DEPDIR)/print.Po
+	-rm -f ./$(DEPDIR)/service.Po
+	-rm -f ./$(DEPDIR)/setbrk.Po
+	-rm -f ./$(DEPDIR)/stak.Po
+	-rm -f ./$(DEPDIR)/string.Po
+	-rm -f ./$(DEPDIR)/word.Po
+	-rm -f ./$(DEPDIR)/xec.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
 
-dvi: dvi-recursive
+dvi: dvi-am
 
 dvi-am:
 
-html: html-recursive
+html: html-am
 
 html-am:
 
-info: info-recursive
+info: info-am
 
 info-am:
 
 install-data-am:
 
-install-dvi: install-dvi-recursive
+install-dvi: install-dvi-am
 
 install-dvi-am:
 
 install-exec-am: install-v7unix_libexecPROGRAMS
 
-install-html: install-html-recursive
+install-html: install-html-am
 
 install-html-am:
 
-install-info: install-info-recursive
+install-info: install-info-am
 
 install-info-am:
 
 install-man:
 
-install-pdf: install-pdf-recursive
+install-pdf: install-pdf-am
 
 install-pdf-am:
 
-install-ps: install-ps-recursive
+install-ps: install-ps-am
 
 install-ps-am:
 
 installcheck-am:
 
-maintainer-clean: maintainer-clean-recursive
-	-rm -f ./$(DEPDIR)/cc.Po
-	-rm -f ./$(DEPDIR)/cmp.Po
-	-rm -f ./$(DEPDIR)/cp.Po
-	-rm -f ./$(DEPDIR)/ld-ld.Po
-	-rm -f ./$(DEPDIR)/mv.Po
-	-rm -f ./$(DEPDIR)/rm.Po
+maintainer-clean: maintainer-clean-am
+	-rm -f ./$(DEPDIR)/args.Po
+	-rm -f ./$(DEPDIR)/blok.Po
+	-rm -f ./$(DEPDIR)/builtin.Po
+	-rm -f ./$(DEPDIR)/cmd.Po
+	-rm -f ./$(DEPDIR)/ctype.Po
+	-rm -f ./$(DEPDIR)/data.Po
+	-rm -f ./$(DEPDIR)/error.Po
+	-rm -f ./$(DEPDIR)/expand.Po
+	-rm -f ./$(DEPDIR)/fault.Po
+	-rm -f ./$(DEPDIR)/io.Po
+	-rm -f ./$(DEPDIR)/macro.Po
+	-rm -f ./$(DEPDIR)/main.Po
+	-rm -f ./$(DEPDIR)/msg.Po
+	-rm -f ./$(DEPDIR)/name.Po
+	-rm -f ./$(DEPDIR)/print.Po
+	-rm -f ./$(DEPDIR)/service.Po
+	-rm -f ./$(DEPDIR)/setbrk.Po
+	-rm -f ./$(DEPDIR)/stak.Po
+	-rm -f ./$(DEPDIR)/string.Po
+	-rm -f ./$(DEPDIR)/word.Po
+	-rm -f ./$(DEPDIR)/xec.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
-mostlyclean: mostlyclean-recursive
+mostlyclean: mostlyclean-am
 
 mostlyclean-am: mostlyclean-compile mostlyclean-generic
 
-pdf: pdf-recursive
+pdf: pdf-am
 
 pdf-am:
 
-ps: ps-recursive
+ps: ps-am
 
 ps-am:
 
 uninstall-am: uninstall-v7unix_libexecPROGRAMS
 
-.MAKE: $(am__recursive_targets) check-am install-am install-strip
+.MAKE: install-am install-strip
 
-.PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
-	am--depfiles check check-am check-local clean clean-generic \
-	clean-v7unix_libexecPROGRAMS cscopelist-am ctags ctags-am \
-	distclean distclean-compile distclean-generic distclean-tags \
-	distdir dvi dvi-am html html-am info info-am install \
-	install-am install-data install-data-am install-dvi \
+.PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-am clean \
+	clean-generic clean-v7unix_libexecPROGRAMS cscopelist-am ctags \
+	ctags-am distclean distclean-compile distclean-generic \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-dvi \
 	install-dvi-am install-exec install-exec-am install-html \
 	install-html-am install-info install-info-am install-man \
 	install-pdf install-pdf-am install-ps install-ps-am \
 	install-strip install-v7unix_libexecPROGRAMS installcheck \
-	installcheck-am installdirs installdirs-am maintainer-clean \
+	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic pdf pdf-am ps ps-am tags tags-am uninstall \
 	uninstall-am uninstall-v7unix_libexecPROGRAMS
 
 .PRECIOUS: Makefile
 
-
-check-local:
-	$(SHELL) $(srcdir)/tests/run-tests.sh ./ld as/as
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

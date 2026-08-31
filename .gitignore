@@ -4,6 +4,10 @@
 # built host binaries (all under modern/usr/src/cmd/)
 modern/usr/src/cmd/cc
 modern/usr/src/cmd/ld
+modern/usr/src/cmd/cp
+modern/usr/src/cmd/mv
+modern/usr/src/cmd/rm
+modern/usr/src/cmd/cmp
 modern/usr/src/cmd/c/c0
 modern/usr/src/cmd/c/c1
 modern/usr/src/cmd/c/c2
@@ -12,6 +16,7 @@ modern/usr/src/cmd/as/as2
 modern/usr/src/cmd/cpp/cpp
 modern/usr/src/cmd/make/make
 modern/usr/src/cmd/yacc/yacc
+modern/usr/src/cmd/sh/sh
 
 # bison/yacc-generated parser (from modern/usr/src/cmd/cpp/cpy.y)
 modern/usr/src/cmd/cpp/cpy.c

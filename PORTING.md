@@ -575,3 +575,134 @@ where Johnson wrote `TLOOP(i)` because a 16-bit-word abstraction had to be
 written once, the modern port writes `for (i=1; i<=ntokens; ++i)` inline and a
 real `static inline int bit(int *a, int i)` — type-checked, debuggable,
 greppable.  Same behaviour, no macro layer.
+
+### 8.6 `sh` — the Bourne shell (ported 2026-08-30)
+
+`/bin/sh` is S. R. Bourne's shell: the last phase-1 command and the largest
+single port in the project — 24 `.c` files, ~3300 lines, and a *macro dialect*
+layered on top of C.  It is best understood as three stacked difficulties.
+
+**1. The ALGOL control-flow layer (`mac.h`).**  Bourne wrote every `if`/`while`/
+`for` through ~20 macros, ~1400 invocations across the tree:
+
+    #define IF if(          #define THEN  ){
+    #define ELIF } else if (  #define ELSE  } else {
+    #define FI ;}            #define FOR   for(
+    #define WHILE while(     #define DO    ){
+    #define OD ;}            #define REP   do{
+    #define PER }while(      #define DONE  );
+    #define LOOP for(;;){    #define POOL  }
+    #define SWITCH switch(   #define IN    ){
+    #define ENDSW }          #define BEGIN {    #define END }
+    #define LOCAL static     #define PROC  extern
+    #define REG register     #define ANDF  &&    #define ORF ||
+    #define NEQ ^            #define TRUE  (-1)  #define FALSE 0
+
+So `IF x THEN y ELSE z FI` is `if( x ){ y } else { z ;}`.  `NEQ` as `^` is a
+Bourne pun: `(a==0)NEQ(b)` is `(a==0)^(b)`, which is `!=` for boolean operands.
+
+**2. The typedef system (`mode.h`).**  V7's C has no `void`, so the shell
+defines its own type vocabulary through `TYPE`/`STRUCT`/`UNION` macros:
+
+    TYPE char     CHAR;   TYPE char BOOL;   TYPE int  UFD;
+    TYPE int      INT;    TYPE float REAL;  TYPE long int L_INT;
+    TYPE int      VOID;   /* ← int, not void: V7 had no void */
+    TYPE char    *STRING; TYPE char MSG[];
+    STRUCT stat   STATBUF;  /* typedef struct stat STATBUF */
+    STRUCT fileblk *FILE;   /* …and ~15 more struct-pointer typedefs */
+
+`VOID` is `int` (a V7-ism); the modern port turns it into real `void`.
+
+**3. The V7 syscall/header layer.**  `gtty`/`stty`/`ioctl(FIOCLEX)` (from
+`<sgtty.h>`), `setbrk`/`sbrk` plus a stack allocator (`stak.h`), `<execargs.h>`
+for the `ps` args, and the build is `cc -n -s -O` with the assembler prepending
+`/usr/include/sys.s` (the syscall numbers).
+
+**Pipeline.**  `knr2c99` runs first (orig → c99) and, as with yacc's `TLOOP`,
+leaves the macros *unexpanded* in its output — it resolves them (via
+`--include-dir`) only to parse.  So `main(c,v) INT c; STRING v[];` becomes
+`int16_t main(INT c, STRING v[])`: the K&R params move into the signature, but
+the typedef names and the `IF/THEN/FI` stay put.  (One warning so far:
+`name.c:218 namscan: unhandled declarator 'Func'`, left unchanged.)  The modern
+stage then does the remodelling: expand the control-flow macros to real
+`if`/`while`/`for`, rewrite the headers as `typedef`/`enum`/real functions (the
+no-`#define` rule), and adapt the V7 syscalls.
+
+**What the modern stage actually had to change** (the "epic" part — each of
+these is a distinct V7→host adaptation, in roughly the order they bit):
+
+1. **`alloc`/`free`/`getenv`/`setenv`/`rename` collide with libc.**  The shell
+   replaces `malloc`/`free` entirely with its own arena allocator (`#define
+   alloc malloc`, and its own `free`), and defines its own `getenv`/`setenv`/
+   `rename` (an *fd*-rename, `dup2`+`close`, not a path rename).  On a modern
+   host each of these shadows a libc symbol, so they are renamed with a `_sh`
+   suffix to stay recognisable — `alloc`→`alloc_sh` (which returns `void*`),
+   `free`→`free_sh`, `getenv`→`getenv_sh`, `setenv`→`setenv_sh`,
+   `rename`→`rename_sh` — and `<stdio.h>` (which drags in `FILE`/`tmpnam`) is
+   dropped from the files that included it for no reason.
+
+2. **Pointer-tagging cheats (`Lcheat`/`Rcheat`).**  V7 stored flag bits
+   (`BUSY`, `ARGMK`) in the *low bit of a pointer* — the allocator ORs `|1`
+   into a block pointer, the arg scanner does the same to `gchain`.  The
+   original did this with two casts that only work when `int` == pointer:
+   `Lcheat(a)=((a)._cheat)` (an int lvalue aliasing a pointer) and
+   `Rcheat(a)=((int)(a))`.  On a 64-bit host `(int)` truncates, so both become
+   `uintptr_t` puns: `Lcheat(a)=(*(uintptr_t*)(&(a)))`, `Rcheat(a)=((uintptr_t)(a))`.
+
+3. **The arena base is the sbrk break, not a data object.**  `address end[]`
+   was V7's *end-of-BSS* symbol — the base of the circular-fit arena.  Defining
+   it as a normal `address end[1]` array puts it in the middle of `.bss`, so the
+   allocator tramples other globals.  It becomes `char *end` initialised to
+   `(char*)sbrk(0)` at the top of `main`, and `addblok` grows the brk itself
+   (`setbrk(reqd)`) rather than relying on the SIGSEGV/MEMF trap to grow it
+   on demand (a mechanism that does not survive glibc's `signal()` semantics).
+
+4. **Implicit-union member access.**  The shell's AST is ~10 structs that all
+   share a leading `{INT typ; IOPTR io;}` header.  V7 accessed `t->forktyp`,
+   `t->swarg`, `t->comset` through a generic `TREPTR t` — legal in a compiler
+   without struct member type-checking.  C99 rejects it, so each access gets a
+   cast to the concrete node type (`((FORKPTR)t)->forktyp`, `((SWPTR)t)->swarg`,
+   …); `makefork`/`makelist` declare `t` as the real type and cast on the
+   `return`.
+
+5. **Common symbols → one definition.**  Every V7 global was a tentative
+   definition (`INT flags;`, `MSG notfound;`) merged by the linker as a common
+   symbol.  gcc 10+ defaults to `-fno-common`, so `defs.h`/`stak.h` declare
+   them all `extern` and a new `data.c` defines the ~35 that carry no
+   initialiser (`flags`, `dolc`, `wdarg`, `peekc`, the two `jmp_buf`s, the stack
+   pointers, …).  `environ` is deliberately *not* defined — it resolves to
+   libc's own environment.
+
+6. **Offsets stored in pointer variables.**  `relstak()` returns a byte offset
+   (`int`) but callers held it in a `STRING`/`STKPTR` and fed it back to
+   `absstak()`.  The variables that are *only* offsets become `int`; the one
+   that is both (`argp` in `macro.c`) is cast through `intptr_t`.
+
+7. **The readable null page, again** (§4.6).  `execute` called
+   `syslook(com[0], commands)` *before* the `argn==0` test; for a pure
+   assignment (`x=42`) `com[0]` is `ENDARGS`=0, and `syslook` does `*w`.  V7's
+   address 0 was readable; Linux's is not, so the test is reordered
+   `argn==0 || syslook(...)`.
+
+8. **Syscall shape-shifters.**  `dup(fa|DUPFLG,fb)` (V7's two-arg dup) →
+   `dup2`; `ioctl(fb,FIOCLEX,0)` → `fcntl(F_SETFD,FD_CLOEXEC)`;
+   `gtty(fd,&sb)`/`stty` (from `<sgtty.h>`) → `isatty(fd)`; `signal(sig,1)`
+   (1 was SIG_IGN) → `signal(sig,SIG_IGN)` with the old-handler probe cast
+   through `intptr_t`; `times(long[4])` (V7) → POSIX `times(struct tms*)`; and
+   the `char`/`short` parameters that K&R default-promoted had to be re-typed
+   `int` or `CHAR` in the prototypes.
+
+9. **Implicit-`int` "void" functions.**  V7 wrote ~40 helpers with no return
+   type (`error`, `done`, `stdsigs`, `assign`, `copy`, `copyto`, …); `knr2c99`
+   faithfully turned those into `int16_t`, so they came back as `int`.  They
+   are all statement-called with the value never read, so the port declares
+   them `void` — and the four that genuinely *return* a value only to fall
+   through `failed()` (`chkopen`, `create`, `stoi`, `getpath`) stay `int`, with
+   `failed`/`error`/`exitsh`/`done` marked `__attribute__((noreturn))` so the
+   compiler stops warning about the unreachable fall-through.  The result is a
+   `-Wall` build with no `-Wreturn-type` diagnostics left.
+
+The result builds as `modern/usr/src/cmd/sh/sh` (a `v7unix_libexec_PROGRAMS`
+in the autotools tree, `SUBDIRS` gains `sh`) and runs the classic smoke test —
+`x=42; echo "x is $x"`, a `for … do … done` loop, backtick substitution, and a
+pipe all come out byte-for-byte as V7's shell would have produced them.

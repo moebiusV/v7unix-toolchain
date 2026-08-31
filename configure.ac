@@ -81,6 +81,7 @@ AC_CONFIG_FILES([
   modern/usr/src/cmd/cpp/Makefile
   modern/usr/src/cmd/make/Makefile
   modern/usr/src/cmd/yacc/Makefile
+  modern/usr/src/cmd/sh/Makefile
   lib/Makefile
   man/Makefile
 ])
