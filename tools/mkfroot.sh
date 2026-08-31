@@ -1,30 +1,30 @@
 #!/bin/sh
 #
-# mkfroot — assemble froot/, the self-contained V7 cross-compilation root.
+# mkfroot — assemble froot1/, the self-contained V7 cross-compilation root.
 #
-# froot/ is a synthetic copy of the V7 filesystem layout holding only the
+# froot1/ is a synthetic copy of the V7 filesystem layout holding only the
 # binaries the v7unix-toolchain package ships, plus the V7 headers and the
 # reference source tree — everything needed to compile the whole V7 source
 # tree with the original makefiles and pathnames:
 #
-#   modern/ host binaries  ->  froot/bin        (cc, as, ld, make, yacc, ar, cpp, sh)
-#   modern/ passes + lib/  ->  froot/lib        (c0, c1, c2, cpp, as2, cvopt,
+#   modern/ host binaries  ->  froot1/bin        (cc, as, ld, make, yacc, ar, cpp, sh)
+#   modern/ passes + lib/  ->  froot1/lib        (c0, c1, c2, cpp, as2, cvopt,
 #                                                 crt0.o, libc.a, yaccpar)
-#   unixtree V7 headers    ->  froot/usr/include (stdio.h, sys.s, ...)
-#   orig/ source           ->  froot/usr/src     (the reference source tree)
+#   unixtree V7 headers    ->  froot1/usr/include (stdio.h, sys.s, ...)
+#   orig/ source           ->  froot1/usr/src     (the reference source tree)
 #
-# Binaries are *copied* (not symlinked) so froot/ is self-contained: it can be
-# chrooted into, or tarred up for redistribution (make froot-dist).
+# Binaries are *copied* (not symlinked) so froot1/ is self-contained: it can be
+# chrooted into, or tarred up for redistribution (make froot1-dist).
 #
 # Environment:
-#   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot)
+#   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot1)
 #   V7CHECK_UNIXTREE  path to the unixtree checkout holding V7/usr/include
 
 set -eu
 
 TOPDIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 UNIXTREE=${V7CHECK_UNIXTREE:-"$TOPDIR/../../unixtree"}
-FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot"}
+FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot1"}
 INCLUDE="$FROOT/usr/include"
 
 MODERN="$TOPDIR/modern"
@@ -34,7 +34,7 @@ rm -rf "$FROOT"
 mkdir -p "$FROOT/bin" "$FROOT/lib" "$FROOT/usr/include/sys"
 
 # bin/: the tools the makefiles invoke by bare name.  Copied, not symlinked,
-# so froot/ is self-contained (it could be chrooted into).
+# so froot1/ is self-contained (it could be chrooted into).
 cp "$MODERN/usr/src/cmd/cc"        "$FROOT/bin/cc"
 cp "$MODERN/usr/src/cmd/ld"        "$FROOT/bin/ld"
 cp "$MODERN/usr/src/cmd/as/as"     "$FROOT/bin/as"
@@ -44,9 +44,12 @@ cp "$MODERN/usr/src/cmd/make/make" "$FROOT/bin/make"
 cp "$MODERN/usr/src/cmd/yacc/yacc" "$FROOT/bin/yacc"
 cp "$MODERN/usr/src/cmd/ar"        "$FROOT/bin/ar"
 cp "$MODERN/usr/src/cmd/c/cvopt"   "$FROOT/bin/cvopt"
-# NB: sh is deliberately NOT copied.  v7check leaves `sh` as the host's so the
-# makefiles' shell commands run under a POSIX sh; the ported V7 sh is for the
-# cross-compile (run-the-binary) phase, not the build phase.
+# the makefile commands (phase-1 ports): sh, cp, mv, rm, cmp — so the V7
+# makefiles run self-hosted inside froot1 rather than leaning on the host's.
+for t in cp mv rm cmp; do
+    cp "$MODERN/usr/src/cmd/$t" "$FROOT/bin/$t"
+done
+cp "$MODERN/usr/src/cmd/sh/sh" "$FROOT/bin/sh"
 
 # lib/: the passes + target runtime (cc/as/yacc resolve these via V7_*).
 cp "$MODERN/usr/src/cmd/c/c0"    "$FROOT/lib/c0"
@@ -80,7 +83,7 @@ done
 
 # README: how to point the self-contained toolchain at its own pieces.
 cat > "$FROOT/README" <<'EOF'
-froot — a self-contained V7 cross-compilation environment.
+froot1 — the minimal self-hosting V7 cross-compilation environment.
 
 Point the toolchain at its own pieces, then build V7 source with its
 original makefiles and pathnames:
@@ -101,4 +104,4 @@ original makefiles and pathnames:
     cd usr/src/cmd/cat && make          # or any V7 command source dir
 EOF
 
-echo "mkfroot: assembled froot/ ($FROOT)"
+echo "mkfroot: assembled froot1/ ($FROOT)"

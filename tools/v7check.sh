@@ -3,19 +3,19 @@
 # v7check — build V7 source with the modern/ ported toolchain inside a
 # synthetic V7 root.
 #
-# froot/ is that root, assembled on demand.  It combines the two halves of the
+# froot1/ is that root, assembled on demand.  It combines the two halves of the
 # repo into V7's own filesystem layout:
 #
-#   modern/ host binaries  ->  froot/bin        (cc, as, ld, make, yacc, ar, cpp)
-#   modern/ passes + lib/  ->  froot/lib        (c0, c1, c2, cpp, as2, cvopt,
+#   modern/ host binaries  ->  froot1/bin        (cc, as, ld, make, yacc, ar, cpp)
+#   modern/ passes + lib/  ->  froot1/lib        (c0, c1, c2, cpp, as2, cvopt,
 #                                                 crt0.o, libc.a, yaccpar)
-#   unixtree V7 headers    ->  froot/usr/include (stdio.h, sys.s, ...)
-#   orig/ source           ->  froot/usr/src     (the reference source tree)
+#   unixtree V7 headers    ->  froot1/usr/include (stdio.h, sys.s, ...)
+#   orig/ source           ->  froot1/usr/src     (the reference source tree)
 #
 # Every entry is a symlink back to the real tree, so no chroot is needed: the
 # dynamically-linked tools keep their own glibc.  The build then runs under
 # `unshare -r -m` — a real uid-0 in a fresh user + mount namespace, the
-# "fakeroot" session — which bind-mounts froot/usr/include over /usr/include
+# "fakeroot" session — which bind-mounts froot1/usr/include over /usr/include
 # so the makefiles' hardcoded `#include <...>` and "/usr/include/sys.s" resolve.
 #
 # fakeroot(1) itself is deliberately NOT used here.  fakeroot and
@@ -27,32 +27,32 @@
 # archive ownership) on hosts where unprivileged user namespaces are disabled.
 #
 # Usage (run from a V7 source directory, or pass a command):
-#   cd froot/usr/src/cmd/cpp && ../../../../tools/v7check.sh all   # make "all"
+#   cd froot1/usr/src/cmd/cpp && ../../../../tools/v7check.sh all   # make "all"
 #   tools/v7check.sh cc -o /tmp/cc.out cc.c                         # raw cc
 #
 # Environment:
-#   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot)
+#   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot1)
 #   V7CHECK_UNIXTREE  path to the unixtree checkout holding V7/usr/include
-#   V7CHECK_KEEP      if set, do not remove froot/ on exit
+#   V7CHECK_KEEP      if set, do not remove froot1/ on exit
 
 set -eu
 
 TOPDIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 UNIXTREE=${V7CHECK_UNIXTREE:-"$TOPDIR/../../unixtree"}
-FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot"}
+FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot1"}
 INCLUDE="$FROOT/usr/include"
 
 MODERN="$TOPDIR/modern"
 LIB="$TOPDIR/lib"
 
-# --- assemble froot/ on demand (see tools/mkfroot.sh) --------------------
+# --- assemble froot1/ on demand (see tools/mkfroot.sh) --------------------
 V7CHECK_ROOT="$FROOT" V7CHECK_UNIXTREE="$UNIXTREE" "$TOPDIR/tools/mkfroot.sh"
 
 
-# --- point the tools at the passes + runtime inside froot/ ---------------------
+# --- point the tools at the passes + runtime inside froot1/ ---------------------
 # The modern cc driver resolves its passes from V7_* (or its compiled-in
 # V7_LIBEXECDIR); the originals hardcoded /lib/c0, /bin/as, /bin/ld.  Here we
-# point everything at the froot/ copies so the whole toolchain is self-contained.
+# point everything at the froot1/ copies so the whole toolchain is self-contained.
 export V7_C0="$FROOT/lib/c0"
 export V7_C1="$FROOT/lib/c1"
 export V7_C2="$FROOT/lib/c2"
@@ -63,13 +63,14 @@ export V7_CRT0="$FROOT/lib/crt0.o"
 export V7_LIB="$FROOT/lib"
 # pass-1 `as` execs pass-2 `as2`; yacc reads its parser skeleton.  When a
 # makefile invokes a bare `as`/`yacc` (argv[0] has no '/'), each falls back to
-# its compiled-in path — point them at the froot/ copies instead.
+# its compiled-in path — point them at the froot1/ copies instead.
 export AS2="$FROOT/lib/as2"
 export YACCPARSER="$FROOT/lib/yaccpar"
 
-# --- PATH: bare `cc`/`as`/`ld`/`make`/`yacc`/`ar`/`cvopt` in the makefiles
-# resolve here.  (sh is still the host's; the ported sh runs only in the
-# cross-compile phase.)
+# --- PATH: bare `cc`/`as`/`ld`/`make`/`yacc`/`ar`/`cvopt`/`sh`/`cp`/`rm` in the
+# makefiles resolve here (self-hosted).  The harness's own control flow still
+# runs under the host sh, captured now before we put the ported sh on PATH.
+HOSTSH=$(command -v sh)
 PATH="$FROOT/bin:$PATH"
 export PATH
 
@@ -78,7 +79,7 @@ if [ "$#" -eq 0 ]; then set -- make; fi
 echo "v7check: entering synthetic V7 root (unshare -r -m)"
 echo "v7check: running: $*"
 
-unshare -r -m -- sh -c '
+unshare -r -m -- "$HOSTSH" -c '
 	set -eu
 	mount --bind "$1" /usr/include
 	trap "umount /usr/include 2>/dev/null || true" EXIT

@@ -60,4 +60,4 @@ aclocal.m4
 /lib/libc.a
 
 # synthetic V7 root for the conformance check (tools/v7check.sh), built on demand
-/froot/
+/froot1/
