@@ -1115,8 +1115,8 @@ void doinit(int16_t atype, struct node *atree)
 {
 	register struct node *tree;
 	register int16_t type;
-	float sfval;
-	double fval;
+	long double sfval;
+	long double fval;
 	int32_t lval;
 
 	tree = atree;
@@ -1199,11 +1199,11 @@ void doinit(int16_t atype, struct node *atree)
 			lval = tree->u.lconst.lvalue;
 		else
 			goto illinit;
-		/* V7 passed `long` to printf as two 16-bit words (high, then low);
-		   the host's single int32_t needs the same split, endian-independent. */
-		printf("%o; %o\n",
-			(unsigned)((uint32_t)lval >> 16),
-			(unsigned)((uint32_t)lval & 0177777));
+		{
+			uint16_t w[2];
+			pdp11_long(lval, w);
+			printf("%o; %o\n", (unsigned)w[0], (unsigned)w[1]);
+		}
 		return;
 	}
 illinit:

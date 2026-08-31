@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <math.h>
+#include <ctype.h>
 
 /*
  * PDP-11 floating point (V7's /usr/src/libc fakfp.s etc.): a 64-bit double is
@@ -19,10 +20,10 @@
  * value* via frexp/ldexp, so the result is independent of the host's byte
  * order and of whether its double is IEEE-754.
  */
-void pdp11_double(double d, uint16_t w[4])
+void pdp11_double(long double d, uint16_t w[4])
 {
 	int e, sign;
-	double m;
+	long double m;
 	uint64_t M;
 
 	sign = 0;
@@ -32,18 +33,18 @@ void pdp11_double(double d, uint16_t w[4])
 		w[1] = w[2] = w[3] = 0;
 		return;
 	}
-	m = frexp(d, &e);		/* m in [0.5, 1.0) */
-	M = (uint64_t)ldexp(m, 56);	/* 56-bit mantissa, leading 1 in bit 55 */
+	m = frexpl(d, &e);		/* m in [0.5, 1.0) */
+	M = (uint64_t)ldexpl(m, 56);	/* 56-bit mantissa, leading 1 in bit 55 */
 	w[0] = (uint16_t)((sign << 15) | (((e + 128) & 0xFF) << 7) | ((M >> 48) & 0x7F));
 	w[1] = (uint16_t)((M >> 32) & 0xFFFF);
 	w[2] = (uint16_t)((M >> 16) & 0xFFFF);
 	w[3] = (uint16_t)(M & 0xFFFF);
 }
 
-void pdp11_float(double d, uint16_t w[2])
+void pdp11_float(long double d, uint16_t w[2])
 {
 	int e, sign;
-	double m;
+	long double m;
 	uint32_t M;
 
 	sign = 0;
@@ -53,10 +54,119 @@ void pdp11_float(double d, uint16_t w[2])
 		w[1] = 0;
 		return;
 	}
-	m = frexp(d, &e);
-	M = (uint32_t)ldexp(m, 24);	/* 24-bit mantissa, leading 1 in bit 23 */
+	m = frexpl(d, &e);
+	M = (uint32_t)ldexpl(m, 24);	/* 24-bit mantissa, leading 1 in bit 23 */
 	w[0] = (uint16_t)((sign << 15) | (((e + 128) & 0xFF) << 7) | ((M >> 16) & 0x7F));
 	w[1] = (uint16_t)(M & 0xFFFF);
+}
+
+/* PDP-11 32-bit long as two 16-bit words, high first (middle-endian),
+ * independent of the host's endianness. */
+void pdp11_long(int32_t v, uint16_t w[2])
+{
+	w[0] = (uint16_t)((uint32_t)v >> 16);	/* high */
+	w[1] = (uint16_t)(uint32_t)v;		/* low  */
+}
+
+/* Round a host value to PDP-11 double precision (56-bit mantissa). */
+static long double pdp11_round(long double d)
+{
+	int e;
+	long double m;
+
+	if (d == 0)
+		return(0);
+	m = frexpl(fabsl(d), &e);	/* m in [0.5, 1.0) */
+	m = ldexpl(rintl(ldexpl(m, 56)), e - 56);
+	return(d < 0 ? -m : m);
+}
+
+/*
+ * V7's own atof (orig/usr/src/libc/gen/atof.c), host-ported for c1's build so
+ * a decimal float literal is rounded to a 56-bit PDP-11 mantissa exactly as V7
+ * did.  glibc's atof rounds to a 53-bit IEEE double, which leaves the low
+ * mantissa bits off (e.g. ecvt.c's `.03`).  The value is held in long double
+ * (>= 56-bit mantissa) and every arithmetic step rounds back to 56 bits so the
+ * result matches V7's per-step rounding.
+ */
+long double v7_atof(const char *p)
+{
+	int c, nd, eexp, exp, neg, negexp, bexp;
+	long double fl, flexp, exp5;
+	long double big = 72057594037927936.0L;	/* 2^56 */
+
+	neg = 1;
+	while ((c = *p++) == ' ')
+		;
+	if (c == '-')
+		neg = -1;
+	else if (c == '+')
+		;
+	else
+		--p;
+
+	exp = 0;
+	fl = 0;
+	nd = 0;
+	while ((c = *p++), isdigit(c)) {
+		if (fl < big)
+			fl = pdp11_round(10*fl + (c-'0'));
+		else
+			exp++;
+		nd++;
+	}
+	if (c == '.') {
+		while ((c = *p++), isdigit(c)) {
+			if (fl < big) {
+				fl = pdp11_round(10*fl + (c-'0'));
+				exp--;
+			}
+			nd++;
+		}
+	}
+	negexp = 1;
+	eexp = 0;
+	if (c == 'E' || c == 'e') {
+		if ((c = *p++) == '+')
+			;
+		else if (c == '-')
+			negexp = -1;
+		else
+			--p;
+		while ((c = *p++), isdigit(c))
+			eexp = 10*eexp + (c-'0');
+		if (negexp < 0)
+			eexp = -eexp;
+		exp = exp + eexp;
+	}
+	negexp = 1;
+	if (exp < 0) {
+		negexp = -1;
+		exp = -exp;
+	}
+	if ((nd + exp*negexp) < -39) {		/* -LOGHUGE */
+		fl = 0;
+		exp = 0;
+	}
+	flexp = 1;
+	exp5 = 5;
+	bexp = exp;
+	for (;;) {
+		if (exp & 01)
+			flexp = pdp11_round(flexp * exp5);
+		exp >>= 1;
+		if (exp == 0)
+			break;
+		exp5 = pdp11_round(exp5 * exp5);
+	}
+	if (negexp < 0)
+		fl = pdp11_round(fl / flexp);
+	else
+		fl = pdp11_round(fl * flexp);
+	fl = ldexpl(fl, negexp*bexp);
+	if (neg < 0)
+		fl = -fl;
+	return(fl);
 }
 
 struct node *acommute(struct node *atree);
@@ -336,7 +446,7 @@ struct node *unoptim(struct node *atree)
 {
 	register struct node *subtre, *tree;
 	register struct node *p;
-	double static fv;
+	long double static fv;
 	struct node *fp;
 
 	if ((tree=atree)==0)

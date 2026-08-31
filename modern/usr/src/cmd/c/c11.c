@@ -65,12 +65,11 @@ loop:
 	switch(p->op) {
 
 	case LCON:
-		/* V7 stored a `long` middle-endian and printed its two 16-bit words
-		   through %o (intx[0]=high, intx[1]=low).  Reproduce that word split
-		   endian-independently, masking to 16 bits so %o matches V7's int. */
-		printf("$%o", flag>10
-			? (unsigned)((uint32_t)p->u.lconst.lvalue & 0177777)          /* low  */
-			: (unsigned)((uint32_t)p->u.lconst.lvalue >> 16));            /* high */
+		{
+			uint16_t w[2];
+			pdp11_long(p->u.lconst.lvalue, w);
+			printf("$%o", (unsigned)(flag>10 ? w[1] : w[0]));
+		}
 		return;
 
 	case SFCON:
@@ -794,7 +793,6 @@ void getree(void)
 	struct node *tn;
 	static char s[9];
 	struct swtab *swp;
-	double atof();
 	char numbuf[64];
 	struct node *np;
 	struct node *xnp;
@@ -1000,7 +998,7 @@ void getree(void)
 		fp->op = FCON;
 		fp->type = t;
 		fp->u.tconst.value = isn++;
-		fp->u.ftconst.fvalue = atof(numbuf);
+		fp->u.ftconst.fvalue = v7_atof(numbuf);
 		*sp++ = fp;
 		break;
 

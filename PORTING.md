@@ -322,10 +322,15 @@ double *by value* via `frexp`/`ldexp` — `frexp` yields `m ∈ [0.5, 1.0)` and
 1 in bit 55 — so the result is independent of both the host's byte order and
 its float representation.  The same helper replaces the SFCON ("short float"
 that fits one word) test and the sign-toggle in `optim()` (c12.c), which had
-also been expressed as byte casts.  Remaining known gap: a decimal literal that
-needs more than 53 bits (e.g. `.03`) rounds to IEEE-754's 53 bits on the host,
-where V7's own `atof` rounded to 56, so one or two low mantissa bits can differ
-(`ecvt.o` differs from the V7 image by exactly one word).
+also been expressed as byte casts.
+
+A host `double` only holds a 53-bit mantissa, so a 56-bit PDP-11 double cannot
+round-trip through it.  `ftconst.fvalue` is therefore `long double` (>= 56-bit
+mantissa on the targets), and the float literal is parsed by a host port of V7's
+own `atof` (`v7_atof`, copied from `orig/usr/src/libc/gen/atof.c`) that rounds
+every arithmetic step back to 56 bits via `pdp11_round`.  That reproduces V7's
+per-step rounding — `ecvt.c`'s `.03` comes out as `0xf5c3`, not glibc's
+53-bit-rounded `0xf5c0`.
 
 ## 5. What the port produced
 
