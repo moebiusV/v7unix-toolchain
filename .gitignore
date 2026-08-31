@@ -12,6 +12,7 @@ modern/usr/src/cmd/ar
 modern/usr/src/cmd/c/c0
 modern/usr/src/cmd/c/c1
 modern/usr/src/cmd/c/c2
+modern/usr/src/cmd/c/cvopt
 modern/usr/src/cmd/as/as
 modern/usr/src/cmd/as/as2
 modern/usr/src/cmd/cpp/cpp
@@ -57,3 +58,6 @@ aclocal.m4
 
 # built target library (lib/build-libc.sh) — the V7 reference stays in orig/lib/
 /lib/libc.a
+
+# synthetic V7 root for the conformance check (tools/v7check.sh), built on demand
+/froot/

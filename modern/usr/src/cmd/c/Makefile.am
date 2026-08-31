@@ -12,6 +12,12 @@ v7unix_libexec_PROGRAMS = c0 c1 c2
 c0_SOURCES = c00.c c01.c c02.c c03.c c04.c c05.c c0globals.c
 c1_SOURCES = c10.c c11.c c12.c c13.c table.c c1globals.c
 
+# cvopt is a *host* code generator (table.s -> table.i) used only by the
+# conformance check, which rebuilds c1 the original way.  It is NOT cross-
+# compiled: the check runs it on the host, so it is a plain noinst host tool.
+noinst_PROGRAMS = cvopt
+cvopt_SOURCES = cvopt.c
+
 # c2.c is the PDP-11-target source (int16_t, sbrk()); the host build swaps
 # sbrk()/K&R-varargs for malloc()/<stdarg.h> via build-host.py.
 c2_CFLAGS = -std=c99 -O2
@@ -26,4 +32,4 @@ noinst_HEADERS = c0.h c1.h
 check-local:
 	$(SHELL) $(srcdir)/tests/run-tests.sh ./c2
 
-EXTRA_DIST = c2.c build-host.py README tests
+EXTRA_DIST = c2.c cvopt.c build-host.py README tests

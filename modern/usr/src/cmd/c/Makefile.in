@@ -97,6 +97,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 v7unix_libexec_PROGRAMS = c0$(EXEEXT) c1$(EXEEXT) c2$(EXEEXT)
+noinst_PROGRAMS = cvopt$(EXEEXT)
 subdir = modern/usr/src/cmd/c
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -109,7 +110,7 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(v7unix_libexecdir)"
-PROGRAMS = $(v7unix_libexec_PROGRAMS)
+PROGRAMS = $(noinst_PROGRAMS) $(v7unix_libexec_PROGRAMS)
 am_c0_OBJECTS = c00.$(OBJEXT) c01.$(OBJEXT) c02.$(OBJEXT) \
 	c03.$(OBJEXT) c04.$(OBJEXT) c05.$(OBJEXT) c0globals.$(OBJEXT)
 c0_OBJECTS = $(am_c0_OBJECTS)
@@ -123,6 +124,9 @@ c2_OBJECTS = $(nodist_c2_OBJECTS)
 c2_LDADD = $(LDADD)
 c2_LINK = $(CCLD) $(c2_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o \
 	$@
+am_cvopt_OBJECTS = cvopt.$(OBJEXT)
+cvopt_OBJECTS = $(am_cvopt_OBJECTS)
+cvopt_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -143,7 +147,7 @@ am__depfiles_remade = ./$(DEPDIR)/c00.Po ./$(DEPDIR)/c01.Po \
 	./$(DEPDIR)/c05.Po ./$(DEPDIR)/c0globals.Po ./$(DEPDIR)/c10.Po \
 	./$(DEPDIR)/c11.Po ./$(DEPDIR)/c12.Po ./$(DEPDIR)/c13.Po \
 	./$(DEPDIR)/c1globals.Po ./$(DEPDIR)/c2-c2.host.Po \
-	./$(DEPDIR)/table.Po
+	./$(DEPDIR)/cvopt.Po ./$(DEPDIR)/table.Po
 am__mv = mv -f
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -161,8 +165,9 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(c0_SOURCES) $(c1_SOURCES) $(nodist_c2_SOURCES)
-DIST_SOURCES = $(c0_SOURCES) $(c1_SOURCES)
+SOURCES = $(c0_SOURCES) $(c1_SOURCES) $(nodist_c2_SOURCES) \
+	$(cvopt_SOURCES)
+DIST_SOURCES = $(c0_SOURCES) $(c1_SOURCES) $(cvopt_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -290,6 +295,7 @@ v7unix_libexecdir = @v7unix_libexecdir@
 AM_CFLAGS = -std=c99 -O1 @NO_STRICT_ALIASING@
 c0_SOURCES = c00.c c01.c c02.c c03.c c04.c c05.c c0globals.c
 c1_SOURCES = c10.c c11.c c12.c c13.c table.c c1globals.c
+cvopt_SOURCES = cvopt.c
 
 # c2.c is the PDP-11-target source (int16_t, sbrk()); the host build swaps
 # sbrk()/K&R-varargs for malloc()/<stdarg.h> via build-host.py.
@@ -298,7 +304,7 @@ nodist_c2_SOURCES = c2.host.c
 BUILT_SOURCES = c2.host.c
 CLEANFILES = c2.host.c
 noinst_HEADERS = c0.h c1.h
-EXTRA_DIST = c2.c build-host.py README tests
+EXTRA_DIST = c2.c cvopt.c build-host.py README tests
 all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -333,6 +339,9 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
+
+clean-noinstPROGRAMS:
+	-$(am__rm_f) $(noinst_PROGRAMS)
 install-v7unix_libexecPROGRAMS: $(v7unix_libexec_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	@list='$(v7unix_libexec_PROGRAMS)'; test -n "$(v7unix_libexecdir)" || list=; \
@@ -388,6 +397,10 @@ c2$(EXEEXT): $(c2_OBJECTS) $(c2_DEPENDENCIES) $(EXTRA_c2_DEPENDENCIES)
 	@rm -f c2$(EXEEXT)
 	$(AM_V_CCLD)$(c2_LINK) $(c2_OBJECTS) $(c2_LDADD) $(LIBS)
 
+cvopt$(EXEEXT): $(cvopt_OBJECTS) $(cvopt_DEPENDENCIES) $(EXTRA_cvopt_DEPENDENCIES) 
+	@rm -f cvopt$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(cvopt_OBJECTS) $(cvopt_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -407,6 +420,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c13.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c1globals.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c2-c2.host.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cvopt.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/table.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -575,7 +589,8 @@ maintainer-clean-generic:
 	-$(am__rm_f) $(BUILT_SOURCES)
 clean: clean-am
 
-clean-am: clean-generic clean-v7unix_libexecPROGRAMS mostlyclean-am
+clean-am: clean-generic clean-noinstPROGRAMS \
+	clean-v7unix_libexecPROGRAMS mostlyclean-am
 
 distclean: distclean-am
 	-rm -f ./$(DEPDIR)/c00.Po
@@ -591,6 +606,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/c13.Po
 	-rm -f ./$(DEPDIR)/c1globals.Po
 	-rm -f ./$(DEPDIR)/c2-c2.host.Po
+	-rm -f ./$(DEPDIR)/cvopt.Po
 	-rm -f ./$(DEPDIR)/table.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -650,6 +666,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/c13.Po
 	-rm -f ./$(DEPDIR)/c1globals.Po
 	-rm -f ./$(DEPDIR)/c2-c2.host.Po
+	-rm -f ./$(DEPDIR)/cvopt.Po
 	-rm -f ./$(DEPDIR)/table.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
@@ -672,19 +689,19 @@ uninstall-am: uninstall-v7unix_libexecPROGRAMS
 	install-strip
 
 .PHONY: CTAGS GTAGS TAGS all all-am am--depfiles check check-am \
-	check-local clean clean-generic clean-v7unix_libexecPROGRAMS \
-	cscopelist-am ctags ctags-am distclean distclean-compile \
-	distclean-generic distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-data \
-	install-data-am install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip \
-	install-v7unix_libexecPROGRAMS installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic pdf pdf-am \
-	ps ps-am tags tags-am uninstall uninstall-am \
-	uninstall-v7unix_libexecPROGRAMS
+	check-local clean clean-generic clean-noinstPROGRAMS \
+	clean-v7unix_libexecPROGRAMS cscopelist-am ctags ctags-am \
+	distclean distclean-compile distclean-generic distclean-tags \
+	distdir dvi dvi-am html html-am info info-am install \
+	install-am install-data install-data-am install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip install-v7unix_libexecPROGRAMS installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic pdf pdf-am ps ps-am tags tags-am uninstall \
+	uninstall-am uninstall-v7unix_libexecPROGRAMS
 
 .PRECIOUS: Makefile
 
