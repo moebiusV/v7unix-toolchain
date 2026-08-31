@@ -70,10 +70,33 @@ packager-facing guide is `README.distributions`.
 
 ## Notes on the port
 
-The port is documented in `PORTING.md`.  Highlights: V7's
-"member-access-by-name" (a `struct tnode *` could reach any member) required
-collapsing the node structs into a tagged union; `table.s` was
-reverse-engineered to `table.c` (`table2c.py`); the assembler was translated
-from self-hosted PDP-11 assembly to C; and a handful of K&R-isms (juxtaposed
-initializers, `=op` compound assignment, bare `return` leaving `r0` untouched)
-were resolved to their C99 forms.
+The full account is [`PORTING.md`](PORTING.md), and it is worth reading for its
+own sake: it is as much archaeology as porting log.  Dragging 1979 code,
+unchanged, onto a 64-bit machine turns up things no manual records, and
+`PORTING.md` pins each one down.  A few of them:
+
+-   **the readable null page** (§4.6) — the PDP-11 had no memory protection,
+    so V7 code freely dereferences NULL and reads garbage, betting on "garbage
+    ≠ what I'm looking for" to skip a branch; on a modern host every one of
+    those reads is a SIGSEGV, and the port hit them one source file at a time.
+-   **the `delay()` brace bug** (§4.2) — a real control-flow bug, shipped for
+    years, where the indentation says what dmr meant and the braces do the
+    opposite.
+-   **middle-endian word order** (§4.3) — the PDP-11 stored 32-bit values as
+    *high word first*, each word little-endian; "portable" code that reads a
+    long as four bytes in order silently breaks.
+-   **the implicit union** (§2.4, §6.3) — C had no `union`, so dmr's tree
+    nodes use "member-access-by-name": one `struct tnode *` legally reads any
+    field of any node shape, because the 16-bit layout happens to overlap
+    them.
+-   **`return` as a tail call** (§2.3) — a bare `return` leaves `r0` alone,
+    so a function's result falls through into the next; the assembler leans on
+    this hard (§6.1).
+-   **early Unix C as a Lisp** (§8.5) — the code is lousy with macros for the
+    same reason Lisp is: the language kept inviting you to build new syntax.
+
+`PORTING.md` is meant to be read front to back: §2 the C dialect K&R allowed
+and C99 took away, §3 the mechanical-then-manual port, §4 the obstacles no
+tutorial mentions, §6 the choices in dmr's code worth noticing, §8 the
+build-tool ports.  Read it to see why the toolchain is shaped as it is — or
+for a tour of 1979 C under a modern compiler's x-ray.
