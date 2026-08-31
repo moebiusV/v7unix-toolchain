@@ -40,3 +40,16 @@ uninstall-hook:
 	rm -f $(DESTDIR)$(bindir)/v7cc \
 	      $(DESTDIR)$(bindir)/v7as \
 	      $(DESTDIR)$(bindir)/v7ld
+
+# --- froot: the self-contained V7 cross-compilation root ---------------------
+# froot/ is a synthetic V7 root (bin/ lib/ usr/include usr/src) holding only the
+# toolchain's binaries plus the V7 headers and reference source tree -- enough to
+# compile the whole V7 source tree with its original makefiles and pathnames.
+# `make froot` assembles it; `make froot-dist` tars it as froot.tar.gz (needs the
+# unixtree V7 headers; set V7CHECK_UNIXTREE if they aren't at ../../unixtree).
+.PHONY: froot froot-dist
+froot: all
+	$(srcdir)/tools/mkfroot.sh
+froot-dist: froot
+	tar czf froot.tar.gz froot
+	@echo "built froot.tar.gz"

@@ -45,52 +45,9 @@ INCLUDE="$FROOT/usr/include"
 MODERN="$TOPDIR/modern"
 LIB="$TOPDIR/lib"
 
-# --- assemble froot/ on demand -------------------------------------------------
-rm -rf "$FROOT"
-mkdir -p "$FROOT/bin" "$FROOT/lib" "$FROOT/usr/include/sys"
+# --- assemble froot/ on demand (see tools/mkfroot.sh) --------------------
+V7CHECK_ROOT="$FROOT" V7CHECK_UNIXTREE="$UNIXTREE" "$TOPDIR/tools/mkfroot.sh"
 
-# bin/: the tools the makefiles invoke by bare name.  Copied, not symlinked,
-# so froot/ is self-contained (it could be chrooted into).
-cp "$MODERN/usr/src/cmd/cc"        "$FROOT/bin/cc"
-cp "$MODERN/usr/src/cmd/ld"        "$FROOT/bin/ld"
-cp "$MODERN/usr/src/cmd/as/as"     "$FROOT/bin/as"
-cp "$MODERN/usr/src/cmd/as/as2"    "$FROOT/bin/as2"
-cp "$MODERN/usr/src/cmd/cpp/cpp"   "$FROOT/bin/cpp"
-cp "$MODERN/usr/src/cmd/make/make" "$FROOT/bin/make"
-cp "$MODERN/usr/src/cmd/yacc/yacc" "$FROOT/bin/yacc"
-cp "$MODERN/usr/src/cmd/ar"        "$FROOT/bin/ar"
-cp "$MODERN/usr/src/cmd/c/cvopt"   "$FROOT/bin/cvopt"
-
-# lib/: the passes + target runtime (cc/as/yacc resolve these via V7_*).
-cp "$MODERN/usr/src/cmd/c/c0"    "$FROOT/lib/c0"
-cp "$MODERN/usr/src/cmd/c/c1"    "$FROOT/lib/c1"
-cp "$MODERN/usr/src/cmd/c/c2"    "$FROOT/lib/c2"
-cp "$MODERN/usr/src/cmd/c/cvopt" "$FROOT/lib/cvopt"
-cp "$MODERN/usr/src/cmd/cpp/cpp" "$FROOT/lib/cpp"
-cp "$MODERN/usr/src/cmd/as/as2"  "$FROOT/lib/as2"
-cp "$MODERN/usr/src/cmd/yacc/yaccpar" "$FROOT/lib/yaccpar"
-for f in crt0.o fcrt0.o mcrt0.o fmcrt0.o libc.a; do
-	cp "$LIB/$f" "$FROOT/lib/$f"
-done
-
-# usr/src/: the reference source tree (orig/usr/src).
-cp -r "$TOPDIR/orig/usr/src" "$FROOT/usr/src"
-
-# usr/include/: gunzip the V7 headers out of the unixtree checkout.
-if [ ! -d "$UNIXTREE/V7/usr/include" ]; then
-	echo "v7check: V7 headers not found under $UNIXTREE/V7/usr/include" >&2
-	echo "         set V7CHECK_UNIXTREE to the unixtree checkout" >&2
-	exit 2
-fi
-for f in "$UNIXTREE"/V7/usr/include/*.gz; do
-	[ -e "$f" ] || continue
-	gunzip -c "$f" > "$INCLUDE/$(basename "$f" .gz)"
-done
-for f in "$UNIXTREE"/V7/usr/include/sys/*.gz; do
-	[ -e "$f" ] || continue
-	gunzip -c "$f" > "$INCLUDE/sys/$(basename "$f" .gz)"
-done
-echo "v7check: assembled froot/ ($FROOT)"
 
 # --- point the tools at the passes + runtime inside froot/ ---------------------
 # The modern cc driver resolves its passes from V7_* (or its compiled-in
