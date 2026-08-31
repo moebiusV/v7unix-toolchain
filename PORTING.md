@@ -476,12 +476,15 @@ cross-compiles it for pdp11.
 modern/ port builds — `cc ld cp mv rm cmp ar c0 c1 c2 as as2 cpp make yacc sh`,
 plus `crt0`/`fcrt0`/`mcrt0`/`fmcrt0` and `libc.a`'s 153 members — from `orig/`
 source with the ported toolchain and diffs each against the V7 reference.  All
-byte-identical (§4.6, §4.9, §4.10 record the fixes that got it there).
+byte-identical (§4.6, §4.9, §4.10 record the fixes that got it there).  The
+float/endianness handling is covered by the same run: the float-heavy libc
+members (`atof.o`, `ecvt.o`, `gcvt.o`, `frexp11.o`, `ldexp11.o`, `modf11.o`,
+`fltpr.o`, `ffltpr.o`, `doprnt.o`) are byte-identical to the V7 disk image's,
+and a decoded `0.03` double emits the same four words (`36765 141217 56050
+172703`) in both.
 
 Still open:
 
-* **Float/endianness** — confirm the double-as-two-words handling matches a
-  real V7's, since it is the one place still endianness-sensitive.
 * **`adb`** (bucket 2) — modernize `cmd/adb/*.c` to the c99/pcc dialect so pcc
   cross-compiles it for pdp11.
 
