@@ -2,18 +2,22 @@ lib — PDP-11 target runtime
 ===========================
 
 The object files the linker pulls in for a PDP-11 program: the C runtime
-startup and the C library.  They install to `/usr/local/lib/pdp11-v7/`.
+startup and the C library.  They install to `${libdir}/v7unix/`.
 
   crt0.s  fcrt0.s  mcrt0.s  fmcrt0.s   V7 /usr/src/libc/csu sources, kept
                                        unmodified; `make` assembles them with
                                        our own `as` into the .o files.  The
                                        assembled .o are byte-identical to the
                                        V7 disk image's (verified).
-  libc.a                              the prebuilt V7 C library, copied from
-                                       the V7 disk image (/lib/libc.a).  It
-                                       carries csv/cret/cerror, the arithmetic
-                                       helpers, printf, write, exit, ...
+  build-libc.sh                       builds `libc.a` from V7's own
+                                       /usr/src/libc (orig/usr/src/libc/): it
+                                       compiles each source (compall order)
+                                       with the ported cc/as, then archives the
+                                       members (mklib order) into a V7-format
+                                       archive with tools/mkvar.py.
 
-libc.a is a stopgap: it is the *reference* library pulled off a real V7
-image so linking works today, pending a from-source build of V7's
-/usr/src/libc (orig -> c99 -> modern).  It is not assembled here.
+`libc.a` carries csv/cret/cerror, the arithmetic helpers, printf, write, exit,
+and the rest of V7's C library, compiled by our own toolchain.  Its member
+bytes are byte-identical to the V7 disk image's `/lib/libc.a` (152 of 153
+members; `doscan.o` differs by a c2 peephole-optimizer gap, see PORTING.md).
+The archive timestamp differs, being a fresh build.

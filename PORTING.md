@@ -439,6 +439,13 @@ tree with *no* host commands.  `cpio` is not used at all.  Directory split
 (see CROSSCOMPILE.md §7): phase-1 commands (`sh` `mv` `cp` `rm` `cmp`) live in
 `modern/`; whole-tree-only commands in `modern2/`.
 
+`ar` is the one deliberate shortcut so far: rather than port the full `ar`
+(create/extract/delete/replace), `lib/build-libc.sh` builds V7's own
+`/usr/src/libc` and `tools/mkvar.py` writes the V7 archive format directly —
+`ARMAG` (`0xff65`), then per member a 26-byte `ar_hdr` (`ar_name[14]`,
+`ar_date`/`ar_size` as middle-endian 32-bit, `ar_uid`/`ar_gid`/`ar_mode`), then
+the member bytes padded to even.  The full `ar` port stays on the §7 list.
+
 ### 8.1 `make` — host adaptations
 
 `make` is six C files + `defs` + `gram.y`.  K&R→C99 is mechanical; the rest is

@@ -53,3 +53,6 @@ aclocal.m4
 
 # keep the V7 reference .o files (orig/lib)
 !orig/lib/*.o
+
+# built target library (lib/build-libc.sh) — the V7 reference stays in orig/lib/
+/lib/libc.a

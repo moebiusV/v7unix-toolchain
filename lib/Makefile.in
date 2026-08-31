@@ -17,9 +17,8 @@
 # lib — PDP-11 target runtime, installed under ${libdir} (= .../lib/v7unix).
 #
 # The startup objects (crt0.o, ...) are V7 /usr/src/libc/csu, assembled by our
-# own `as`; they are byte-identical to the V7 disk image's.  libc.a is the
-# prebuilt V7 C library, copied from a real V7 image, shipped until a
-# from-source build of /usr/src/libc lands.
+# own `as`; they are byte-identical to the V7 disk image's.  libc.a is built
+# from V7's own /usr/src/libc (orig/) by the ported cc/as — see build-libc.sh.
 
 VPATH = @srcdir@
 am__is_gnu_make = { \
@@ -100,8 +99,7 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
-DIST_COMMON = $(srcdir)/Makefile.am $(dist_v7unix_lib_DATA) \
-	$(am__DIST_COMMON)
+DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
@@ -151,9 +149,8 @@ am__uninstall_files_from_dir = { \
   || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
        $(am__cd) "$$dir" && echo $$files | $(am__xargs_n) 40 $(am__rm_f); }; \
   }
-am__installdirs = "$(DESTDIR)$(v7unix_libdir)" \
-	"$(DESTDIR)$(v7unix_libdir)"
-DATA = $(dist_v7unix_lib_DATA) $(v7unix_lib_DATA)
+am__installdirs = "$(DESTDIR)$(v7unix_libdir)"
+DATA = $(v7unix_lib_DATA)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 am__DIST_COMMON = $(srcdir)/Makefile.in README
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -256,10 +253,9 @@ v7unix_includedir = @v7unix_includedir@
 v7unix_libdir = @v7unix_libdir@
 v7unix_libexecdir = @v7unix_libexecdir@
 AS = $(top_builddir)/modern/usr/src/cmd/as/as
-v7unix_lib_DATA = crt0.o fcrt0.o mcrt0.o fmcrt0.o
-dist_v7unix_lib_DATA = libc.a
+v7unix_lib_DATA = crt0.o fcrt0.o mcrt0.o fmcrt0.o libc.a
 CLEANFILES = $(v7unix_lib_DATA)
-EXTRA_DIST = crt0.s fcrt0.s mcrt0.s fmcrt0.s README
+EXTRA_DIST = crt0.s fcrt0.s mcrt0.s fmcrt0.s build-libc.sh README
 all: all-am
 
 .SUFFIXES:
@@ -292,27 +288,6 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
-install-dist_v7unix_libDATA: $(dist_v7unix_lib_DATA)
-	@$(NORMAL_INSTALL)
-	@list='$(dist_v7unix_lib_DATA)'; test -n "$(v7unix_libdir)" || list=; \
-	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(v7unix_libdir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(v7unix_libdir)" || exit 1; \
-	fi; \
-	for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  echo "$$d$$p"; \
-	done | $(am__base_list) | \
-	while read files; do \
-	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(v7unix_libdir)'"; \
-	  $(INSTALL_DATA) $$files "$(DESTDIR)$(v7unix_libdir)" || exit $$?; \
-	done
-
-uninstall-dist_v7unix_libDATA:
-	@$(NORMAL_UNINSTALL)
-	@list='$(dist_v7unix_lib_DATA)'; test -n "$(v7unix_libdir)" || list=; \
-	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
-	dir='$(DESTDIR)$(v7unix_libdir)'; $(am__uninstall_files_from_dir)
 install-v7unix_libDATA: $(v7unix_lib_DATA)
 	@$(NORMAL_INSTALL)
 	@list='$(v7unix_lib_DATA)'; test -n "$(v7unix_libdir)" || list=; \
@@ -378,7 +353,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(DATA)
 installdirs:
-	for dir in "$(DESTDIR)$(v7unix_libdir)" "$(DESTDIR)$(v7unix_libdir)"; do \
+	for dir in "$(DESTDIR)$(v7unix_libdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -432,7 +407,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-dist_v7unix_libDATA install-v7unix_libDATA
+install-data-am: install-v7unix_libDATA
 
 install-dvi: install-dvi-am
 
@@ -476,28 +451,33 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-dist_v7unix_libDATA uninstall-v7unix_libDATA
+uninstall-am: uninstall-v7unix_libDATA
 
 .MAKE: install-am install-strip
 
 .PHONY: all all-am check check-am clean clean-generic cscopelist-am \
 	ctags-am distclean distclean-generic distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
-	install-data-am install-dist_v7unix_libDATA install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip install-v7unix_libDATA installcheck \
-	installcheck-am installdirs maintainer-clean \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip install-v7unix_libDATA \
+	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-generic pdf \
 	pdf-am ps ps-am tags-am uninstall uninstall-am \
-	uninstall-dist_v7unix_libDATA uninstall-v7unix_libDATA
+	uninstall-v7unix_libDATA
 
 .PRECIOUS: Makefile
 
 
 %.o: %.s
 	$(AS) -u -o $@ $<
+
+# libc.a: compile V7's /usr/src/libc (compall order) and archive it (mklib
+# order) with the ported toolchain, inside the v7check harness (V7 headers +
+# cc/as/ld on PATH).  The member bytes are byte-identical to the V7 image's.
+libc.a: $(srcdir)/build-libc.sh $(top_srcdir)/tools/mkvar.py $(top_srcdir)/tools/v7check.sh
+	$(top_srcdir)/tools/v7check.sh $(srcdir)/build-libc.sh $@
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
