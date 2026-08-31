@@ -268,9 +268,38 @@ time by feeding the port real V7 source (`tools/v7check.sh`).  Fixed so far:
   Re-check `opdope[p->op]&LEAF` after each `*treep = p = optim(p)`
   (`malloc.c`).
 
+- **`c0` — the comma/sequence operator drops the struct pointer.**  `build()`
+  makes the `SEQNC`/`COMMA` result with `block(op, t, NULL, NULL, p1, p2)`, so a
+  comma that yields a pointer-to-struct (e.g. `(wdval=IFSYM, item(0))` inside a
+  `?:`) has type `PTR|STRUCT` but a `NULL` `strp`.  When the enclosing `?:` runs
+  `plength()` to size the pointer conversion, `length()` reads `strp->ssize`
+  through the NULL.  This is the *subtler* half of the null page: V7 did not
+  just bet "garbage != what I'm looking for" to *skip* a branch — it **used the
+  garbage as a value**.  The garbage is non-zero, so the `ssize==0` "Undefined
+  structure" check passed and the "size" was whatever word sat at address 0.
+  The port can't read address 0, so the fix is to carry the right operand's
+  `strp`/`subsp` into the comma result (c01.c); `length()`'s NULL-`strp` read
+  then becomes an unreachable defensive guard.  (`sh`'s `cmd.c` was the first
+  file to trip it.)
+- **`c0` — `rcexpr()` reads `tp->tr1->op` on a bare `INIT`.**  A `NULL` `tr1`
+  (V7 read page-0 garbage ≠ `CON` and skipped the special case); guard the
+  dereference (c04.c).
+- **`c0` — `tree()`'s expression stack `cmst` is a stack array `cp` keeps
+  writing after `tree()` returns.**  Not a null-page read but the same "V7's
+  memory model is loose" family: `doret()`/`dogoto()` push onto `cp` after
+  `tree()` has returned, betting `tree()`'s frame is still intact (ASAN calls
+  it stack-use-after-return).  `cmst` is heap-allocated per call now.
+- **`c1` — a `NULLOP` placeholder has op 0 and a `NULL` `tr1`.**  `getree()`
+  builds it as `tnode(0, 0, NULL, NULL)`, and `sreorder()`/`reorder()` read
+  `p1->op` through that `NULL` `tr1` (V7 read page-0 garbage ≠ `NAME` and
+  skipped).  Treat op 0 as a leaf and return early (c10.c).
+
 The lesson for any further port: grep the original for a bare `->field` on a
 pointer that can be a `copy()`/`alloc()` result, and add the `NULL` guard the
-PDP-11 got for free.
+PDP-11 got for free.  And watch for the two flavors of the null page — "read
+garbage to *skip* a branch" (`garbage != X`) and "read garbage to *use as a
+value*" (the comma/`strp` case above) — the second is easier to miss because
+it doesn't fault, it just produces a garbage-sized object.
 
 ### 4.7 The hardware stack becomes a fixed buffer
 
@@ -357,6 +386,21 @@ PDP-11 `as` reads bare numbers as octal and a trailing `.` as decimal, so a
 faithful C port must decide per-literal whether the source meant octal or
 decimal and write it accordingly (`0…` or bare decimal) — never transcribe the
 PDP-11 digit string verbatim.
+
+### 4.10 Fixed-size buffers the modern libc no longer matches
+
+Two crashes trace back to V7's assumptions about buffer sizes, not to pointer
+bugs:
+
+- **`c1` — `outname()`'s 9-byte symbol buffer.**  `static char s[9]` holds a
+  `'_'` prefix + an 8-char name + NUL — 10 bytes.  V7 got away with the
+  off-by-one (the 10th byte clobbered an adjacent global that nothing read back
+  in time); ASAN flagged it.  `s[10]`.
+- **`cpp` — `setbuf()` with a V7-sized buffer.**  V7's `setbuf(fout, _sobuf)`
+  reused libc's own exported `_sobuf[BUFSIZ]` (512 on the PDP-11).  A modern
+  `setbuf()` expects a full `BUFSIZ` (8192) buffer, and `fopen()` already
+  allocates one — so the port's 512-byte stack copy both overflowed and went out
+  of scope.  Drop the `setbuf`; let `fopen()` buffer the file.
 
 ## 5. What the port produced
 
