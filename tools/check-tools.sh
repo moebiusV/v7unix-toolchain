@@ -27,13 +27,13 @@ chk() {   # chk <name> <built> <reference>
 
 echo "check-tools: compiling a copy of orig/ src with the ported toolchain"
 
-# cc, ld -- flat .c, built by /usr/src/cmd/cmake's rule
+# cc, ld, cp, mv, rm, cmp, ar -- flat .c, built by cmake's "cc -n -s -O ..."
 cd "$B"
-cp "$ORIG/usr/src/cmd/cc.c" "$ORIG/usr/src/cmd/ld.c" .
-cc -n -s -O cc.c -o cc
-chk cc cc "$ORIG/bin/cc"
-cc -n -s -O ld.c -o ld
-chk ld ld "$ORIG/bin/ld"
+for t in cc ld cp mv rm cmp ar; do
+	cp "$ORIG/usr/src/cmd/$t.c" .
+	cc -n -s -O "$t.c" -o "$t"
+	chk "$t" "$t" "$ORIG/bin/$t"
+done
 
 # c0, c2 -- c/makefile.
 mkdir -p "$B/c"; cd "$B/c"
@@ -64,6 +64,41 @@ mkdir -p "$B/cpp"; cd "$B/cpp"
 cp "$ORIG/usr/src/cmd/cpp/"* .
 make
 chk cpp cpp "$ORIG/lib/cpp"
+
+# make -- make/makefile (needs yacc for gram.y)
+mkdir -p "$B/make"; cd "$B/make"
+cp "$ORIG/usr/src/cmd/make/"* .
+make
+chk make make "$ORIG/bin/make"
+
+# yacc -- yacc/makefile (link uses -i, separate I/D)
+mkdir -p "$B/yacc"; cd "$B/yacc"
+cp "$ORIG/usr/src/cmd/yacc/"* .
+make all
+chk yacc yacc "$ORIG/bin/yacc"
+
+# crt0.o + friends -- V7 /usr/src/libc/csu, assembled by as (-u for externals)
+mkdir -p "$B/csu"; cd "$B/csu"
+for f in crt0 fcrt0 mcrt0 fmcrt0; do
+	cp "$ORIG/usr/src/libc/csu/$f.s" .
+	as -u -o "$f.o" "$f.s"
+	chk "$f" "$f.o" "$ORIG/lib/$f.o"
+done
+
+# libc.a -- build from V7 /usr/src/libc.  The archive's per-member timestamps
+# differ (fresh build), so extract members with the ported ar and diff the .o
+# bytes directly (153/153).
+"$topdir/lib/build-libc.sh" "$B/libc.a" >/dev/null
+mkdir -p "$B/libc-ref" "$B/libc-new"
+(cd "$B/libc-ref" && ar x "$ORIG/lib/libc.a")
+(cd "$B/libc-new" && ar x "$B/libc.a")
+if diff -r "$B/libc-ref" "$B/libc-new" >/dev/null 2>&1; then
+	printf '  OK   libc.a (%s members)\n' "$(ls "$B/libc-ref" | wc -l)"
+	ok=$((ok+1))
+else
+	printf '  DIFF libc.a\n'
+	bad=$((bad+1))
+fi
 
 echo "check-tools: $ok identical, $bad different"
 [ "$bad" = 0 ]
