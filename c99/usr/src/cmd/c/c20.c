@@ -70,7 +70,7 @@ int16_t	lastseg	= -1;
 void backjmp(struct node *ap1, struct node *ap2);
 struct node * codemove(struct node *p);
 int16_t comjump(void);
-char * copy(int16_t na, char *ap);
+char * copy(int16_t na, char *ap, char *ap2);
 int16_t c2_getline(void);
 int16_t getnum(char *ap);
 int16_t input(void);
@@ -179,7 +179,7 @@ int16_t input(void)
 				p->op = DLABEL;
 				p->subop = 0;
 				p->labno = 0;
-				p->code = copy(1, line);
+				p->code = copy(1, line, 0);
 			}
 			break;
 	
@@ -194,7 +194,7 @@ int16_t input(void)
 				p->code = 0;
 			else {
 				p->labno = 0;
-				p->code = copy(1, curlp);
+				p->code = copy(1, curlp, 0);
 			}
 			break;
 
@@ -203,7 +203,7 @@ int16_t input(void)
 			p->op = oper&0377;
 			p->subop = oper>>8;
 			p->labno = 0;
-			p->code = copy(1, curlp);
+			p->code = copy(1, curlp, 0);
 			break;
 
 		}
@@ -355,7 +355,7 @@ void reducelit(struct node *at)
 	nlit++;
 }
 
-char * copy(int16_t na, char *ap)
+char * copy(int16_t na, char *ap, char *ap2)
 {
 	register char *p, *np;
 	char *onp;
@@ -369,7 +369,7 @@ char * copy(int16_t na, char *ap)
 		n++;
 	while (*p++);
 	if (na>1) {
-		p = (&ap)[1];
+		p = ap2;
 		while (*p++)
 			n++;
 	}
@@ -378,7 +378,7 @@ char * copy(int16_t na, char *ap)
 	while (*np++ = *p++)
 		;
 	if (na>1) {
-		p = (&ap)[1];
+		p = ap2;
 		np--;
 		while (*np++ = *p++);
 	}
