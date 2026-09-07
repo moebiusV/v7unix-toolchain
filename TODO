@@ -1,38 +1,46 @@
 TODO
 
-Packaging (done in 0.1.0)
-  * Package name v7unix-toolchain; GNU autotools (configure.ac + Makefile.am).
-  * Install layout: host binaries under $(libexecdir)/v7unix (original names);
-    v7cc/v7as/v7ld symlinks in $(bindir); target runtime in $(libdir)/v7unix;
-    manpages in a v7unix section; future headers in $(includedir)/v7unix.
-  * dist/ template tree + README.distributions for 10 distributions.
+Done
+  * Packaging (0.1.0): GNU autotools (configure.ac + Makefile.am), install
+    layout (host binaries under $(libexecdir)/v7unix, v7cc/v7as/v7ld symlinks
+    in $(bindir), target runtime in $(libdir)/v7unix, manpages in a v7unix
+    section), and the dist/ template tree + README.distributions for 10
+    distributions.
+  * froot (the minimal self-hosting root): tools/mkfroot.sh + `make froot`,
+    verified by tools/selfhost.sh — compiles the toolchain subset
+    (cc/as/ld + friends) from orig/ with only the pieces inside froot.
+  * make, yacc, sh ported to modern/ (modern/usr/src/cmd/{make,yacc,sh}).
+  * Basic utilities ported to modern/: rm, cp, cmp, mv.
+  * adb source modernized to pcc99/ (target-resident; never a host binary).
+  * V7 reference binaries shipped for byte-comparison (orig/bin, orig/lib).
 
 Remaining
-  * froot1 (the minimal self-hosting root) is DONE: tools/mkfroot.sh + `make
-    froot1` / `make froot1-dist`, verified by tools/selfhost.sh (compiles the
-    toolchain subset cc/as/ld + friends from orig/).
-  * froot2 — froot1 + whatever else it takes to build the whole /usr/src tree.
-  Step 1 — build the toolchain, pure C: make, yacc, cp, rm, cmp, touch, ls,
-  diff (all pure C; cc/cpp/c0/c1/c2/as/as2/ld already done).
-  Step 2 — toolchain .s: none.
-  Step 3 — whole tree, pure C: lex, sh, sed, tar, tp, grep, mv, ln, mkdir,
-  chmod, chown, cat, echo, pr, strip, size, install, du, and the rest.
-  Step 4 — whole tree, assembly: factor, primes, bas, roff, standalone.
-
-  * Port yacc, make to modern/ (source is in orig/; pcc99/ needs only the
-    .c/.h modernization — pcc99/ mirrors orig/ except .c/.h).
-  * Port the basic build utilities too (rm, cp, cmp, touch, ls, diff, mv, ln,
-    mkdir, chmod, chown, cat, echo, pr) with original V7 behavior, not host
-    equivalents.
+  * Manifests: replace mkfroot.sh's hardcoded file list with two manifest
+    files, one path per line, so we know what goes into froot/ —
+      froot.toolchain  the subset that rebuilds the toolchain itself
+      froot.wholetree  everything needed to build the whole tree
+    mkfroot.sh already takes the scope (--scope / toolchain|whole) and seed
+    (c17=modern / c99=pcc99); the manifests make the per-scope file lists data
+    instead of shell.
+  * Whole-tree scope: port the rest of the utilities so the wholetree manifest
+    is complete and the full /usr/src tree builds self-hosted, not just the
+    toolchain subset:
+    Step 1 — toolchain, pure C: touch, ls, diff.
+    Step 3 — whole tree, pure C: lex, sed, tar, tp, grep, ln, mkdir, chmod,
+      chown, cat, echo, pr, strip, size, install, du.
+    Step 4 — whole tree, assembly: factor, primes, bas, roff, standalone.
+  * Basic build utilities (V7 behavior, not host equivalents): touch, ls, diff,
+    ln, mkdir, chmod, chown, cat, echo, pr.
+  * libc.a byte-identity: the modern-built lib/libc.a must reproduce
+    orig/lib/libc.a byte-for-byte; it currently differs (1071 bytes, first at
+    the archive header).  pcc99/lib/libc.a is not expected to match.
   * lex: not needed for the toolchain itself (orig/ has no .l files); needed
     for the whole tree (awk + struct) — see CROSSCOMPILE.md §5.
-  * adb: target-resident, never a host binary — modernize to the pcc/PDP-11
-    dialect only (PORTING.md §7 bucket 2).
-  * Build V7 libc from source (orig/libc) to replace the shipped libc.a.
-  * Ship V7 reference binaries (orig/bin, orig/lib) for byte-comparison.
   * Headers: install V7 target headers under $(includedir)/v7unix.
   * Port mkfs and fsck to the modern host (kept in this repo; filsys depends
     on it for them).
+
+Notes
   * Scope rule: port to modern/ (host C) only what *executes* on the host.
     crt0.o / fcrt0.o / mcrt0.o / fmcrt0.o / libc.a are linked, never run
     standalone, and stay as PDP-11 assembler/objects.
