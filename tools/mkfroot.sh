@@ -59,8 +59,14 @@ cp "$MODERN/usr/src/cmd/c/cvopt" "$FROOT/lib/cvopt"
 cp "$MODERN/usr/src/cmd/cpp/cpp" "$FROOT/lib/cpp"
 cp "$MODERN/usr/src/cmd/as/as2"  "$FROOT/lib/as2"
 cp "$MODERN/usr/src/cmd/yacc/yaccpar" "$FROOT/lib/yaccpar"
+# The target runtime (crt0.o, ... libc.a) is a build product, and libc.a in
+# particular is built *through* this script: lib/Makefile builds libc.a by
+# running v7check.sh, which assembles froot1/ by calling back into mkfroot.sh.
+# On a clean clone those files do not exist yet while that build is running, so
+# copy only what is already built; a subsequent `make froot1` (after `all`)
+# picks up the rest.
 for f in crt0.o fcrt0.o mcrt0.o fmcrt0.o libc.a; do
-    cp "$LIB/$f" "$FROOT/lib/$f"
+    [ -f "$LIB/$f" ] && cp "$LIB/$f" "$FROOT/lib/$f"
 done
 
 # usr/src/: the reference source tree (orig/usr/src).
