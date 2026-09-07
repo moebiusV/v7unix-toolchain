@@ -167,13 +167,13 @@ Sequencing:
    makefiles + source inside a synthetic V7 root; see §9.
 6. **`v7crosscompile`** - the full-tree wrapper; first milestone is building one
    V7 tool from `orig/` source, not `make`-ing the whole userland, because the
-   `c99/` staging area exists precisely because the source does not compile
+   `pcc99/` staging area exists precisely because the source does not compile
    as-is.
 
 ## 8. Open questions
 
 - Which layer does the full-tree build target: original V7 makefiles or the
-  modernized `c99/`/`modern/` trees? (Determines whether `sh` is required.)
+  modernized `pcc99/`/`modern/` trees? (Determines whether `sh` is required.)
 - How large is the `sh` port in practice (each builtin is a separate C file);
   is a reduced-feature `sh` acceptable for the build, or must it be full V7 sh?
 - Persist the chamber as a per-invocation temp root or a permanent jail?

@@ -19,8 +19,8 @@ Remaining
   chmod, chown, cat, echo, pr, strip, size, install, du, and the rest.
   Step 4 — whole tree, assembly: factor, primes, bas, roff, standalone.
 
-  * Port yacc, make to modern/ (source is in orig/; c99/ needs only the
-    .c/.h modernization — c99/ mirrors orig/ except .c/.h).
+  * Port yacc, make to modern/ (source is in orig/; pcc99/ needs only the
+    .c/.h modernization — pcc99/ mirrors orig/ except .c/.h).
   * Port the basic build utilities too (rm, cp, cmp, touch, ls, diff, mv, ln,
     mkdir, chmod, chown, cat, echo, pr) with original V7 behavior, not host
     equivalents.

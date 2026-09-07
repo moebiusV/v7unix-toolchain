@@ -217,6 +217,43 @@ endian-independent form extracts by value: `(uint32_t)v >> 16` (high) and
 `(uint32_t)v & 0177777` (low).  (`pdp11_double`/`pdp11_float` in §4.8 do the
 same for floats.)
 
+### 4.3.1 The word-addressed PDP-7, and why "9-bit bytes" is a myth
+
+The PDP-11 has bytes; its word order is a byte-ordering quirk.  The PDP-7,
+Unix's first home, had no byte concept at all.  It is word-addressed, 18 bits
+to the word, and the instruction set has nothing for sub-word fields — no byte
+pointers like the PDP-6/10, not even a half-word swap.  As Carl Lowenstein put
+it on TUHS, any character size on the machine is a *software* packing
+convention, implemented with shifts and masks.
+
+DEC's own conventions were what you'd expect.  Symbol tables, filenames, and
+assembler output on the 18-bit line used 6-bit characters three to a word; the
+PDP-9/15 later packed five 7-bit ASCII characters across two words (one bit
+spare).  Neither is 9 bits.
+
+The 9-bit business comes from PDP-7 Unix specifically.  Thompson packed two
+characters per 18-bit word, each a 7-bit ASCII code sitting in the low bits of
+a 9-bit half.  The cleanest evidence is Norman Wilson's: PDP-7 Unix error
+handlers do a one-word `write` of the constant `077012`, which unpacks as
+`077` = `?` and `012` = newline — the era's famous `?` in one word.  The write
+count is in *words*, so the kernel still thought in words; character-ness was a
+layer above.  Why 9 and not 6: Unix wanted full ASCII with lowercase and
+control characters (six bits can't hold them), and on a machine with no field
+extraction, halving a word is a shift-and-mask while thirding it costs a
+divide-by-3 in every index computation.  Density lost to simplicity.
+
+Two things then reinforced "PDP-7 had 9-bit bytes" into something that sounds
+architectural.  The same two-chars-per-word layout is visible everywhere in
+the V0 filesystem (8-character names in 4 words, big-endian within the word),
+so reading a V0 image naturally describes the format in 9-bit units.  And
+genuinely 9-bit-byte C and Unix ports came later — on the Honeywell 6000 under
+GCOS, and the Univac 1100 (4×9 in 36 bits), the case K&R cites for `char`
+portability — so the lore got retrofitted backwards onto the PDP-7.
+
+The accurate statement: 18-bit words, no hardware byte; DEC software
+conventionally 6-bit (or 5/7 on the 9/15); Unix uniquely 2×9 with 7-bit ASCII
+inside.
+
 ### 4.4 Generic registers — one variable, two types
 
 The code reuses a single register variable as `int` in one arm and a pointer in
@@ -463,7 +500,7 @@ straight, because they have very different end goals:
 2. **Source-modernize the target-resident programs.**  Anything that only ever
    runs *on* the PDP-11 — `adb` foremost, but ultimately all of V7's userland
    — doesn't need a host port.  It just needs its K&R C updated to the
-   c99/pcc dialect, so modern pcc can compile it *for* the PDP-11 target.  No
+   C99/pcc dialect, so modern pcc can compile it *for* the PDP-11 target.  No
    `union-node`, no host fixes; it's `knr2c99` plus whatever the dialect
    checker flags.
 
@@ -485,17 +522,46 @@ and a decoded `0.03` double emits the same four words (`36765 141217 56050
 
 Still open:
 
-* **`adb`** (bucket 2) — source modernization is done (`c99/usr/src/cmd/adb/`,
+* **`adb`** (bucket 2) — source modernization is done (`pcc99/usr/src/cmd/adb/`,
   20 files): all K&R-isms hand-fixed (anonymous structs tagged, V7
   "initializer-without-`=`" and space-separated declarators, `corhdr`/`fw`
   member puns via casts/union, `printf`→`aprintf`/`access`→`adaccess`, `aprintf`
   made variadic, `printdbl`/`printoct` over-call arg-splits, cross-file
-  prototypes in `defs.h`).  `c99/usr/include/` now carries the modernized V7
+  prototypes in `defs.h`).  `pcc99/usr/include/` now carries the modernized V7
   headers (`setjmp.h`/`sgtty.h`/`time.h` gained the prototypes V7 omitted).
   Passes a strict host `gcc -fsyntax-only -std=c99` with 0 errors (remaining
   warnings are x86-64 vs PDP-11 word-size noise).  **Blocked on pcc**: the
   actual cross-compile for pdp11 can't be verified until pcc is built (the pcc
   backend is a separate work item).
+
+### 7.1 pcc cross-compile of `c0`/`c1`/`c2` (2026-09-01)
+
+pcc (`~/claude/pcc`, `--target=pdp11-bsd`, Anders Magnusson's modern pcc) now
+compiles the pcc99/ tier and the passes *run* under V7 simh. Two fixes outside
+the pcc99/ source were needed; they are recorded here next to the source-port
+moves:
+
+1. **`AUTOINIT` 64→48 bits** (`arch/pdp11/macdefs.h`).  V7's own `STAUTO` is
+   `-6` (`c0.h`) — the first automatic sits 6 bytes below r5, the three saved
+   registers r4/r3/r2.  The 4th word is the `jsr pc,(r0)` dummy return-address
+   in `csv.s`, which is reusable and therefore not reserved.  pcc's `64`
+   (8 bytes) pushed every automatic 2 bytes too deep; the deepest one landed
+   exactly at `sp`, where V7's arg-passing idiom `mov r5,(sp); sub $N,(sp)`
+   (which uses `(sp)` as scratch for a local's address) clobbered it — the
+   "Illegal storage class" crash.  With 48, pcc's frame matches V7 cc
+   byte-for-byte.
+
+2. **Link `c0`/`c1` with `ld -n` (magic 0410), not `-i` (0411).**  `orig/lib/c0`
+   and `orig/lib/c1` are 0410; only `c2` is 0411.  `c1`'s `table.s` emits the
+   `cr*` optab labels into `.text` while `regtab` (`.data`) holds pointers to
+   them; separate I/D reads those text addresses from D-space and faults.  So
+   the rule for the pcc-built tier is: **default `-n`; use `-i` only when a
+   binary's text+data+bss overflows the single 64K address space** (pcc's
+   codegen is ~64% larger than dmr-cc's, so watch the struct-heavy passes).
+
+Still open on the pcc path: `c0`'s `getnum()` mislexes multi-digit constants
+(`char buf[10]` → dimension 2) — a pcc register-allocation bug in the tight
+`getc(stdin)` loop, tracked in the `pcc-pdp11-frame-and-link-fixes` memory.
 
 ## 8. The build tools: make, yacc — a third kind of port
 
@@ -504,7 +570,7 @@ Still open:
 they can drive a cross-compilation of the V7 tree.  They are neither the
 cross-toolchain (they emit no PDP-11 code) nor target-resident (they are not
 compiled *by* pcc); they are host programs in their own right.  They go
-through the same `orig → c99 → modern` pipeline but skip `union-node` and
+through the same `orig → pcc99 → modern` pipeline but skip `union-node` and
 `build-host.py`, because their hard problems are a different set of host-API
 collisions.
 
@@ -608,7 +674,7 @@ still has a job.
 
 ### 8.3 What `knr2c99.py` does not do (the manual follow-ups)
 
-The `orig → c99` step is `knr2c99.py --dialect v7` (§3.1), but a few things
+The `orig → pcc99` step is `knr2c99.py --dialect v7` (§3.1), but a few things
 are always left for the hand — some of which are now tool flags:
 
 * **`#include`'d macros.**  Files whose macros live in an included header
@@ -668,7 +734,7 @@ moves in §8.1/§8.2, these came up during the actual port:
 The `TLOOP`/`PLOOP`/`WSLOOP`/`BIT`/`ASSOC` layer that §8.2 dissolves is not a
 porting artifact — it is verbatim V7.  Every one of those `#define`s is in
 S. C. Johnson's `yacc` (1978), in the shared `dextern` header, carried forward
-unchanged through `orig → c99` and only expanded away in `modern/`:
+unchanged through `orig → pcc99` and only expanded away in `modern/`:
 
     #define TLOOP(i)   for(i=1;i<=ntokens;++i)
     #define NTLOOP(i)  for(i=0;i<=nnonter;++i)
@@ -754,7 +820,7 @@ defines its own type vocabulary through `TYPE`/`STRUCT`/`UNION` macros:
 for the `ps` args, and the build is `cc -n -s -O` with the assembler prepending
 `/usr/include/sys.s` (the syscall numbers).
 
-**Pipeline.**  `knr2c99` runs first (orig → c99) and, as with yacc's `TLOOP`,
+**Pipeline.**  `knr2c99` runs first (orig → pcc99) and, as with yacc's `TLOOP`,
 leaves the macros *unexpanded* in its output — it resolves them (via
 `--include-dir`) only to parse.  So `main(c,v) INT c; STRING v[];` becomes
 `int16_t main(INT c, STRING v[])`: the K&R params move into the signature, but

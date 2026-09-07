@@ -1,7 +1,7 @@
 # PCC Optimizer & PDP-11 Code Density
 
 Status: **persisted plan, not implemented.** Targets the pcc tree the project
-uses to compile `c99/` (per the Koitix decision: modern pcc, not tcc).
+uses to compile `pcc99/` (per the Koitix decision: modern pcc, not tcc).
 
 ## 1. Two goals
 
@@ -10,7 +10,7 @@ uses to compile `c99/` (per the Koitix decision: modern pcc, not tcc).
    choices. Measured today: pcc emits ~64% larger objects than dmr-cc, ~38%
    larger with `-O` (see [[pcc-vs-dmrcc-codegen]]).
 2. **Make dead code elimination strong enough to replace `#ifdef`** in the
-   `c99/` dialect work: fold compile-time constants and eliminate dead branches
+   `pcc99/` dialect work: fold compile-time constants and eliminate dead branches
    so `if (V7)`-style guards cost zero bytes.
 
 ## 2. Why these two are the same problem
@@ -39,7 +39,7 @@ DCE is real, not cosmetic.
 ## 4. Work, in order of leverage
 
 ### Phase 0: characterize the gap
-- Build a harness that compiles the V7 corpus (`orig/` and `c99/`) with current
+- Build a harness that compiles the V7 corpus (`orig/` and `pcc99/`) with current
   pcc `-O` and with dmr-cc, diffs object sizes, and buckets the bloat
   (addressing modes, reloads, dead stores, prologue/epilogue, branch selection).
 - Pin the exact pcc tree and the exact dmr-cc reference.
@@ -83,7 +83,7 @@ corpus. The `orig/` tree holds byte-identical goldens, so the diff is mechanical
 - pcc `-O` PDP-11 output within ~10% of dmr-cc on the corpus (down from ~64%).
 - A compile-time-constant guard (`if (V7)`) produces no dead-branch bytes,
   verified by object size and a dump.
-- A written migration note for `c99/`: replace `#ifdef` dialect guards with
+- A written migration note for `pcc99/`: replace `#ifdef` dialect guards with
   const-guarded `if`, keeping both arms type-checked.
 
 ## 7. Open questions

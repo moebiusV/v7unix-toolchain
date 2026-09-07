@@ -14,7 +14,7 @@ V7 ships cpp as three files:
   cpy.y     a yacc grammar for `#if` expressions
   yylex.c   the `#if` lexer, `#include`'d into the generated cpy.c
 
-Host-port changes (relative to c99/)
+Host-port changes (relative to pcc99/)
 
   * cpy.y: V7-yacc wrote actions as `={ ... }`; the `=` is stripped so
     bison -y accepts it, and a `%{ %}` prologue declares `yylex`/`yyerror`.

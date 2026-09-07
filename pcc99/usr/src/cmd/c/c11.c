@@ -1032,7 +1032,7 @@ void getree(void)
 				exit(1);
 			}
 			t = *--sp;
-			*sp++ = tnode(op, geti(), *--sp, t);
+			sp[-1] = tnode(op, geti(), sp[-1], t);
 		} else
 			sp[-1] = tnode(op, geti(), sp[-1]);
 		break;

@@ -8,7 +8,7 @@ SUBDIRS = modern/usr/src/cmd lib man
 
 EXTRA_DIST = \
 	orig \
-	c99 \
+	pcc99 \
 	tools \
 	dist/rpm \
 	dist/debian \

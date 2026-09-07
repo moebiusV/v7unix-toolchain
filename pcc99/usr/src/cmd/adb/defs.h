@@ -215,7 +215,7 @@ extern STRING symfil;
 extern STRING corfil;
 
 /* V7 libc/syscalls with no header at all (implicit-int in K&R).
-   setjmp/longjmp, gtty/stty, ctime now live in c99/usr/include/{setjmp,sgtty,time}.h. */
+   setjmp/longjmp, gtty/stty, ctime now live in pcc99/usr/include/{setjmp,sgtty,time}.h. */
 extern char *sbrk(int16_t);
 extern int16_t ptrace(int16_t, int16_t, int16_t, int16_t);
 extern int16_t wait(int16_t *);
