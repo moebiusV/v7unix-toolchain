@@ -1,27 +1,27 @@
 #!/bin/sh
 #
-# selfhost — compile the toolchain subset (cc/as/ld and friends) with froot1,
-# the minimal self-hosting root.  froot1's contract is that it can rebuild the
-# C toolchain from its own orig/ source using only the pieces inside froot1
+# selfhost — compile the toolchain subset (cc/as/ld and friends) with froot,
+# the minimal self-hosting root.  froot's contract is that it can rebuild the
+# C toolchain from its own orig/ source using only the pieces inside froot
 # (the modern/ binaries).  froot2 will extend this to the whole /usr/src tree.
 #
 # Runs each piece in turn and reports PASS/FAIL per piece, so a single bad
 # command does not stop the rest.  Exit status is 0 only if every piece built.
 #
 # Environment:
-#   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot1)
+#   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot)
 
 set -eu
 
 TOPDIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot1"}
+FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot"}
 INCLUDE="$FROOT/usr/include"
 SRC="$FROOT/usr/src"
 
-# --- assemble froot1 (tools + headers + source) -----------------------------
+# --- assemble froot (tools + headers + source) -----------------------------
 V7CHECK_ROOT="$FROOT" "$TOPDIR/tools/mkfroot.sh"
 
-# --- point the toolchain at its pieces inside froot1 (same as v7check.sh) ---
+# --- point the toolchain at its pieces inside froot (same as v7check.sh) ---
 export V7_C0="$FROOT/lib/c0"
 export V7_C1="$FROOT/lib/c1"
 export V7_C2="$FROOT/lib/c2"
@@ -58,7 +58,7 @@ unshare -r -m -- "$HOSTSH" -c '
         fi
     }
 
-    # the froot1 self-host subset: the C toolchain (cc/as/ld and friends).
+    # the froot self-host subset: the C toolchain (cc/as/ld and friends).
     # froot2 pulls in the rest of the V7 command tree.
     for d in c as cpp make yacc; do
         step "$d" sh -c "cd $d && make"

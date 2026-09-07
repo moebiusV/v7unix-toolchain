@@ -41,14 +41,14 @@ uninstall-hook:
 	      $(DESTDIR)$(bindir)/v7as \
 	      $(DESTDIR)$(bindir)/v7ld
 
-# --- froot1: the minimal self-hosting V7 cross-compilation root --------------
-# froot1/ is a synthetic V7 root (bin/ lib/ usr/include usr/src) holding the
+# --- froot: the minimal self-hosting V7 cross-compilation root --------------
+# froot/ is a synthetic V7 root (bin/ lib/ usr/include usr/src) holding the
 # toolchain plus the phase-1 makefile commands (sh/cp/mv/rm/cmp) -- the minimal
-# set that compiles itself from the orig/ source tree.  `make froot1` assembles
-# it; `make froot1-dist` tars it as froot1.tar.gz.
-.PHONY: froot1 froot1-dist
-froot1: all
+# set that compiles itself from the orig/ source tree.  `make froot` assembles
+# it; `make froot-dist` tars it as froot.tar.gz.
+.PHONY: froot froot-dist
+froot: all
 	$(srcdir)/tools/mkfroot.sh
-froot1-dist: froot1
-	tar czf froot1.tar.gz froot1
-	@echo "built froot1.tar.gz"
+froot-dist: froot
+	tar czf froot.tar.gz froot
+	@echo "built froot.tar.gz"
