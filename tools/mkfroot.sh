@@ -2,16 +2,20 @@
 #
 # mkfroot — assemble froot1/, the self-contained V7 cross-compilation root.
 #
-# froot1/ is a synthetic copy of the V7 filesystem layout holding only the
-# binaries the v7unix-toolchain package ships, plus the V7 headers and the
-# reference source tree — everything needed to compile the whole V7 source
-# tree with the original makefiles and pathnames:
+# froot1/ is a synthetic copy of the V7 filesystem layout holding the seed
+# toolchain, plus the V7 headers and the reference source tree — everything
+# needed to compile the whole V7 source tree with the original makefiles and
+# pathnames:
 #
-#   modern/ host binaries  ->  froot1/bin        (cc, as, ld, make, yacc, ar, cpp, sh)
-#   modern/ passes + lib/  ->  froot1/lib        (c0, c1, c2, cpp, as2, cvopt,
+#   seed binaries          ->  froot1/bin        (cc, as, ld, make, yacc, ar, cpp, sh)
+#   seed passes + runtime  ->  froot1/lib        (c0, c1, c2, cpp, as2, cvopt,
 #                                                 crt0.o, libc.a, yaccpar)
 #   orig/ headers          ->  froot1/usr/include (stdio.h, sys.s, ...)
 #   orig/ source           ->  froot1/usr/src     (the reference source tree)
+#
+# Usage: mkfroot.sh [c17|c99]   (default c17)
+#   c17  seed from modern/ (the C17 host toolchain; the froot runs on Linux)
+#   c99  seed from pcc99/  (the C99 tier pcc built; the froot runs under simh)
 #
 # Binaries are *copied* (not symlinked) so froot1/ is self-contained: it can be
 # chrooted into, or tarred up for redistribution (make froot1-dist).
@@ -24,10 +28,21 @@
 
 set -eu
 
+# Mode selects the seed tier:
+#   c17  seed from modern/ (the C17 host toolchain; the froot runs on Linux)
+#   c99  seed from pcc99/  (the C99 tier pcc built; the froot runs under simh)
+MODE=${1:-c17}
+case "$MODE" in
+c17|modern) MODE=c17 ;;
+c99|pcc)    MODE=c99 ;;
+*) echo "mkfroot: bad mode '$1' (want c17 or c99)" >&2; exit 2 ;;
+esac
+
 TOPDIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot1"}
 
 MODERN="$TOPDIR/modern"
+PCC99="$TOPDIR/pcc99"
 LIB="$TOPDIR/lib"
 
 rm -rf "$FROOT"
@@ -35,30 +50,47 @@ mkdir -p "$FROOT/bin" "$FROOT/lib" "$FROOT/usr"
 
 # bin/: the tools the makefiles invoke by bare name.  Copied, not symlinked,
 # so froot1/ is self-contained (it could be chrooted into).
-cp "$MODERN/usr/src/cmd/cc"        "$FROOT/bin/cc"
-cp "$MODERN/usr/src/cmd/ld"        "$FROOT/bin/ld"
-cp "$MODERN/usr/src/cmd/as/as"     "$FROOT/bin/as"
-cp "$MODERN/usr/src/cmd/as/as2"    "$FROOT/bin/as2"
-cp "$MODERN/usr/src/cmd/cpp/cpp"   "$FROOT/bin/cpp"
-cp "$MODERN/usr/src/cmd/make/make" "$FROOT/bin/make"
-cp "$MODERN/usr/src/cmd/yacc/yacc" "$FROOT/bin/yacc"
-cp "$MODERN/usr/src/cmd/ar"        "$FROOT/bin/ar"
-cp "$MODERN/usr/src/cmd/c/cvopt"   "$FROOT/bin/cvopt"
-# the makefile commands (phase-1 ports): sh, cp, mv, rm, cmp — so the V7
-# makefiles run self-hosted inside froot1 rather than leaning on the host's.
-for t in cp mv rm cmp; do
-    cp "$MODERN/usr/src/cmd/$t" "$FROOT/bin/$t"
-done
-cp "$MODERN/usr/src/cmd/sh/sh" "$FROOT/bin/sh"
+if [ "$MODE" = c17 ]; then
+    cp "$MODERN/usr/src/cmd/cc"        "$FROOT/bin/cc"
+    cp "$MODERN/usr/src/cmd/ld"        "$FROOT/bin/ld"
+    cp "$MODERN/usr/src/cmd/as/as"     "$FROOT/bin/as"
+    cp "$MODERN/usr/src/cmd/as/as2"    "$FROOT/bin/as2"
+    cp "$MODERN/usr/src/cmd/cpp/cpp"   "$FROOT/bin/cpp"
+    cp "$MODERN/usr/src/cmd/make/make" "$FROOT/bin/make"
+    cp "$MODERN/usr/src/cmd/yacc/yacc" "$FROOT/bin/yacc"
+    cp "$MODERN/usr/src/cmd/ar"        "$FROOT/bin/ar"
+    cp "$MODERN/usr/src/cmd/c/cvopt"   "$FROOT/bin/cvopt"
+    # the makefile commands (phase-1 ports): sh, cp, mv, rm, cmp — so the V7
+    # makefiles run self-hosted inside froot1 rather than leaning on the host's.
+    for t in cp mv rm cmp; do
+        cp "$MODERN/usr/src/cmd/$t" "$FROOT/bin/$t"
+    done
+    cp "$MODERN/usr/src/cmd/sh/sh" "$FROOT/bin/sh"
+else
+    # pcc99/: the C99 tier's PDP-11 a.out binaries (run under simh/V7).
+    for t in cc ld ar cp mv rm cmp make yacc sh as; do
+        cp "$PCC99/bin/$t" "$FROOT/bin/$t"
+    done
+    # cvopt is a host build tool the pcc99 tier has no target build of yet.
+    cp "$MODERN/usr/src/cmd/c/cvopt" "$FROOT/bin/cvopt"
+fi
 
 # lib/: the passes + target runtime (cc/as/yacc resolve these via V7_*).
-cp "$MODERN/usr/src/cmd/c/c0"    "$FROOT/lib/c0"
-cp "$MODERN/usr/src/cmd/c/c1"    "$FROOT/lib/c1"
-cp "$MODERN/usr/src/cmd/c/c2"    "$FROOT/lib/c2"
-cp "$MODERN/usr/src/cmd/c/cvopt" "$FROOT/lib/cvopt"
-cp "$MODERN/usr/src/cmd/cpp/cpp" "$FROOT/lib/cpp"
-cp "$MODERN/usr/src/cmd/as/as2"  "$FROOT/lib/as2"
-cp "$MODERN/usr/src/cmd/yacc/yaccpar" "$FROOT/lib/yaccpar"
+if [ "$MODE" = c17 ]; then
+    cp "$MODERN/usr/src/cmd/c/c0"    "$FROOT/lib/c0"
+    cp "$MODERN/usr/src/cmd/c/c1"    "$FROOT/lib/c1"
+    cp "$MODERN/usr/src/cmd/c/c2"    "$FROOT/lib/c2"
+    cp "$MODERN/usr/src/cmd/c/cvopt" "$FROOT/lib/cvopt"
+    cp "$MODERN/usr/src/cmd/cpp/cpp" "$FROOT/lib/cpp"
+    cp "$MODERN/usr/src/cmd/as/as2"  "$FROOT/lib/as2"
+    cp "$MODERN/usr/src/cmd/yacc/yaccpar" "$FROOT/lib/yaccpar"
+else
+    for f in c0 c1 c2 cpp as2; do
+        cp "$PCC99/lib/$f" "$FROOT/lib/$f"
+    done
+    cp "$MODERN/usr/src/cmd/c/cvopt"      "$FROOT/lib/cvopt"
+    cp "$MODERN/usr/src/cmd/yacc/yaccpar" "$FROOT/lib/yaccpar"
+fi
 # The target runtime (crt0.o, ... libc.a) is a build product, and libc.a in
 # particular is built *through* this script: lib/Makefile builds libc.a by
 # running v7check.sh, which assembles froot1/ by calling back into mkfroot.sh.
