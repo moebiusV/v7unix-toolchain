@@ -9,7 +9,7 @@
 #   modern/ host binaries  ->  froot1/bin        (cc, as, ld, make, yacc, ar, cpp)
 #   modern/ passes + lib/  ->  froot1/lib        (c0, c1, c2, cpp, as2, cvopt,
 #                                                 crt0.o, libc.a, yaccpar)
-#   unixtree V7 headers    ->  froot1/usr/include (stdio.h, sys.s, ...)
+#   orig/ headers          ->  froot1/usr/include (stdio.h, sys.s, ...)
 #   orig/ source           ->  froot1/usr/src     (the reference source tree)
 #
 # Every entry is a symlink back to the real tree, so no chroot is needed: the
@@ -32,13 +32,11 @@
 #
 # Environment:
 #   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot1)
-#   V7CHECK_UNIXTREE  path to the unixtree checkout holding V7/usr/include
 #   V7CHECK_KEEP      if set, do not remove froot1/ on exit
 
 set -eu
 
 TOPDIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-UNIXTREE=${V7CHECK_UNIXTREE:-"$TOPDIR/../../unixtree"}
 FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot1"}
 INCLUDE="$FROOT/usr/include"
 
@@ -46,7 +44,7 @@ MODERN="$TOPDIR/modern"
 LIB="$TOPDIR/lib"
 
 # --- assemble froot1/ on demand (see tools/mkfroot.sh) --------------------
-V7CHECK_ROOT="$FROOT" V7CHECK_UNIXTREE="$UNIXTREE" "$TOPDIR/tools/mkfroot.sh"
+V7CHECK_ROOT="$FROOT" "$TOPDIR/tools/mkfroot.sh"
 
 
 # --- point the tools at the passes + runtime inside froot1/ ---------------------

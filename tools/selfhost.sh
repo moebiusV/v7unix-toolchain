@@ -10,18 +10,16 @@
 #
 # Environment:
 #   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot1)
-#   V7CHECK_UNIXTREE  path to the unixtree checkout holding V7/usr/include
 
 set -eu
 
 TOPDIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-UNIXTREE=${V7CHECK_UNIXTREE:-"$TOPDIR/../../unixtree"}
 FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot1"}
 INCLUDE="$FROOT/usr/include"
 SRC="$FROOT/usr/src"
 
 # --- assemble froot1 (tools + headers + source) -----------------------------
-V7CHECK_ROOT="$FROOT" V7CHECK_UNIXTREE="$UNIXTREE" "$TOPDIR/tools/mkfroot.sh"
+V7CHECK_ROOT="$FROOT" "$TOPDIR/tools/mkfroot.sh"
 
 # --- point the toolchain at its pieces inside froot1 (same as v7check.sh) ---
 export V7_C0="$FROOT/lib/c0"

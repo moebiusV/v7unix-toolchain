@@ -4,7 +4,7 @@
 # ported toolchain.  Runs *inside* tools/v7check.sh, which provides the V7
 # /usr/include and puts the ported cc/as on PATH.
 #
-# Two V7 scripts define the order (both from unixtree/V7/usr/src/libc/):
+# Two V7 scripts define the order (both from orig/usr/src/libc/):
 #   compall  — `cc -c [-O] /usr/src/libc/<dir>/<file>` per source
 #   mklib    — `ar rc libc.a <member>.o ...` in the linker's search order
 # We reproduce compall's order first, then archive in mklib's order.

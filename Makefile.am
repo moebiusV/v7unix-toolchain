@@ -1,7 +1,7 @@
 # v7unix-toolchain — V7 PDP-11 C toolchain, modernized for a modern host.
 #
 # Top-level build.  SUBDIRS build the passes in dependency order (lib needs
-# our own `as`), then install everything.  `orig/`, `c99/`, `tools/` and
+# our own `as`), then install everything.  `orig/`, `pcc99/`, `tools/` and
 # `dist/` are source/packaging trees shipped verbatim in the tarball.
 
 SUBDIRS = modern/usr/src/cmd lib man
@@ -45,8 +45,7 @@ uninstall-hook:
 # froot1/ is a synthetic V7 root (bin/ lib/ usr/include usr/src) holding the
 # toolchain plus the phase-1 makefile commands (sh/cp/mv/rm/cmp) -- the minimal
 # set that compiles itself from the orig/ source tree.  `make froot1` assembles
-# it; `make froot1-dist` tars it as froot1.tar.gz (needs the unixtree V7
-# headers; set V7CHECK_UNIXTREE if they aren't at ../../unixtree).
+# it; `make froot1-dist` tars it as froot1.tar.gz.
 .PHONY: froot1 froot1-dist
 froot1: all
 	$(srcdir)/tools/mkfroot.sh

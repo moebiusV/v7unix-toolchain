@@ -10,28 +10,28 @@
 #   modern/ host binaries  ->  froot1/bin        (cc, as, ld, make, yacc, ar, cpp, sh)
 #   modern/ passes + lib/  ->  froot1/lib        (c0, c1, c2, cpp, as2, cvopt,
 #                                                 crt0.o, libc.a, yaccpar)
-#   unixtree V7 headers    ->  froot1/usr/include (stdio.h, sys.s, ...)
+#   orig/ headers          ->  froot1/usr/include (stdio.h, sys.s, ...)
 #   orig/ source           ->  froot1/usr/src     (the reference source tree)
 #
 # Binaries are *copied* (not symlinked) so froot1/ is self-contained: it can be
 # chrooted into, or tarred up for redistribution (make froot1-dist).
 #
+# orig/ is the single V7 source of truth: source, reference binaries and libs,
+# and headers all live there, so no external checkout is needed.
+#
 # Environment:
 #   V7CHECK_ROOT      synthetic root dir (default: $TOPDIR/froot1)
-#   V7CHECK_UNIXTREE  path to the unixtree checkout holding V7/usr/include
 
 set -eu
 
 TOPDIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-UNIXTREE=${V7CHECK_UNIXTREE:-"$TOPDIR/../../unixtree"}
 FROOT=${V7CHECK_ROOT:-"$TOPDIR/froot1"}
-INCLUDE="$FROOT/usr/include"
 
 MODERN="$TOPDIR/modern"
 LIB="$TOPDIR/lib"
 
 rm -rf "$FROOT"
-mkdir -p "$FROOT/bin" "$FROOT/lib" "$FROOT/usr/include/sys"
+mkdir -p "$FROOT/bin" "$FROOT/lib" "$FROOT/usr"
 
 # bin/: the tools the makefiles invoke by bare name.  Copied, not symlinked,
 # so froot1/ is self-contained (it could be chrooted into).
@@ -72,20 +72,8 @@ done
 # usr/src/: the reference source tree (orig/usr/src).
 cp -r "$TOPDIR/orig/usr/src" "$FROOT/usr/src"
 
-# usr/include/: gunzip the V7 headers out of the unixtree checkout.
-if [ ! -d "$UNIXTREE/V7/usr/include" ]; then
-    echo "mkfroot: V7 headers not found under $UNIXTREE/V7/usr/include" >&2
-    echo "         set V7CHECK_UNIXTREE to the unixtree checkout" >&2
-    exit 2
-fi
-for f in "$UNIXTREE"/V7/usr/include/*.gz; do
-    [ -e "$f" ] || continue
-    gunzip -c "$f" > "$INCLUDE/$(basename "$f" .gz)"
-done
-for f in "$UNIXTREE"/V7/usr/include/sys/*.gz; do
-    [ -e "$f" ] || continue
-    gunzip -c "$f" > "$INCLUDE/sys/$(basename "$f" .gz)"
-done
+# usr/include/: the V7 headers from orig/ (the source of truth).
+cp -r "$TOPDIR/orig/usr/include" "$FROOT/usr/include"
 
 # README: how to point the self-contained toolchain at its own pieces.
 cat > "$FROOT/README" <<'EOF'
