@@ -89,7 +89,7 @@ for f in $files; do
 	fi
 	# --- pcc side, two ways: ccom then c2 only, and the driver's full -O
 	if ! { "$PCC" -S -I"$d" -I"$INC" -o "$w/pccc.raw" "$f" &&
-	       "$C2" "$w/pccc.raw" "$w/pccc.s"; } >"$w/err" 2>&1 ||
+	       "$C2" = "$w/pccc.raw" "$w/pccc.s"; } >"$w/err" 2>&1 ||
 	   ! "$PCC" -O -S -I"$d" -I"$INC" -o "$w/pccx.s" "$f" >>"$w/err" 2>&1; then
 		pfail=$((pfail+1))
 		[ $verbose = 1 ] && echo "PCCFAIL $f: $(grep -m1 -i error "$w/err")"

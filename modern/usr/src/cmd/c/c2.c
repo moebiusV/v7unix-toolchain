@@ -126,6 +126,7 @@ char	*firstr;
 char	revbr[];
 char	regs[12][20];
 char	conloc[20];
+int16_t	fixconloc;	/* the "=" option: see dest() */
 char	conval[20];
 char	ccloc[20];
 
@@ -259,6 +260,12 @@ int16_t main(int16_t argc, char **argv)
 		argc--;
 		argv++;
 		debug++;
+	}
+	if (argc>1 && argv[1][0]=='=') {
+		/* fix V7's stale constant tracking, see dest() */
+		argc--;
+		argv++;
+		fixconloc++;
 	}
 	nflag = 0;
 	if (argc>1 && argv[1][0]=='-') {
@@ -1280,6 +1287,14 @@ void dest(char *as, int16_t flt)
 
 	s = as;
 	source(s);
+	/*
+	 * V7's dest() forgets that a location holding a known constant
+	 * (after clr or mov $k) has been changed by inc, dec, neg, ...: a
+	 * later cmp or tst of it is then folded using the old value.  The
+	 * "=" option turns the fix on; without it c2 stays exactly V7's.
+	 */
+	if (fixconloc && equstr(s, conloc))
+		conloc[0] = 0;
 	if ((i = isreg(s)) >= 0)
 		regs[i+flt][0] = 0;
 	for (i=0; i<NREG+NREG; i++)
