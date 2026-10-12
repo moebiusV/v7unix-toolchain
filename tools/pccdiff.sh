@@ -4,11 +4,12 @@
 #
 # For each .c in the corpus (default: orig/usr/src/libc), compile it two ways:
 #   dmr: cpp -> c0 -> c1 -> c2     (the ported host tools in modern/)
-#   pcc: pcc -S -> c2              (raw ccom output, then V7's own peephole)
+#   pcc: pcc -O -S                 (ccom, then V7's c2 via the driver's -O)
 # normalize both listings and report identical / differing / pcc-failed.
 #
 # usage: pccdiff.sh [-v] [-k KEEPDIR] [file.c | dir ...]
-#   PCC=path/to/pcc   (default ~/claude/pcc/install/bin/pcc)
+#   PCC=path/to/pcc   (default ~/claude/pcc/install/bin/pcc; its libexec must
+#                      hold pdp11-bsd-cc2 -> modern/usr/src/cmd/c/c2)
 #
 set -u
 
@@ -63,8 +64,7 @@ for f in $files; do
 		dfail=$((dfail+1)); [ $verbose = 1 ] && echo "DMRFAIL $f"; continue
 	fi
 	# --- pcc side
-	if ! { "$PCC" -S -I"$d" -I"$INC" -o "$w/pcc.raw" "$f" &&
-	       "$C2" "$w/pcc.raw" "$w/pcc.s"; } >"$w/err" 2>&1; then
+	if ! "$PCC" -O -S -I"$d" -I"$INC" -o "$w/pcc.s" "$f" >"$w/err" 2>&1; then
 		pfail=$((pfail+1))
 		[ $verbose = 1 ] && echo "PCCFAIL $f: $(grep -m1 -i error "$w/err")"
 		continue
