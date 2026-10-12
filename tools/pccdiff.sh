@@ -4,8 +4,11 @@
 #
 # For each .c in the corpus (default: orig/usr/src/libc), compile it two ways:
 #   dmr: cpp -> c0 -> c1 -> c2     (the ported host tools in modern/)
-#   pcc: pcc -O -S                 (ccom, then V7's c2 via the driver's -O)
-# normalize both listings and report identical / differing / pcc-failed.
+#   pcc: (a) pcc -S then c2        (ccom's plain output, V7 peephole only)
+#        (b) pcc -O -S             (ccom -x flags, then c2: both optimizers)
+# assemble each and compare the sizes (text+data bytes).  The target is dmr's
+# code SIZE, not its bytes: label names, instruction choice and pcc's own
+# optimizer (-xtemps/-xssa/...) are all fair game.
 #
 # usage: pccdiff.sh [-v] [-k KEEPDIR] [file.c | dir ...]
 #   PCC=path/to/pcc   (default ~/claude/pcc/install/bin/pcc; its libexec must
@@ -57,13 +60,24 @@ norm() {
 	{ print labels($0, 2) }' "$W/norm.tmp" "$W/norm.tmp"
 }
 
-objsame=0; same=0; diff=0; pfail=0; dfail=0; tot=0; ninsn_d=0; ninsn_p=0
+# text+data bytes of an assembled object (a.out header words 1 and 2)
+osize() {
+	od -An -tu2 -j2 -N4 "$1" | awk '{ print $1 + $2 }'
+}
+
+# assemble $1 (.s) -> $2 (.o); print its size, or nothing on failure
+asize() {
+	"$AS" -u -o "$2" "$1" >/dev/null 2>&1 && osize "$2"
+}
+
+pfail=0; dfail=0; tot=0
+sd=0; sc=0; sx=0		# summed bytes: dmr, pcc -S+c2, pcc -O (x flags + c2)
+okc=0; okx=0			# files where pcc is no bigger than dmr
 files=$(for a in "$@"; do
 	if [ -d "$a" ]; then find "$a" -name '*.c' | sort; else echo "$a"; fi
 done)
 
 for f in $files; do
-	tot=$((tot+1))
 	b=$(basename "$f" .c); d=$(dirname "$f")
 	w=$W/$b; mkdir -p "$w"
 	# --- dmr side
@@ -73,28 +87,32 @@ for f in $files; do
 	       "$C2" "$w/dmr.raw" "$w/dmr.s"; } >/dev/null 2>&1; then
 		dfail=$((dfail+1)); [ $verbose = 1 ] && echo "DMRFAIL $f"; continue
 	fi
-	# --- pcc side
-	if ! "$PCC" -O -S -I"$d" -I"$INC" -o "$w/pcc.s" "$f" >"$w/err" 2>&1; then
+	# --- pcc side, two ways: ccom then c2 only, and the driver's full -O
+	if ! { "$PCC" -S -I"$d" -I"$INC" -o "$w/pccc.raw" "$f" &&
+	       "$C2" "$w/pccc.raw" "$w/pccc.s"; } >"$w/err" 2>&1 ||
+	   ! "$PCC" -O -S -I"$d" -I"$INC" -o "$w/pccx.s" "$f" >>"$w/err" 2>&1; then
 		pfail=$((pfail+1))
 		[ $verbose = 1 ] && echo "PCCFAIL $f: $(grep -m1 -i error "$w/err")"
 		continue
 	fi
-	norm "$w/dmr.s" >"$w/dmr.n"; norm "$w/pcc.s" >"$w/pcc.n"
-	nd=$(grep -c '^[a-z]' "$w/dmr.n"); np=$(grep -c '^[a-z]' "$w/pcc.n")
-	ninsn_d=$((ninsn_d+nd)); ninsn_p=$((ninsn_p+np))
-	# the real bar: assembled objects (as -u) byte-identical
-	if "$AS" -u -o "$w/dmr.o" "$w/dmr.s" >/dev/null 2>&1 &&
-	   "$AS" -u -o "$w/pcc.o" "$w/pcc.s" >/dev/null 2>&1 &&
-	   cmp -s "$w/dmr.o" "$w/pcc.o"; then
-		objsame=$((objsame+1)); [ $verbose = 1 ] && echo "OBJSAME $f"
+	bd=$(asize "$w/dmr.s" "$w/dmr.o"); bc=$(asize "$w/pccc.s" "$w/pccc.o")
+	bx=$(asize "$w/pccx.s" "$w/pccx.o")
+	if [ -z "$bd" ] || [ -z "$bc" ] || [ -z "$bx" ]; then
+		pfail=$((pfail+1)); [ $verbose = 1 ] && echo "ASFAIL  $f"; continue
 	fi
-	if cmp -s "$w/dmr.n" "$w/pcc.n"; then
-		same=$((same+1)); [ $verbose = 1 ] && echo "SAME    $f"
-	else
-		diff=$((diff+1)); [ $verbose = 1 ] && echo "DIFF    $f  (dmr $nd, pcc $np)"
+	tot=$((tot+1)); sd=$((sd+bd)); sc=$((sc+bc)); sx=$((sx+bx))
+	[ "$bc" -le "$bd" ] && okc=$((okc+1))
+	[ "$bx" -le "$bd" ] && okx=$((okx+1))
+	[ $verbose = 1 ] && printf '%-8s dmr %5d  c2-only %5d (%+d)  -O %5d (%+d)  %s\n' \
+	    "$([ "$bx" -le "$bd" ] && echo OK || echo BIGGER)" "$bd" "$bc" $((bc-bd)) "$bx" $((bx-bd)) "$f"
+	if [ -n "$keep" ]; then
+		norm "$w/dmr.s" >"$keep/$b.dmr"; norm "$w/pccc.s" >"$keep/$b.pcc"
+		norm "$w/pccx.s" >"$keep/$b.pccx"
 	fi
-	[ -n "$keep" ] && cp "$w/dmr.n" "$keep/$b.dmr" && cp "$w/pcc.n" "$keep/$b.pcc"
 done
 
-echo "pccdiff: $tot files: $same text-identical, $objsame object-identical, $diff differ, $pfail pcc-failed, $dfail dmr-failed"
-echo "         lines (compiled-by-both only): dmr $ninsn_d, pcc $ninsn_p"
+pct() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%+.1f%%", b ? (a-b)*100/b : 0 }'; }
+echo "pccdiff: $tot files compared ($pfail pcc-failed, $dfail dmr-failed); text+data bytes:"
+echo "  dmr cc:                  $sd"
+echo "  pcc -S + c2 only:        $sc  ($(pct $sc $sd))   $okc/$tot files no bigger than dmr"
+echo "  pcc -O (x flags + c2):   $sx  ($(pct $sx $sd))   $okx/$tot files no bigger than dmr"
