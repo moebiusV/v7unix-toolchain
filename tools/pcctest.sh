@@ -30,6 +30,7 @@ cat >"$W/start.s" <<'EOS'
 .text
 start:
 	mov	$157000,sp
+	setd
 	jsr	pc,_test
 	0
 	br	.
