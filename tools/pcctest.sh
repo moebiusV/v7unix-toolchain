@@ -39,7 +39,15 @@ EOS
 "$AS" -u -o "$W/t.o" "$W/t.s"
 "$AS" -u -o "$W/start.o" "$W/start.s"
 "$LD" -o "$W/t.out" "$W/start.o" "$W/t.o" -L "$top/lib" -lc
-tail -c +17 "$W/t.out" >"$W/t.bin"
+# load text+data only: the file also carries a symbol table, and the bss
+# (which a C program may rely on being zero) lives right after the data
+python3 - "$W" <<'EOS'
+import sys, struct
+W = sys.argv[1]
+b = open(W + '/t.out', 'rb').read()
+magic, text, data = struct.unpack('<HHH', b[:6])
+open(W + '/t.bin', 'wb').write(b[16:16 + text + data])
+EOS
 
 python3 - "$W" <<'EOP'
 import sys, struct
