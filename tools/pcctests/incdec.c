@@ -1,5 +1,4 @@
 /* expect: 1 -- incb/decb: wrap-around, neighbours, indexed and pointer targets, value uses */
-/* skip: -xssa (ccom crashes in zzzcode G on ++*q++ under SSA; also on the committed compiler) */
 struct s { char a; unsigned char b; char c; int n; };
 struct s g;
 char gc;
