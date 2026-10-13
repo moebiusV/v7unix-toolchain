@@ -21,17 +21,17 @@ The two compilers:
 Where dmr-cc is a hand-written one-pass-per-stage compiler, 32V's cc gets most
 of its quality from `c2`; the compiler proper (pcc) is generic.
 
-## Status of this work (2026-10-13)
+## Status of this work (2026-10-14)
 
 All dmr/32V-inspired transformations are opt-in with `-xdmr` (`pcc -O` implies it on
 the PDP-11). Everything else is unchanged.
 
 | Target | Corpus | original cc | ours | |
 |---|---|---|---|---|
-| PDP-11 | libc, 89 files | dmr 17356 | 17216 | -0.8% |
+| PDP-11 | libc, 89 files | dmr 17356 | 17234 | -0.7% |
 | PDP-11 | `cmd/`, 39 files | dmr 82808 | 80902 | -2.3% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19180 | -12.7% |
-| VAX (32V) | 40 command sources | `cc -O` 77760 | 70844 | -8.9% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19172 | -12.7% |
+| VAX (32V) | 39 command sources (30 no bigger) | `cc -O` 77760 | 70844 | -8.9% |
 | i386 | libc | n/a | 20763 -> 20142 with `-xdmr` | -3.0% |
 | amd64 | libc | n/a | 25227 -> 23524 with `-xdmr` | -6.8% |
 
@@ -39,6 +39,12 @@ All numbers are text+data bytes, assembled with the target's own assembler
 (`tools/pccdiff.sh`, `tools/vaxdiff.py`, `tools/x86size.sh`). Flags used:
 `-xdmr -xtemps -xdeljumps -xdce -xinline`, plus the target's `c2` where there is one.
 `-xssa` is a net loss on both PDP-11 and VAX and stays off.
+
+Correctness gates, all passing: 124 bare-metal PDP-11 programs (`tools/pcctest-all.sh`),
+26 programs on real 32V under SIMH (`tools/vaxtest-all.sh`), the i386 and amd64
+suites, pcc compiling itself with identical stage 1 and 2 (`tools/pccboot.sh`),
+and 34 V7 commands, 72 tests, built by `pcc -O` and run inside real V7 next to
+V7's own cc builds (`tools/v7progs.py`).
 
 ## The tricks at a glance
 
@@ -358,6 +364,9 @@ for consistency.
 **What.** Dereferencing a static address plus constant is a direct memory operand
 `x+k`; no address register. **pcc.** `clocal` `UMUL` case with `symconst()`
 (pdp11, vax); x86 gets this from generic code.
+**Trap.** The NAME node keeps the offset in its value field, and a target's
+`clocal` `NAME` case may reset that field (the pdp11 one does for statics declared
+inside a function), so check what looking at the node a second time does.
 
 ## 22. Dead mask test (open)
 
@@ -368,7 +377,18 @@ bit 8 is its sign bit. Best done in the front end as a constant fold for every
 target (`trees.c`, AND of a zero-extended narrow value with a constant that has
 no bits in the low part).
 
-## 23. Register allocator hints
+## 23. Unsigned divide without helpers
+
+**What.** dmr-cc divides an unsigned by `clr r0; div x,r0`, which is right only when
+the divisor is below 32768.  pcc keeps that for a constant divisor of 2 to 32767
+(the one case that is always right) and calls a helper for anything else.
+**Why a section.** The helpers (`udiv`, `urem`, `uldiv`, `ulrem`) are not in V7's
+libc, so they are written into the assembly of each file that calls them, as
+routines local to the file; `ZK`/`Zk` templates note the use and `ejobcode()`
+appends them.  Any new target whose C library lacks a helper the code generator
+calls has the same choice: ship it with the compiler or inline it.
+
+## 24. Register allocator hints
 
 The PDP-11 work found several allocator issues worth knowing for any port:
 
@@ -423,6 +443,16 @@ turned up compiler bugs that the unit tests had not:
   r4), a crash for `**p++ = 0` (an autoincrement made after the increment
   already had its own instruction), and that unsigned `/` and `%` called
   helpers V7's libc does not have.
+* **More from the V7 commands**: unsigned `/` and `%` called `udiv`, `urem`,
+  `uldiv` and `ulrem`, none of which V7's libc has, so any program using them
+  failed to link; ccom now appends the ones a file calls as local routines
+  (`arch/pdp11/helpers.h`), and a constant divisor of 2 to 32767 is the inline
+  `clr r0; div` of dmr-cc.  The `*(&x+k)` rewrite of item 21 dropped the offset of
+  a member of a function's own `static` struct, because `clocal()` resets the
+  offset of such a NAME when it sees the node again (V7 `ls` printed `/bin/e`);
+  those keep the long form.  A rename of one table template also changed an older
+  template with the same name and broke `f(p++)` calls.  And `findmops` may not
+  do `x = x op y` in place with a rule that wants a fixed register.
 * **32V under SIMH** (`tools/vax32v.py`): found that the saved 32V disk had a
   stale free list, which made everything we put on it unreliable.
 
