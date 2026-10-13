@@ -4,6 +4,9 @@ unsigned um(a, b) unsigned a, b; { return a % b; }
 unsigned long uld(a, b) unsigned long a, b; { return a / b; }
 unsigned long ulm(a, b) unsigned long a, b; { return a % b; }
 
+unsigned dc(a) unsigned a; { return a / 10 + a % 10 * 3 + a / 32767 + a % 32767; }
+unsigned dd(a) unsigned a; { return a / 2 + a % 2; }
+
 int test(void)
 {
 	int bad = 0;
@@ -23,5 +26,8 @@ int test(void)
 	if (ulm(1000000L, 7L) != 1L) bad |= 4096;
 	if (uld(4000000000L, 3000000000L) != 1L) bad |= 8192;
 	if (ulm(4000000000L, 3000000000L) != 1000000000L) bad |= 16384;
+	if (dc(65535u) != 6553u + 5u * 3 + 2u + 1u) bad |= 32768;
+	if (dd(65535u) != 32767u + 1u) bad |= 32768;
+	if (dc(1234u) != 123u + 4u * 3 + 0u + 1234u) bad |= 32768;
 	return bad == 0;
 }
