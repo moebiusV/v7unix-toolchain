@@ -88,7 +88,7 @@ for f in $files; do
 		dfail=$((dfail+1)); [ $verbose = 1 ] && echo "DMRFAIL $f"; continue
 	fi
 	# --- pcc side, two ways: ccom then c2 only, and the driver's full -O
-	if ! { "$PCC" -S -I"$d" -I"$INC" -o "$w/pccc.raw" "$f" &&
+	if ! { "$PCC" -S ${PCCDIFF_SFLAGS:-} -I"$d" -I"$INC" -o "$w/pccc.raw" "$f" &&
 	       "$C2" = "$w/pccc.raw" "$w/pccc.s"; } >"$w/err" 2>&1 ||
 	   ! "$PCC" -O ${PCCDIFF_XFLAGS:-} -S -I"$d" -I"$INC" -o "$w/pccx.s" "$f" >>"$w/err" 2>&1; then
 		pfail=$((pfail+1))
