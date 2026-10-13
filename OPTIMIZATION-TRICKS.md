@@ -29,9 +29,9 @@ the PDP-11). Everything else is unchanged.
 | Target | Corpus | original cc | ours | |
 |---|---|---|---|---|
 | PDP-11 | libc, 89 files | dmr 17356 | 17234 | -0.7% |
-| PDP-11 | `cmd/`, 39 files | dmr 82808 | 80902 | -2.3% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19172 | -12.7% |
-| VAX (32V) | 39 command sources (30 no bigger) | `cc -O` 77760 | 70844 | -8.9% |
+| PDP-11 | `cmd/`, 51 files (sh now included) | dmr 90178 | 88482 | -1.9% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19360 | -11.9% |
+| VAX (32V) | 39 command sources | `cc -O` 77760 | 71528 | -8.0% |
 | i386 | libc | n/a | 20763 -> 20142 with `-xdmr` | -3.0% |
 | amd64 | libc | n/a | 25227 -> 23524 with `-xdmr` | -6.8% |
 
@@ -40,8 +40,8 @@ All numbers are text+data bytes, assembled with the target's own assembler
 `-xdmr -xtemps -xdeljumps -xdce -xinline`, plus the target's `c2` where there is one.
 `-xssa` is a net loss on both PDP-11 and VAX and stays off.
 
-Correctness gates, all passing: 124 bare-metal PDP-11 programs (`tools/pcctest-all.sh`),
-26 programs on real 32V under SIMH (`tools/vaxtest-all.sh`), the i386 and amd64
+Correctness gates, all passing: 128 bare-metal PDP-11 programs (`tools/pcctest-all.sh`),
+32 programs on real 32V under SIMH, three flag sets, the last with c2 (`tools/vaxtest-all.sh`), the i386 and amd64
 suites, pcc compiling itself with identical stage 1 and 2 (`tools/pccboot.sh`),
 and 34 V7 commands, 72 tests, built by `pcc -O` and run inside real V7 next to
 V7's own cc builds (`tools/v7progs.py`).
@@ -316,8 +316,18 @@ so existing templates still print it as an address; do **not** convert it to a
 bare constant: a named `ICON` is a *memory operand* in the VAX templates).
 `cc2.vax.c`: `movab` -> `moval` when not indexed, `pushl r` of that -> `pushal`.
 
+**Address constants as operands (VAX, `-xdmr`).** `cmpl _filesp,$_files` and
+`movl $_files,x` need no register: a special shape `SADDRN` (an `ADDROF` of a
+named object) is accepted by the compare and assign templates and `adrput` prints
+`$name+off`; c2 turns the `movl` into `moval`.
+
 **Port.** x86 `leal sym,%eax` is the same size as `movl $sym,%eax`: no gain
-unless an index is involved (see 3). m68k `pea`/`lea`.
+unless an index is involved.  With an index, i386 `-xdmr` writes `&a[i]` as one
+`leal a(,%ecx,4),%edx` (special shapes `SSYMADDR`/`SSCALE`; libc 20142 -> 20132).
+amd64 does not: that form needs an absolute 32-bit relocation
+(`R_X86_64_32S`), which a PIE link rejects, and the position-independent form
+(`leaq a(%rip),%rdx; leaq (%rdx,%rcx,4)`) is two instructions, so no gain.
+m68k `pea`/`lea`.
 
 ## 16. Counted-loop instructions
 
@@ -457,12 +467,52 @@ turned up compiler bugs that the unit tests had not:
 * **32V under SIMH** (`tools/vax32v.py`): found that the saved 32V disk had a
   stale free list, which made everything we put on it unreliable.
 
+## c2 inside ccom, and what running it found
+
+`ccom -xc2` buffers its assembly and runs c2 (`cc2/cc2.<mach>.c`, built into ccom
+as `c2.o` with `main` renamed `c2main`) on it, in a forked copy of itself with the
+text passed through temporary files; if anything fails the unoptimized text is
+written instead.  The driver passes `-xc2` on the PDP-11 and 32V targets instead
+of exec'ing `cc2` (`PCC_EXTERNAL_C2=1` brings the separate program back).  The
+output is byte-identical to the two-program path (checked on all libc and command
+sources of both targets).
+
+Making the VAX tests run c2 for the first time found three faults in the c2 sources:
+
+* **c2 assumed r0-r5 are dead at labels and branches.**  True of the original
+  ccom, whose temporaries lived within a statement; `-xtemps` keeps loop counters
+  in them, so `subl3 $1,r0,r0; movl r0,r1; incl r1; jleq` became `decl r0; incl r0`
+  and lost the decrement (the `swap` test crashed).  Registers are now live at
+  every label and branch.  This costs 1.5% on VAX libc (19064 -> 19360).  The
+  real fix would be dataflow over the labels.
+* **An empty input crashed both c2s** (a `NULL` operand pointer), and the opcode
+  hash table was read one slot past its end (`>` for `>=`).  Found with
+  AddressSanitizer; the VAX c2's output also depended on compiler flags because
+  of it.
+* The VAX unsigned-divide helpers used labels c2 does not recognise as labels, so
+  c2 deleted the code after their first `ret`; they use compiler-numbered labels.
+
+Also on the VAX, `fwdaddr()` in c2 forwards `movl rA,rB` into a following
+address use (`(rB)`, `d(rB)`, `[rB]`), which makes stdio's `getc` four
+instructions instead of five, and `x = (char)((int)x & c)` is done in the narrow
+type so c2 sees `bicb2 $-128,(r)`.  The remaining 6 command sources that are
+larger than `cc -O` (deroff +184, cron +52, dd +44, chmod +32, ...) are byte
+stores through `cvtbl`/`movb` pairs where 32V used `cvtlb`.
+
+## The scoreboard and the old K&R sources
+
+`tools/pccdiff.sh` compiles `sh/*.c` with `-Dvoid=Void_` (the sources use
+`struct void`), skips the files that are only `#include`d, and reports each
+rejected source under the kind of its first error.  The C dialect pcc accepts was
+deliberately **not** changed: 29 of the command sources are rejected because they
+use members of another struct's namespace (20), implicit externs (6) or old
+declaration forms (3).
+
 ## What is still open
 
 * x86: loop rotation, `testl` after `decl`/`addl`, `leal` for `&a[i]`, the dead
   mask fold for every target, `jumpsw`-like layout not worth doing.
-* VAX: `deroff` (+320 bytes over `cc -O`), `cvtlb` stores (we emit `movb`),
-  `bicl2/bisl2` forms, `movq` pairs; command sources where we are still larger.
-* Ship the PDP-11 and VAX `c2` as an in-process pass instead of a separate
-  executable, and ship both with the NetBSD VAX dialect (the VAX `c2` parses the
-  32V assembler dialect only).
+* VAX: real liveness in c2 instead of "all live at labels", `deroff` (+184 bytes
+  over `cc -O`), `cvtlb` stores (we emit `movb`), `movq` pairs.
+* Ship the VAX `c2` with the NetBSD VAX dialect (it parses the 32V assembler
+  dialect only).
