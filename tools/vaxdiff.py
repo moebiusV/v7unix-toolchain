@@ -69,13 +69,20 @@ def main():
             continue
         files['f%d.c' % n] = data
         files['p%d.s' % n] = open(local + '.s', 'rb').read()
+        c2 = os.environ.get('VAXC2')
+        if c2:
+            # our own c2 (cc2/cc2.vax.c) on the host instead of the guest's
+            r = subprocess.run([c2, local + '.s', local + '.c2.s'], capture_output=True)
+            if r.returncode == 0 and os.path.exists(local + '.c2.s'):
+                files['r%d.s' % n] = open(local + '.c2.s', 'rb').read()
         names.append(name)
         ids.append(n)
     sh = 'cd /tmp\nfor t in ' + ' '.join(str(i) for i in ids) + '\ndo\n' \
          '\tcc -c f$t.c > /dev/null 2>&1 && echo "SZ $t D `size f$t.o`"\n' \
          '\tcc -O -c f$t.c > /dev/null 2>&1 && echo "SZ $t O `size f$t.o`"\n' \
          '\tas -o p$t.o p$t.s > /dev/null 2>&1 && echo "SZ $t P `size p$t.o`"\n' \
-         '\t/lib/c2 p$t.s q$t.s > /dev/null 2>&1 && as -o q$t.o q$t.s > /dev/null 2>&1 && echo "SZ $t C `size q$t.o`"\n' \
+         '\tif test -f r$t.s\n\tthen as -o q$t.o r$t.s > /dev/null 2>&1 && echo "SZ $t C `size q$t.o`"\n' \
+         '\telse /lib/c2 p$t.s q$t.s > /dev/null 2>&1 && as -o q$t.o q$t.s > /dev/null 2>&1 && echo "SZ $t C `size q$t.o`"\n\tfi\n' \
          '\tcc -O -S f$t.c > /dev/null 2>&1 && mv f$t.s d$t.s\n' \
          '\t/lib/c2 p$t.s q$t.s > /dev/null 2>&1\n' \
          '\trm -f f$t.o p$t.o q$t.o\n' \
