@@ -19,5 +19,10 @@ int test(void)
 	a = 1L; a += 0; if (a != 1L) bad |= 1024;
 	a = 65535L; b = a + 65535; if (b != 131070L) bad |= 2048;
 	a = 3L; b = a - 70000L; if (b != -69997L) bad |= 4096;
+	a = 65535L; b = 1L; a += b; if (a != 65536L) bad |= 8192;
+	a = 65536L; b = 1L; a -= b; if (a != 65535L) bad |= 16384;
+	a = 100000L; a += a; if (a != 200000L) bad |= 1;
+	{ long arr[3], *q; q = arr; arr[0] = 70000L; arr[1] = 70000L; arr[2] = 5L;
+	  q[1] += arr[0]; q[2] -= q[1]; if (arr[1] != 140000L || arr[2] != -139995L) bad |= 2; }
 	return bad == 0;
 }
