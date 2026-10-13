@@ -1,0 +1,169 @@
+Contributors to PortableCC/pcc (as found in the git history, 5531 commits, to 2026-10-13)
+plus this tree's own commits.  Newest first, by date of the latest commit.
+
+== Commit authors
+2026-10-13 David Walther
+2026-10-10 Anders Magnusson
+2026-06-30 Michal Pleban
+2026-06-06 Perry E. Metzger
+2025-11-16 Patrick Maxis
+2025-11-13 Sunny-Maxis
+2025-06-27 Andreas Baumann
+2025-06-16 remph
+2022-11-05 Gregory McGarry
+2020-04-11 Iain Hibbert
+2014-05-07 Mickey Shalayeff
+2011-05-23 Joerg Sonnenberger
+2010-08-29 Maxim Fedoseev
+2010-04-05 Jeremy C. Reed
+2009-06-06 Mattias Pantzare
+2008-12-27 Steve Kargl
+2008-07-08 David Crawshaw
+2008-07-01 Stefan Eßer
+2007-11-03 Otto Moerbeek
+2006-02-06 Jan Enoksson
+2005-05-01 Peter A Jonsson
+
+== Credited in commit messages ("From X", "Patch by X", ...), not authors;
+== some people appear under variant spellings exactly as written in the log
+2026-09-26 Giacomo Tesio
+2026-08-04 Aharon Robbins
+2026-02-05 Arnold Robbins
+2023-09-13 Tim Kelly
+2023-07-26 Brian Callahan
+2023-07-03 Detlef Riekenberg
+2023-06-04 Guilherme Janczak
+2022-11-20 Domingo Alvarez Duarte
+2022-03-30 Alan Cox
+2021-09-12 Bruno Raoult
+2020-06-29 Steffen Nurpmeso
+2020-05-13 John Arnold
+2020-05-13 Rich Felker
+2020-02-26 Fred Tydeman
+2020-02-02 Susi Lehtola
+2019-04-14 Pitr Kaye
+2019-03-03 Rick Regan
+2018-12-12 M. Levinson
+2018-12-02 Janne Johansson
+2018-09-15 Volkmar Klatt
+2017-07-02 Nicolas Joly
+2017-06-17 Marian Buschsieweke
+2017-04-02 Vitaliy V. Tokarev
+2017-03-02 Antoine Leca
+2017-02-27 Vitalie Ciubotaru
+2017-02-05 Warren Toomey
+2016-04-02 Peter Kuschnerus
+2016-03-18 Daniel Dickman
+2016-03-13 Tom Kelly
+2016-01-01 Toru Nishimura
+2015-09-11 Nicholas Joly
+2015-05-10 Isaac Dunham
+2014-12-27 Stephen N. Turner
+2014-12-16 Stephen Turner
+2014-12-02 Thorsten Glaser
+2014-09-22 Fred J. Tydeman
+2014-08-13 Brad Harder
+2014-07-25 William D. Jones
+2014-07-25 Christos Zoulas
+2014-05-17 Eric Olson
+2014-05-10 Erik Olson
+2014-05-03 Jonathan Gray
+2014-04-21 Matt Thomas
+2014-04-19 Dara Hazeghi
+2012-11-29 Szabolics Nagy
+2012-09-19 Martin Ettl
+2012-09-15 Szabolcs Nagy
+2012-08-30 Gregor Richards
+2012-08-11 Pascal Stumpf
+2012-08-11 Jussi Lehtola
+2012-08-10 TAKAHASHI Tamotsu
+2012-07-30 Chris Spiegel
+2012-07-29 Roland Mainz
+2012-07-28 Hannes Loeffler
+2012-06-25 Kurt Lidl
+2012-03-31 Michael W. Bombardieri
+2012-03-27 Thomas Klausner
+2012-03-06 Will Noble
+2011-10-24 LHB Jr
+2011-08-20 Henri Kemppainen
+2011-08-18 Roman Divacky
+2011-07-06 Anthony Mallet
+2011-06-05 Joel Dahl
+2011-05-22 Szabolcz Nagy
+2011-04-25 Igor Zinovik
+2011-04-25 Michael Shalayeff
+2011-04-11 Oskar Holmlund
+2011-04-10 David Soria Parra
+2011-03-27 Richard Spencer
+2011-02-26 Matthias Rampke
+2011-02-24 Piotr Sikora
+2011-01-02 David A. Holland
+2010-12-22 Tamas TEVESZ
+2010-12-11 Shin'ichi Ichikawa
+2010-09-05 Szabolcs Nagy.  While
+2010-09-01 Travis Siegel
+2010-06-12 Jordan Earls
+2010-06-08 Alexander Vladimirov
+2010-05-24 Lars Zetterlund
+2010-05-21 Andreas Kaiser
+2010-05-05 Jesus Sanchez
+2010-03-19 Iain Hibbert.  Supposed
+2010-01-25 Dmitry Alenichev
+2009-10-30 Lars Zetterlund.  Are
+2009-08-11 Hasso Tepper
+2009-06-24 Chris Kuethe
+2009-06-06 Michael Rock
+2009-02-19 Andrew Doran
+2009-01-31 Darren Jenkins
+2009-01-10 Paul Irofti
+2009-01-05 Peter Johnson
+2008-11-30 Rivo Nurges
+2008-11-19 Darren Rhys Jenkins
+2008-10-16 Jeremy Reed
+2008-10-13 Chad Dougherty
+2008-08-26 Reinoud Zandijk
+2008-08-18 Art Grabowski
+2008-08-18 Artur Grabowski
+2008-07-06 Craig St. Jean
+2008-06-21 Jason Stevens
+2008-06-19 Karl Knutsson
+2008-06-19 Stefan Kempf
+2008-06-03 Adom Hoka
+2008-05-11 Pierre Riteau
+2008-05-09 Steven G. Kargl
+2008-04-13 Håvard Eidnes
+2008-03-21 Havard Eidnes
+2008-03-04 Harvard Eidnes
+2008-02-19 Thomas Klausner. Thank
+2008-02-12 Chris Gilbert
+2008-02-09 KAMADA Ken'ichi
+2008-02-06 Jonas Jonsson
+2008-01-29 Stefan Kempf.  While
+2008-01-27 Stefan Kempf.  Now
+2008-01-06 Zhiwen Zheng
+2007-11-19 Jan Kryl
+2007-10-23 Takehiko Nozaki
+2007-10-20 Sergey Elin
+2007-10-10 Daniel Cavanagh
+2007-10-08 Laurent Desnogues
+2007-10-06 Otto M
+2007-10-04 Gilels Chehade
+2007-10-03 Gilles Chehade
+2007-10-03 Craig Barraclough
+2007-10-02 Igor Sobrado
+2007-09-24 Otto Muerbeek
+2007-09-23 Otto Muhlbeek
+2007-09-23 Arthur Loiret
+2007-09-23 Otto Muelbeek
+2007-09-22 Arun Sharma
+2007-09-22 Simon Schubert
+2007-09-21 Otto Muerbeck
+2007-09-20 David O'Brien
+2007-09-20 Olof Johansson
+2007-09-19 Ed Schouten
+2007-09-19 Otto Moerbeck
+2007-09-18 Todd T. Fries
+2007-09-18 Graham Gower
+2007-09-16 Viktor Leijon
+2007-09-16 Ray Lai
+2007-09-15 Chad Loder
