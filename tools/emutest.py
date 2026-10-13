@@ -63,6 +63,17 @@ def main():
     symtab = elf.get_section_by_name('.symtab')
     done = symtab.get_symbol_by_name('_done')[0]['st_value']
     start = elf.header['e_entry']
+    if os.environ.get('EMU_TRACE'):
+        import capstone
+        cs_arch = {'aarch64': (capstone.CS_ARCH_ARM64, capstone.CS_MODE_ARM),
+                   'arm': (capstone.CS_ARCH_ARM, capstone.CS_MODE_ARM),
+                   'mips': (capstone.CS_ARCH_MIPS, capstone.CS_MODE_MIPS32 | capstone.CS_MODE_BIG_ENDIAN)}[arch]
+        cs = capstone.Cs(*cs_arch)
+        def hook(uc_, addr, size, ud):
+            code = bytes(uc_.mem_read(addr, size))
+            for i in cs.disasm(code, addr):
+                sys.stderr.write('%08x  %s %s\n' % (addr, i.mnemonic, i.op_str))
+        uc.hook_add(unicorn.UC_HOOK_CODE, hook)
     try:
         uc.emu_start(start, done, count=50000000)
     except unicorn.UcError as e:
