@@ -1,20 +1,21 @@
-/* expect: 1 -- a short parameter used as unsigned in a loop must compile (parameter propagation keeps the use's type);
- * the run-time divide helpers are stubs: this test is about compiling, digits() is not run */
+/* expect: 1 -- short parameters used as unsigned in a loop (parameter propagation keeps the use's type) */
 short out[8];
-int udiv(void) { return 0; }
-int urem(void) { return 0; }
 
-void digits(short n, short base, short *d)
+int nibbles(short n, short shift, short mask, short *d)
 {
+	short *s;
+
+	s = d;
 	while (n) {
-		*d++ = ((unsigned)n) % base;
-		n = ((unsigned)n) / base;
+		*d++ = ((unsigned)n) & mask;
+		n = ((unsigned)n) >> shift;
 	}
+	return d - s;
 }
 
 int test(void)
 {
-	if (out[7] == 0 && 0)
-		digits(1234, 10, out);
-	return 1;
+	/* 0x1234 in hex digits */
+	if (nibbles(0x1234, 4, 15, out) != 4) return 0;
+	return out[0] == 4 && out[1] == 3 && out[2] == 2 && out[3] == 1;
 }
