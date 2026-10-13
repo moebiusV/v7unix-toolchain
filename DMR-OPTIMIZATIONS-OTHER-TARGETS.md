@@ -77,19 +77,29 @@ PDP-11 only).  Correctness fixes are not gated.
 * **VAX:** not started; see the table above.  Needs a working build/test
   setup first.
 
-## Other backends in the tree (not inspected closely)
+## Other backends: what actually works (checked 2026-10-13)
 
-Assessed from the instruction sets, not from reading each `table.c`:
+Each backend was built from this tree (`-std=gnu89 -w` with a current gcc) and
+tried on a four-function probe; those that build were run on the test
+programs (`tools/pcctests`) natively or in the Unicorn emulator
+(`tools/emutest.py`, which links with zig's lld).
 
-| backend | what could carry over |
+| backend | state |
 |---|---|
-| m68k | Closest relative of the PDP-11: `(An)+` / `-(An)` modes, `addq`/`subq`/`ori`/`andi` on memory (byte RMW), `tst`, `btst`; same pass-1 autoincrement form and RMW rewrites should port almost directly |
-| pdp10 | Memory-destination arithmetic (`AOS`/`SOS`, `ADDM`, `IORM`) is the analogue of in-place RMW; byte pointers have `IBP`/`ILDB` auto-increment |
-| i86 (8086) | Same list as i386: `test`, byte RMW to memory, frame omission for leaves; `lodsb`/`stosb` style string ops are the autoincrement analogue |
-| arm, aarch64 | Pre/post-indexed loads and stores cover `*p++` / `*--p` (autoincrement); `tst` for bit tests; compare-and-branch against zero (`cbz`) on aarch64; no memory RMW |
-| powerpc | Update-form loads/stores (`lbzu`, `lwzu`, `stbu`) cover autoincrement; `andi.` sets condition codes (bit test) |
-| mips, mips64, riscv, sparc64, hppa | Load/store machines: no RMW, no autoincrement modes.  Possible: skip the frame and return-address save in leaf functions, compare against zero with `beqz`-style branches, `andi`+branch bit tests |
-| nova, pdp7, m16c | Tiny; memory increment instructions (`ISZ`, `INC` on memory) and test instructions exist but each port would be one-off |
+| pdp11 | done; tested in simh |
+| i386 | done (`-xdmr`: testl/testb, byte RMW, leaf frames); tested natively in 32-bit mode |
+| amd64 | done (`-xdmr`: testl/testq/testb, byte RMW; leaf frames were already omitted by `needframe`); tested natively; libc -2.3%, byte-RMW kernel 33% faster, others unchanged |
+| mips | builds; fails 13 of 25 test programs before any change (internal errors, "Cannot generate code", unaligned accesses) |
+| arm | builds; fails 22 of 25 (internal errors, literal-pool relocation out of range) |
+| aarch64 | builds; fails 23 of 25; found wrong code in the simplest case: a store to a global uses `x0` as scratch while `x0` holds a live variable |
+| vax | builds and compiles the probe; cannot be assembled or run here (neither GNU as, clang nor zig targets it); output for `(*ip++)++` looks wrong |
+| m68k | builds; cannot compile `int f(void){ return 1; }` (no immediate shapes in `table.c`) |
+| nova | builds; probe fails |
+| i86, powerpc, m16c, pdp7 | do not build (stale `table.c` / macro changes) |
+| riscv, sparc64, hppa, pdp10 | `configure` stops for these target names |
 
-Every one of these needs a way to run the generated code (a simulator or a
-cross toolchain) before the changes are worth making.
+For the broken ones the dmr ideas are not the bottleneck: each needs the
+backend made to work first.  The one idea that would transfer to all the
+RISC backends without touching their instruction selection is omitting the
+frame (saved return address and frame pointer) in leaf functions; mips, arm
+and aarch64 all save and restore both unconditionally.
