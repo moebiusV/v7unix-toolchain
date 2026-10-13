@@ -72,7 +72,8 @@ V7's own cc builds (`tools/v7progs.py`).
 | 20 | `x++;` without a copy of the old value | c1 | pcc | done (`-xdmr`) | open | generic |
 | 21 | `*(&x + k)` is the name `x+k` | c1 | pcc | done (pdp11, vax) | done (generic) | generic |
 | 22 | Dead mask test (`uchar & 0x100`) | c1 | c2 `bitopt` | open | open | front end |
-| 23 | Register pressure: spill choice, pinned regs | c1 | pcc | partial | allocator | allocator |
+| 23 | Unsigned divide: inline for small constants, helpers otherwise | `clr r0; div` | - | done (pdp11) | n/a | per libc |
+| 24 | Register pressure: spill choice, pinned regs | c1 | pcc | partial | allocator | allocator |
 
 "done" means implemented and covered by tests that run on the real system (PDP-11
 under SIMH with V7, VAX under SIMH with 32V) or natively (x86).
