@@ -31,7 +31,7 @@ register is overwritten).  It needs a working test setup before changing.
 | Immediate and shared FP constants, `tstf`/`clrf` | Check: VAX has short float literals; probably fine | x87: `fldz`/`fld1` exist; constants in memory otherwise.  Low value |
 | `.bss` statics collected at end (c2 interaction) | N/A | N/A (assembler-specific; only matters if a peephole pass is added) |
 | Unsigned `/` and `%` by a power of two as shift/mask | Already in `optim.c` (machine independent), but see next row | Same |
-| **Do not retype `DIV`/`MOD` across int/unsigned conversion** (found as a wrong-code bug on PDP-11) | **Yes: this is in machine-independent `clocal` code that VAX and i386 copy.** Check their `local.c` SCONV case for the same `l->n_type = p->n_type` shortcut | Same check |
+| **Do not retype `DIV`/`MOD` across int/unsigned conversion** (wrong-code bug found on PDP-11) | `clocal` has the same shortcut, not tested (VAX build problem above) | Same shortcut in `clocal`, but `return n / m` with unsigned operands still produced `divl` (unsigned) when tried; not reproduced |
 | Register liveness fixes: `OREG` base register counts as a use; fixed registers live through loops when no flow graph is built | In `mip/regs.c`: **already shared.**  The OREG fix applies everywhere; the "no flow graph" case only matters if a target pins registers (PDP-11 only) | Same |
 | `mov x,x` removal, spill-slot sharing | Spill-slot sharing is in `mip/regs.c` (shared, only used when `-xtemps` spills); the text pass for `mov x,x` is PDP-11 only and would need the assembler syntax per target | Same |
 
@@ -53,8 +53,9 @@ register is overwritten).  It needs a working test setup before changing.
    and autodecrement addressing (`inctree`/`myormake` in
    `arch/pdp11/order.c` is the pattern), in-place RMW, `bitl`/`tstl`,
    scaled index mode.
-3. Both: audit `clocal` SCONV for the DIV/MOD retyping bug first, since it
-   is a correctness bug, not an optimization.
+3. Both: re-check `clocal` SCONV for the DIV/MOD retyping bug (PDP-11 found
+   it with a K&R `f(n) unsigned n; { return n / 4; }`); i386 did not show it
+   for the cases tried.
 
 Measure with a per-target version of `tools/pccdiff.sh` (needs the target
 assembler for byte counts; instruction counts are a usable proxy).
