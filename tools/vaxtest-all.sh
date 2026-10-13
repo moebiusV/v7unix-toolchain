@@ -7,7 +7,7 @@
 #
 set -u
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-[ $# -eq 0 ] && set -- "-xtemps -xdeljumps -xdce -xinline" "-xdmr -xtemps -xdeljumps -xdce -xinline"
+[ $# -eq 0 ] && set -- "-xtemps -xdeljumps -xdce -xinline" "-xdmr -xtemps -xdeljumps -xdce -xinline" "-xdmr -xtemps -xdeljumps -xdce -xinline -xc2"
 dir=${VAXTESTS:-$here/pcctests}
 pass=0; fail=0
 for flags in "$@"; do
