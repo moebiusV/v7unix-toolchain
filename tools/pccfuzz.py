@@ -51,7 +51,7 @@ def run(job):
     p=os.path.join(work,h+'.c')
     open(p,'w').write(src)
     d=os.path.dirname(f)
-    for cfg in (['-S'],['-O','-S']):
+    for cfg in (['-S'],['-O','-S']) + ((['-O','-xssa','-S'],) if os.environ.get('FUZZ_SSA') else ()):
         try:
             r=subprocess.run([P]+cfg+['-I'+d,'-I'+top+'/orig/usr/include','-I'+top+'/modern/usr/include','-I'+top+'/pcc99/usr/include','-Dunix','-o','/dev/null',p],capture_output=True,text=True,encoding='utf-8',errors='replace',env=env,timeout=60)
         except subprocess.TimeoutExpired:
