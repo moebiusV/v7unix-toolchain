@@ -59,3 +59,37 @@ register is overwritten).  It needs a working test setup before changing.
 
 Measure with a per-target version of `tools/pccdiff.sh` (needs the target
 assembler for byte counts; instruction counts are a usable proxy).
+
+## Status (2026-10-13)
+
+All dmr-inspired work is behind `-xdmr` (ccom flag; `pcc -O` implies it on
+PDP-11 only).  Correctness fixes are not gated.
+
+* **PDP-11:** done; libc 17226 bytes vs dmr 17356 with `-O`.
+* **i386:** `-xdmr` gives `testl/testw/testb` (bit tests and zero compares),
+  `orb/andb/incb/decb` on memory bytes, and frame-pointer omission for leaf
+  functions (text pass in `arch/i386/code.c`).  libc compiled with the
+  i386 ccom and assembled with the host `as --32`: 20762 bytes with
+  `-xtemps -xdeljumps -xinline -xdce`, 20192 with `-xdmr` added (-2.7%).
+  Tests run natively in 32-bit mode: `tools/x86test-all.sh`
+  (`X86CCOM=...`); the PDP-11 test programs also pass there except
+  `condcodes.c`, which assumes 16-bit ints.
+* **VAX:** not started; see the table above.  Needs a working build/test
+  setup first.
+
+## Other backends in the tree (not inspected closely)
+
+Assessed from the instruction sets, not from reading each `table.c`:
+
+| backend | what could carry over |
+|---|---|
+| m68k | Closest relative of the PDP-11: `(An)+` / `-(An)` modes, `addq`/`subq`/`ori`/`andi` on memory (byte RMW), `tst`, `btst`; same pass-1 autoincrement form and RMW rewrites should port almost directly |
+| pdp10 | Memory-destination arithmetic (`AOS`/`SOS`, `ADDM`, `IORM`) is the analogue of in-place RMW; byte pointers have `IBP`/`ILDB` auto-increment |
+| i86 (8086) | Same list as i386: `test`, byte RMW to memory, frame omission for leaves; `lodsb`/`stosb` style string ops are the autoincrement analogue |
+| arm, aarch64 | Pre/post-indexed loads and stores cover `*p++` / `*--p` (autoincrement); `tst` for bit tests; compare-and-branch against zero (`cbz`) on aarch64; no memory RMW |
+| powerpc | Update-form loads/stores (`lbzu`, `lwzu`, `stbu`) cover autoincrement; `andi.` sets condition codes (bit test) |
+| mips, mips64, riscv, sparc64, hppa | Load/store machines: no RMW, no autoincrement modes.  Possible: skip the frame and return-address save in leaf functions, compare against zero with `beqz`-style branches, `andi`+branch bit tests |
+| nova, pdp7, m16c | Tiny; memory increment instructions (`ISZ`, `INC` on memory) and test instructions exist but each port would be one-off |
+
+Every one of these needs a way to run the generated code (a simulator or a
+cross toolchain) before the changes are worth making.
