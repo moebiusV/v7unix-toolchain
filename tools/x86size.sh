@@ -12,14 +12,14 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 tot=0; bad=0
 for f in "$@"; do
 	d=$(dirname "$f")
-	if ! gcc -E -P -m32 -undef -D__i386__ -Dunix -I"$d" -I"${X86INC:-.}" "$f" > "$tmp/i" 2>/dev/null; then
+	if ! gcc -E -P ${XM:--m32} -undef -D${XD:-__i386__} -Dunix -I"$d" -I"${X86INC:-.}" "$f" > "$tmp/i" 2>/dev/null; then
 		bad=$((bad+1)); continue
 	fi
 	rm -f "$tmp/s" "$tmp/o"
 	if ! $ccom $flags "$tmp/i" "$tmp/s" >/dev/null 2>&1; then
 		bad=$((bad+1)); continue
 	fi
-	if ! gcc -m32 -c -x assembler -o "$tmp/o" "$tmp/s" >/dev/null 2>&1; then
+	if ! gcc ${XM:--m32} -c -x assembler -o "$tmp/o" "$tmp/s" >/dev/null 2>&1; then
 		bad=$((bad+1)); continue
 	fi
 	n=$(size "$tmp/o" 2>/dev/null | awk 'NR==2{print $1+$2}')
