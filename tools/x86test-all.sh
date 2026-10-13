@@ -5,7 +5,7 @@
 #
 set -u
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-[ $# -eq 0 ] && set -- "" "-xtemps -xdeljumps -xinline -xdce" "-xtemps -xdeljumps -xinline -xdce -xssa"
+[ $# -eq 0 ] && set -- "" "-xdmr" "-xtemps -xdeljumps -xinline -xdce" "-xdmr -xtemps -xdeljumps -xinline -xdce" "-xdmr -xtemps -xdeljumps -xinline -xdce -xssa"
 dir=${X86TESTS:-$here/x86tests}
 pass=0; fail=0
 for flags in "$@"; do
