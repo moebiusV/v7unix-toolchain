@@ -244,6 +244,7 @@ def main():
                 sys.exit('32V did not boot:\n' + v.text()[-300:])
             def cmd(c, w=1.0):
                 v.send(c); v.poll(w)
+            cmd('/etc/mount /dev/rp0h /usr', 3.0)
             cmd('cd /tmp')
             start = len(v.text())
             cmd('sh run.sh', 1.0)
