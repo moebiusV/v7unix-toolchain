@@ -32,7 +32,8 @@ the PDP-11). Everything else is unchanged.
 | PDP-11 | `cmd/`, 39 files | dmr 82808 | 80902 | -2.3% |
 | VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19180 | -12.7% |
 | VAX (32V) | 40 command sources | `cc -O` 77760 | 70844 | -8.9% |
-| i386 | libc | n/a | 20763 -> 20146 with `-xdmr` | -3.0% |
+| i386 | libc | n/a | 20763 -> 20142 with `-xdmr` | -3.0% |
+| amd64 | libc | n/a | 25227 -> 23524 with `-xdmr` | -6.8% |
 
 All numbers are text+data bytes, assembled with the target's own assembler
 (`tools/pccdiff.sh`, `tools/vaxdiff.py`, `tools/x86size.sh`). Flags used:
@@ -53,11 +54,11 @@ All numbers are text+data bytes, assembled with the target's own assembler
 | 8 | Bit tests (`bit $m,x`; `bic`/`bis`) | c1 | `bitl`, `jbs`/`jbc` | done | done (`test`) | yes |
 | 9 | Masks as zero-extension / field extract | - | c2 `bicopt` -> `movzbl`/`extzv` | vax via c2 | **done** `movzbl/movzwl` | arm `uxtb`, mips `andi`, ... |
 | 10 | Frameless leaf functions | c1/`csv` skipped | - | done (pdp11) | done (i386) | yes |
-| 11 | Loop rotation (test at the bottom) | c2 | c2 | pdp11/vax via c2 | **open** | yes (needs a pass) |
+| 11 | Loop rotation (test at the bottom) | c2 | c2 | pdp11/vax via c2 | **done** (`common/x86peep.h`) | yes (needs a pass) |
 | 12 | Branch reversal over `jbr`, jump chains, cross-jumping | c2 | c2 (+ `jumpsw`) | pdp11/vax via c2; `-xdeljumps` | partly | yes |
-| 13 | Redundant load / store / test elimination (register tracking) | c2 `rmove` | c2 `rmove` | via c2 | **open** | yes (needs a pass) |
+| 13 | Redundant load / store / test elimination (register tracking) | c2 `rmove` | c2 `rmove` | via c2 | **partly** (`testl` after and/or/xor; Z/S branches after add/sub/inc/dec) | yes (needs a pass) |
 | 14 | Send a result straight to its destination (`bflow`) | c2 (2-address) | c2 (3-address) | via c2 | no (2-address ISA) | risc: no |
-| 15 | Address constants: `movab`/`pushab`/`moval` | - | c2 | done (vax) | `leal` open | m68k `lea` |
+| 15 | Address constants: `movab`/`pushab`/`moval` | - | c2 | done (vax) | **done** on amd64 (`leaq sym(%rip)`, `movl $c`); `leal` for `&a[i]` open | m68k `lea` |
 | 16 | Counted-loop instructions | `sob` | `sobgeq` `aoblss` `acbl` | via c2 | `loop` is slow: no | ppc `bdnz`, arm64 none |
 | 17 | Switch via jump table | - | `casel` | no | exists (generic) | exists |
 | 18 | Callee-saved registers in an entry mask | csv | `.word mask` | done (vax) | push/pop | no |
@@ -401,6 +402,29 @@ The PDP-11 work found several allocator issues worth knowing for any port:
 6. **Which backends build and pass today** (see `DMR-OPTIMIZATIONS-OTHER-TARGETS.md`):
    i386, amd64, VAX, PDP-11 work; MIPS and ARM partly; m68k, i86, powerpc,
    m16c, pdp7 do not build; riscv, sparc64, hppa, pdp10 do not configure.
+
+## Bugs found by compiling real programs
+
+Optimizations are only as good as the testing behind them. Three kinds of testing
+turned up compiler bugs that the unit tests had not:
+
+* **pcc compiles pcc** (`tools/pccboot.sh`): gcc builds stage 0, stage 0 builds
+  stage 1 with `-xdmr -xtemps ...`, stage 1 builds stage 2; the compiler, the
+  preprocessor, the driver and all 36 objects must be byte identical.  It found
+  (a) spill-slot sharing that sized every slot as one word, so two temporaries of
+  different sizes overlapped on amd64, and (b) `deljumps` inverting a relation by
+  swapping the operands, which put a constant on the left (`cmpl %eax,$1`).
+  Both are fixed; the self-built compiler produces the same code as the
+  gcc-built one on 198 compiles once labels are renumbered.
+* **V7 commands inside V7** (`tools/v7progs.py`): `pcc -O` builds the commands of
+  /usr/src/cmd, V7 assembles and links them, and each runs next to the build by
+  V7's own cc on the same input.  It found a crash for `register unsigned x; x >>= n`
+  (`findmops` chose a rule that wants the operand in r1 for a variable pinned in
+  r4), a crash for `**p++ = 0` (an autoincrement made after the increment
+  already had its own instruction), and that unsigned `/` and `%` called
+  helpers V7's libc does not have.
+* **32V under SIMH** (`tools/vax32v.py`): found that the saved 32V disk had a
+  stale free list, which made everything we put on it unreliable.
 
 ## What is still open
 
