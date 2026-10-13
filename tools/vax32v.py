@@ -14,6 +14,9 @@ Environment:
     VAX780      open-simh vax780 (the Ubuntu 'simh' 3.8-1 binary crashes 32V)
     VAX32V_DISK a pristine installed 32V disk (see prebsd/vax/install32v.py)
     VAX32V_PORT console port (default 10024)
+                (the saved disk's free list must be rebuilt once, or files put in
+                by FUSE share blocks with what the guest writes later and read back
+                as garbage:  fsck.filsys -v vax32 -s -y -f disk)
     FILSYS      mount.filsys (default: ~/claude/facetlang/pdp11/filsys/mount.filsys)
 """
 import os, re, shutil, socket, subprocess, sys, tempfile, time
@@ -217,7 +220,8 @@ def main():
         names.append(name)
         ids.append(n)
     sh = 'cd /tmp\nfor t in ' + ' '.join('%d' % n for n in ids) + '\ndo\n' \
-         '\tif cc -o t$t.out m$t.c t$t.s > e$t 2>&1\n\tthen\n\t\t./t$t.out || echo "RESULT n$t CRASH"\n' \
+         '\t# the first as after a boot sometimes fails with a bogus syntax error: retry once\n' \
+         '\tif cc -o t$t.out m$t.c t$t.s > e$t 2>&1 || cc -o t$t.out m$t.c t$t.s > e$t 2>&1\n\tthen\n\t\t./t$t.out || echo "RESULT n$t CRASH"\n' \
          '\telse\n\t\techo "RESULT n$t BUILDFAIL"; head -3 e$t\n\tfi\ndone\necho ALLDONE\n'
     files['run.sh'] = sh.encode()
     if keep:
