@@ -207,7 +207,7 @@ def main():
             new = t.replace('$P', './pcc_' + p)
             sh.append('( %s ) > r.out 2>&1' % ref.replace('\n', '\n'))
             sh.append('( %s ) > p.out 2>&1' % new.replace('\n', '\n'))
-            more = '; diff r.out p.out | head -6' if os.environ.get('V7VERBOSE') else ''
+            more = '; diff r.out p.out | sed 8q' if os.environ.get('V7VERBOSE') else ''
             sh.append('if cmp -s r.out p.out; then echo "OK %s %d"; else echo "DIFF %s %d"%s; fi' % (p, k, p, k, more))
         sh.append('rm -f ref_%s pcc_%s %s.s' % (p, p, p))
     sh.append('echo ALLDONE')
