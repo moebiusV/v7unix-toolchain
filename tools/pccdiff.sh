@@ -14,6 +14,12 @@
 #   PCC=path/to/pcc   (default ~/claude/pcc/install/bin/pcc; its libexec must
 #                      hold pdp11-bsd-cc2 -> modern/usr/src/cmd/c/c2)
 #
+# The C dialect pcc accepts is not changed for this scoreboard.  Sources that
+# use "void" as a name (sh's struct void) are compiled with -Dvoid=Void_;
+# fragments that are #included by other files, not translation units of their
+# own, are skipped; every other source pcc rejects is counted under the kind of
+# its first error (see the end of the run).
+#
 set -u
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -70,7 +76,27 @@ asize() {
 	"$AS" -u -o "$2" "$1" >/dev/null 2>&1 && osize "$2"
 }
 
-pfail=0; dfail=0; tot=0
+# included fragments (they are not complete programs: lex's lmain.c includes them)
+isfragment() {
+	case $1 in
+	*/lex/header.c|*/lex/ldefs.c|*/lex/once.c|*/cpp/yylex.c) return 0;;
+	esac
+	return 1
+}
+
+# the kind of a pcc error log: the first message that is an error
+classify() {
+	m=$(grep -v -i 'warning\|terminated with status\|goodbye' "$1" | grep -m1 ': ' | sed 's/^[^:]*: //')
+	case $m in
+	*"not declared"*|*"struct or union required"*|*"no member"*) echo "member of another struct's namespace (K&R)";;
+	*"undefined"*) echo "undeclared name (K&R implicit extern)";;
+	*"syntax error"*|*"invalid function definition"*|*"redeclaration"*) echo "declaration or statement form (K&R)";;
+	"") echo "other (no message)";;
+	*) echo "other: $m";;
+	esac
+}
+
+pfail=0; dfail=0; tot=0; skipped=0; : >"$W/kinds"; : >"$W/skips"
 sd=0; sc=0; sx=0		# summed bytes: dmr, pcc -S+c2, pcc -O (x flags + c2)
 okc=0; okx=0			# files where pcc is no bigger than dmr
 files=$(for a in "$@"; do
@@ -80,6 +106,11 @@ done)
 for f in $files; do
 	b=$(basename "$f" .c); d=$(dirname "$f")
 	w=$W/$b; mkdir -p "$w"
+	if isfragment "$f"; then
+		skipped=$((skipped+1)); echo "$f" >>"$W/skips"; continue
+	fi
+	vflag=
+	if grep -qs 'struct[[:space:]][[:space:]]*void' "$f" "$d"/*.h; then vflag=-Dvoid=Void_; fi
 	# --- dmr side
 	if ! { "$CPP" -I"$d" -I"$INC" "$f" "$w/i" &&
 	       "$C0" "$w/i" "$w/t1" "$w/t2" &&
@@ -88,10 +119,11 @@ for f in $files; do
 		dfail=$((dfail+1)); [ $verbose = 1 ] && echo "DMRFAIL $f"; continue
 	fi
 	# --- pcc side, two ways: ccom then c2 only, and the driver's full -O
-	if ! { "$PCC" -S ${PCCDIFF_SFLAGS:-} -I"$d" -I"$INC" -o "$w/pccc.raw" "$f" &&
+	if ! { "$PCC" -S ${PCCDIFF_SFLAGS:-} $vflag -I"$d" -I"$INC" -o "$w/pccc.raw" "$f" &&
 	       "$C2" = "$w/pccc.raw" "$w/pccc.s"; } >"$w/err" 2>&1 ||
-	   ! "$PCC" -O ${PCCDIFF_XFLAGS:-} -S -I"$d" -I"$INC" -o "$w/pccx.s" "$f" >>"$w/err" 2>&1; then
+	   ! "$PCC" -O ${PCCDIFF_XFLAGS:-} -S $vflag -I"$d" -I"$INC" -o "$w/pccx.s" "$f" >>"$w/err" 2>&1; then
 		pfail=$((pfail+1))
+		echo "$(classify "$w/err")" >>"$W/kinds"
 		[ $verbose = 1 ] && echo "PCCFAIL $f: $(grep -m1 -i error "$w/err")"
 		continue
 	fi
@@ -112,7 +144,16 @@ for f in $files; do
 done
 
 pct() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%+.1f%%", b ? (a-b)*100/b : 0 }'; }
-echo "pccdiff: $tot files compared ($pfail pcc-failed, $dfail dmr-failed); text+data bytes:"
+echo "pccdiff: $tot files compared ($pfail pcc-rejected, $dfail dmr-failed, $skipped fragments skipped); text+data bytes:"
 echo "  dmr cc:                  $sd"
 echo "  pcc -S + c2 only:        $sc  ($(pct $sc $sd))   $okc/$tot files no bigger than dmr"
 echo "  pcc -O (x flags + c2):   $sx  ($(pct $sx $sd))   $okx/$tot files no bigger than dmr"
+
+if [ "$pfail" -gt 0 ]; then
+	echo "pcc rejects these ($pfail), by the kind of their first error:"
+	sort "$W/kinds" | uniq -c | sort -rn | sed 's/^/  /'
+fi
+if [ "$skipped" -gt 0 ]; then
+	echo "skipped, not translation units of their own:"
+	sed 's/^/  /' "$W/skips"
+fi
