@@ -324,11 +324,27 @@ named object) is accepted by the compare and assign templates and `adrput` print
 **Port.** x86 `leal sym,%eax` is the same size as `movl $sym,%eax`: no gain
 unless an index is involved.  With an index, i386 `-xdmr` writes `&a[i]` as one
 `leal a(,%ecx,4),%edx` (special shapes `SSYMADDR`/`SSCALE`; libc 20142 -> 20132).
-i386 can: an absolute address in code is a load-time relocation there (`R_386_32`);
-a PIE link accepts it with a `DT_TEXTREL` warning, exactly as for the `movl $sym`
-the i386 backend already writes.  amd64 does not: that form needs an absolute 32-bit
-relocation (`R_X86_64_32S`), which a PIE link rejects, and the position-independent form
-(`leaq a(%rip),%rdx; leaq (%rdx,%rcx,4)`) is two instructions, so no gain.
+**Why i386 may use it and amd64 may not (position-independent executables).**
+A PIE is loaded at a random address, so every address it holds must be fixed up
+when it is loaded.  An absolute address written into an instruction, as in
+`leal a(,%ecx,4),%edx` (the 32-bit address of `a` is part of the instruction), is
+patched by the dynamic loader, which is called a text relocation.
+
+* **i386:** the relocation is `R_386_32`, a full 32-bit address, and the loader
+  can patch it.  The linker accepts it in a PIE, with the warning "creating
+  DT_TEXTREL in a PIE" (the code pages must be writable while the loader patches
+  them, and are then no longer shared between processes).  The i386 backend
+  already does exactly this for every `movl $sym,%reg` and `sym(,%reg,4)`, so
+  `leal` adds no new kind of relocation; I linked a test with it to check.
+  Code that must be fully position independent, such as a shared library, is
+  built without `-xdmr`'s absolute forms in any case.
+* **amd64:** the relocation would be `R_X86_64_32S`, a 32-bit sign-extended
+  address.  A 64-bit PIE can be loaded anywhere in a 47-bit address space, so
+  the loader cannot patch a 32-bit field, and the linker refuses ("relocation
+  R_X86_64_32S ... recompile with -fPIE").  The position-independent form is
+  `leaq a(%rip),%rdx; leaq (%rdx,%rcx,4),%rax`, two instructions, which is no
+  smaller than what pcc writes now, so amd64 keeps the old code.
+
 m68k `pea`/`lea`.
 
 ## 16. Counted-loop instructions
