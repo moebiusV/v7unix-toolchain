@@ -30,8 +30,8 @@ the PDP-11). Everything else is unchanged.
 |---|---|---|---|---|
 | PDP-11 | libc, 89 files | dmr 17356 | 17234 | -0.7% |
 | PDP-11 | `cmd/`, 51 files (sh now included) | dmr 90178 | 88482 | -1.9% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19360 | -11.9% |
-| VAX (32V) | 39 command sources | `cc -O` 77760 | 71528 | -8.0% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19224 | -12.5% |
+| VAX (32V) | 39 command sources | `cc -O` 77760 | 70900 | -8.8% |
 | i386 | libc | n/a | 20763 -> 20142 with `-xdmr` | -3.0% |
 | amd64 | libc | n/a | 25227 -> 23524 with `-xdmr` | -6.8% |
 
@@ -482,9 +482,17 @@ Making the VAX tests run c2 for the first time found three faults in the c2 sour
 * **c2 assumed r0-r5 are dead at labels and branches.**  True of the original
   ccom, whose temporaries lived within a statement; `-xtemps` keeps loop counters
   in them, so `subl3 $1,r0,r0; movl r0,r1; incl r1; jleq` became `decl r0; incl r0`
-  and lost the decrement (the `swap` test crashed).  Registers are now live at
-  every label and branch.  This costs 1.5% on VAX libc (19064 -> 19360).  The
-  real fix would be dataflow over the labels.
+  and lost the decrement (the `swap` test crashed).  c2 now computes liveness of
+  r0-r5 by dataflow over the labels (`findlive()`: blocks from label to label,
+  fixpoint, indirect jumps and instructions it does not understand read all
+  registers, only a write that surely replaces the whole register kills one).
+  Treating everything as live first cost 1.5% on VAX libc; the dataflow gets
+  most of it back (19064 unsound, 19360 all live, 19224 now).
+* **Two more c2 bugs that all-live had hidden**: the fetch elimination
+  (`movl rA,rB; op ..rB..`) substituted rA into `incl`/`decl`/`sob`/`aob`/`acb`,
+  which modify their operand (`decl r10; incl r10` lost a decrement), and it turned
+  `mull2 r0,r0` into `mull3 r0,r0,r1` whenever the second operand equalled the
+  copy's source (`sq()` under `-xssa` returned garbage).
 * **An empty input crashed both c2s** (a `NULL` operand pointer), and the opcode
   hash table was read one slot past its end (`>` for `>=`).  Found with
   AddressSanitizer; the VAX c2's output also depended on compiler flags because
@@ -512,7 +520,7 @@ declaration forms (3).
 
 * x86: loop rotation, `testl` after `decl`/`addl`, `leal` for `&a[i]`, the dead
   mask fold for every target, `jumpsw`-like layout not worth doing.
-* VAX: real liveness in c2 instead of "all live at labels", `deroff` (+184 bytes
+* VAX: `deroff` (+184 bytes
   over `cc -O`), `cvtlb` stores (we emit `movb`), `movq` pairs.
 * Ship the VAX `c2` with the NetBSD VAX dialect (it parses the 32V assembler
   dialect only).
