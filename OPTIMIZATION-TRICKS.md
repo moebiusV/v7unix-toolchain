@@ -336,8 +336,8 @@ patched by the dynamic loader, which is called a text relocation.
   them, and are then no longer shared between processes).  The i386 backend
   already does exactly this for every `movl $sym,%reg` and `sym(,%reg,4)`, so
   `leal` adds no new kind of relocation; I linked a test with it to check.
-  Code that must be fully position independent, such as a shared library, is
-  built without `-xdmr`'s absolute forms in any case.
+  (Text relocations are a cost: `-xdmr` output on i386 is not for a shared
+  library that must stay shareable.)
 * **amd64:** the relocation would be `R_X86_64_32S`, a 32-bit sign-extended
   address.  A 64-bit PIE can be loaded anywhere in a 47-bit address space, so
   the loader cannot patch a 32-bit field, and the linker refuses ("relocation
