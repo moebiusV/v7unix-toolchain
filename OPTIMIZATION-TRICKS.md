@@ -324,8 +324,10 @@ named object) is accepted by the compare and assign templates and `adrput` print
 **Port.** x86 `leal sym,%eax` is the same size as `movl $sym,%eax`: no gain
 unless an index is involved.  With an index, i386 `-xdmr` writes `&a[i]` as one
 `leal a(,%ecx,4),%edx` (special shapes `SSYMADDR`/`SSCALE`; libc 20142 -> 20132).
-amd64 does not: that form needs an absolute 32-bit relocation
-(`R_X86_64_32S`), which a PIE link rejects, and the position-independent form
+i386 can: an absolute address in code is a load-time relocation there (`R_386_32`);
+a PIE link accepts it with a `DT_TEXTREL` warning, exactly as for the `movl $sym`
+the i386 backend already writes.  amd64 does not: that form needs an absolute 32-bit
+relocation (`R_X86_64_32S`), which a PIE link rejects, and the position-independent form
 (`leaq a(%rip),%rdx; leaq (%rdx,%rcx,4)`) is two instructions, so no gain.
 m68k `pea`/`lea`.
 
@@ -506,6 +508,57 @@ instructions instead of five, and `x = (char)((int)x & c)` is done in the narrow
 type so c2 sees `bicb2 $-128,(r)`.  The remaining 6 command sources that are
 larger than `cc -O` (deroff +184, cron +52, dd +44, chmod +32, ...) are byte
 stores through `cvtbl`/`movb` pairs where 32V used `cvtlb`.
+
+## Defects in the originals and in upstream pcc
+
+Found by running the output of the new compiler on real systems.  Defects that
+our own changes introduced and then fixed are not listed.  The old ones were
+latent: nothing the original compilers produced reached them.
+
+**In the original Unix code** (V7 and 32V `c2`, the assembly optimizers):
+
+* The opcode hash table is searched with `if (ophp > &ophash[OPHS]) ophp = ophash;`
+  after `*ophp++`, so a full probe sequence reads `ophash[OPHS]`, one past the
+  table (V7 `c20.c` and 32V `c20.c`; the lookup routine in the same file uses
+  `>=`).  Harmless while the table has free slots near the end.
+* 32V `c2` took r0-r5 to be dead at every label and branch.  That was a fact
+  about the 32V `ccom`, whose temporaries never outlived a statement, not a
+  property of the language; any code generator that keeps a value in one of them
+  around a loop gets live registers overwritten.
+* 32V `c2`'s fetch elimination (`movl rA,rB` followed by a use of `rB`) replaces
+  `rB` by `rA` in the next instruction even when that instruction modifies the
+  operand (`incl`, `decl`, `sob`, `aob`, `acb`), which changes `rA`; and the
+  three-operand conversion that follows tests whether the second operand equals
+  the copy's source instead of whether it was the eliminated register, so
+  `mull2 r0,r0` after `movl r0,r1; mull3 r0,r1,r0` became `mull3 r0,r0,r1`.
+* After an `.lcomm`, 32V `c2` goes on with a stale label number for the next
+  label it makes (6 of the 91 libc files differ from the original's output once
+  the port avoids it).
+
+**In upstream pcc** (PortableCC/pcc, the PDP-11 and VAX backends and the shared
+code they rely on):
+
+* `cgram.y` rewrites `a > b` as `b < a` and `a <= b` as `b >= a`.  The PDP-11
+  template `cmp AL,AR` assumes the operands are where the source put them, so a
+  constant landed on the left, the `tst` form was lost and the branch came out
+  inverted for `>` and `<=`.
+* `mip/optim2.c` (`-xdeljumps`) inverts a relation by swapping the operands, which
+  also puts a constant on the left, a form the backends do not accept
+  (`cmpl %eax,$1`).
+* `arch/pdp11/local.c` retypes a `DIV` or `MOD` under an int/unsigned conversion
+  to the outer type, which changes the signedness of the division.
+* `register unsigned x; x >>= n` crashed the compiler: `findmops` in
+  `mip/match.c` picked a rule that wants its operand in a fixed register for a
+  variable pinned to another.
+* `**p++ = 0` crashed the PDP-11 backend: the operand left to `myormake` already
+  had its own increment instruction, which was then lost.
+* Unsigned `/` and `%` call helpers (`udiv`, `urem`, `uldiv`, `ulrem`) that V7's
+  libc, and 32V's, do not have, so such programs fail to link.
+* `-xssa` on the PDP-11 miscompiles V7's `getnum` (not traced to its cause; SSA
+  stays off).
+* The VAX backend's floating-constant symbol was never initialised (a
+  `#define sap sss` compatibility macro hid it), so the compiler looped forever
+  on a program with a `double` constant under `-xdeljumps`.
 
 ## The scoreboard and the old K&R sources
 
