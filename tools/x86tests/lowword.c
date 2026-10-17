@@ -1,5 +1,5 @@
 /* expect: 1 -- (int) of a long in memory is its low word: statics, autos, parameters, signed and unsigned.
-   (Only where long is twice as wide as int, the PDP-11, is there anything to check.) */
+   (Only on a machine with 16-bit int and 32-bit long, the PDP-11, is there anything to check.) */
 long gl;
 unsigned long gul;
 
@@ -13,7 +13,7 @@ int test(void)
 	int bad = 0, k;
 	long big;
 
-	if (sizeof(long) != 2 * sizeof(int))
+	if (sizeof(int) != 2 || sizeof(long) != 4)
 		return 1;
 
 	big = 305419896L;			/* 0x12345678 */
