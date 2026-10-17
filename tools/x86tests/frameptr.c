@@ -23,13 +23,15 @@ int test()
 	r = *b.p++;
 	if (r != 0 || b.p != buf + 3) bad |= 4;
 	b.p = buf;
-	r = *b.p++ + *b.p++;
+	r = *b.p++;
+	r += *b.p++;
 	if (r != 'a' + 'b' || b.p != buf + 2) bad |= 8;
 	(*b.ip)++;
 	*b.ip += 5;
 	if (arr[2] != 36) bad |= 16;
 	b.ip = arr;
-	b.cnt = *b.ip++ + *b.ip;
+	b.cnt = *b.ip++;
+	b.cnt += *b.ip;
 	if (b.cnt != 30 || b.ip != arr + 1) bad |= 32;
 	return bad ? bad : 1;
 }
