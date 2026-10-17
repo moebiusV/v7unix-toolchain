@@ -170,6 +170,18 @@ bfcode(struct symtab **sp, int n)
 	struct symtab *sp2;
 	NODE *p, *q;
 	int i, argbase, sz;
+	extern int c2_quadret;
+	static int firstftn = 1;
+	TWORD rt;
+
+	/* tell c2 whether r1 can be live at a ret: only a quad return puts anything there */
+	if (firstftn) {
+		firstftn = 0;
+		c2_quadret = 0;
+	}
+	rt = DECREF(cftnsp->stype);
+	if (rt == DOUBLE || rt == LDOUBLE || rt == LONGLONG || rt == ULONGLONG)
+		c2_quadret = 1;
 
 	if (cftnsp->stype == STRTY+FTN || cftnsp->stype == UNIONTY+FTN) {
 		/* Move return address into temporary */

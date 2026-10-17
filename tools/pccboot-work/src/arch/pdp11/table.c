@@ -640,6 +640,28 @@ struct optab table[] = {
 /* First optimizations, in lack of weight it uses first found */
 /* Start with class A registers */
 
+/*
+ * A pointer variable in the frame stepped as it is used, *(v += k) - k (-xdmr):
+ * the access through v and then  add $k,v  in place, as dmr-cc has it.
+ */
+{ UMUL,	INAREG,
+	SANY,	TPOINT|TWORD,
+	SSTARINC,	TPOINT|TWORD|TCHAR|TUCHAR,
+		NAREG,	RESC1,
+		"ZM", },
+
+{ ASSIGN,	FOREFF,
+	SSTARINC,	TPOINT|TWORD|TCHAR|TUCHAR,
+	SAREG|SNAME|SOREG|SCON,	TPOINT|TWORD|TCHAR|TUCHAR,
+		0,	RNULL,
+		"ZO", },
+
+{ ASSIGN,	FOREFF,
+	SSTARINC,	TPOINT|TWORD|TCHAR|TUCHAR,
+	SSTARINC,	TPOINT|TWORD|TCHAR|TUCHAR,
+		0,	RNULL,
+		"ZO", },
+
 /* Clear word at address */
 { ASSIGN,	FOREFF|FORCC,
 	ARONS,	TWORD|TPOINT,
@@ -1073,6 +1095,13 @@ struct optab table[] = {
 	SCON|SBREG|SOREG|SNAME,	TLONG|TULONG,
 		0,	RLEFT|RESCC,
 		"bis	AR,AL\nbis	UR,UL\n", },
+
+/* OR into the register of the right operand: bis AL,AR (a variable first, a computed value second) */
+{ OR,	INAREG|FORCC,
+	SAREG|SNAME|SOREG|SCON,	TWORD,
+	SAREG,			TWORD,
+		0,	RRIGHT|RESCC,
+		"bis	AL,AR\n", },
 
 /* OR with int */
 { OR,	FOREFF|INAREG|FORCC,

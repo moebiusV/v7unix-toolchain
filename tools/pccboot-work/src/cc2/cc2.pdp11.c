@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -122,6 +123,8 @@ int16_t	ncomj;
 int16_t	nsob;
 int16_t	nrtst;
 int16_t	nlit;
+int16_t	nauto;
+int16_t	nspillp;
 
 int16_t	nchange;
 int16_t	isn;
@@ -413,6 +416,223 @@ int16_t	isn	= 20000;
 int16_t	lastseg	= -1;
 
 
+/*
+ * How many times does the text s name register rn (as a register, not as part
+ * of a symbol)?
+ */
+static int nregref(const char *s, int rn)
+{
+	int i, n = 0;
+
+	for (i = 0; s[i]; i++)
+		if (s[i] == 'r' && s[i+1] == '0' + rn && !isalnum((unsigned char)s[i+2]) &&
+		    (i == 0 || (!isalnum((unsigned char)s[i-1]) && s[i-1] != '_' && s[i-1] != '$')))
+			n++;
+	return n;
+}
+
+/*
+ * add $2,rN (or inc rN, for a byte) just before the instruction that uses
+ * -2(rN) once is (rN)+ in that instruction; sub $2,rN (dec rN) before a use of
+ * (rN) is -(rN).  The PDP-11 does the step as the operand is evaluated, so
+ * nothing else changes.  Both instructions set the codes, so those are the
+ * instruction's own either way.  pcc makes pointers in registers that are not
+ * `register` variables, and only those variables got the mode before.
+ */
+static int autoinc(void)
+{
+	struct node *a, *b;
+	int rn, k, up, nb;
+	char *c, pat[24], *at, buf[100];
+
+	nb = 0;
+	for (b = first.forw; b != 0; b = b->forw) {
+		if (b->code == 0 || b->back == 0 || (a = b->back)->code == 0)
+			continue;
+		switch (b->op) {
+		case MOV: case ADD: case SUB: case CMP: case BIT: case BIC: case BIS:
+		case CLR: case TST: case INC: case DEC: case COM: case NEG: case ASR: case ASL:
+			break;
+		default:
+			continue;
+		}
+		/* the step */
+		c = a->code;
+		if ((a->op == ADD || a->op == SUB) && a->subop != BYTE &&
+		    c[0] == '$' && (c[1] == '2' || c[1] == '1') && c[2] == ',' &&
+		    c[3] == 'r' && c[4] >= '0' && c[4] <= '4' && c[5] == 0) {
+			k = c[1] - '0'; rn = c[4] - '0'; up = a->op == ADD;
+		} else if ((a->op == INC || a->op == DEC) && c[0] == 'r' && c[1] >= '0' &&
+		    c[1] <= '4' && c[2] == 0) {
+			k = 1; rn = c[1] - '0'; up = a->op == INC;
+		} else
+			continue;
+		/* a word steps by 2, a byte by 1 */
+		if (k != (b->subop == BYTE ? 1 : 2))
+			continue;
+		if (up)
+			snprintf(pat, sizeof pat, "-%d(r%d)", k, rn);
+		else
+			snprintf(pat, sizeof pat, "(r%d)", rn);
+		if ((at = strstr(b->code, pat)) == 0 || (at > b->code && at[-1] == '*') ||
+		    (!up && at > b->code && at[-1] == '-') ||
+		    (!up && (at[strlen(pat)] == '+')))
+			continue;
+		if (strstr(at + 1, pat) != 0)
+			continue;
+		/* the register named once, or the destination of a source we step */
+		if (nregref(b->code, rn) != 1) {
+			char *comma = strrchr(b->code, ',');
+			char dst[8];
+
+			if (nregref(b->code, rn) != 2 || comma == 0 || at > comma)
+				continue;
+			snprintf(dst, sizeof dst, "r%d", rn);
+			if (strcmp(comma + 1, dst) != 0)
+				continue;
+		}
+		if ((size_t)(at - b->code) + strlen(b->code) > sizeof buf - 8)
+			continue;
+		memcpy(buf, b->code, at - b->code);
+		buf[at - b->code] = 0;
+		if (up)
+			snprintf(buf + strlen(buf), sizeof buf - strlen(buf), "(r%d)+%s", rn, at + strlen(pat));
+		else
+			snprintf(buf + strlen(buf), sizeof buf - strlen(buf), "-(r%d)%s", rn, at + strlen(pat));
+		b->code = copy(1, buf);
+		a->back->forw = b;
+		b->back = a->back;
+		nb++;
+	}
+	return nb;
+}
+
+/*
+ * The extent of the function that contains node n: from its csv call to the next.
+ */
+static void funcextent(struct node *n, struct node **lo, struct node **hi)
+{
+	struct node *q;
+
+	*lo = &first;
+	for (q = n; q != 0 && q != &first; q = q->back)
+		if (q->op == JSR && q->code && strncmp(q->code, "r5,csv", 6) == 0) {
+			*lo = q;
+			break;
+		}
+	*hi = 0;
+	for (q = n->forw; q != 0; q = q->forw)
+		if (q->op == JSR && q->code && strncmp(q->code, "r5,csv", 6) == 0) {
+			*hi = q;
+			break;
+		}
+}
+
+/* How often does a frame slot, "off(r5)", occur in the function around n? */
+static int slotrefs(struct node *n, int off)
+{
+	struct node *lo, *hi, *q;
+	char pat[24];
+	int c = 0;
+
+	snprintf(pat, sizeof pat, "%d(r5)", off);
+	funcextent(n, &lo, &hi);
+	for (q = lo->forw; q != 0 && q != hi; q = q->forw) {
+		char *at = q->code;
+
+		while (q->code && (at = strstr(at, pat)) != 0) {
+			/* the whole number, not the tail of a longer one */
+			if (at == q->code || !(isdigit((unsigned char)at[-1])))
+				c++;
+			at += strlen(pat);
+		}
+	}
+	return c;
+}
+
+/*
+ * A value spilled to a frame slot and reloaded straight after, a long that has
+ * to wait for another to be computed:
+ *	mov r0,-16(r5); mov r1,-14(r5); <loads>; sub -16(r5),r0; sub -14(r5),r1
+ * is a push and a pop, as dmr-cc does it:
+ *	mov r1,-(sp); mov r0,-(sp); <loads>; sub (sp)+,r0; sub (sp)+,r1
+ * when the slots are used only here and nothing in between touches the stack
+ * or leaves the straight line.  A one-word spill is the same with one push.
+ */
+static int spillpush(void)
+{
+	struct node *s1, *s2, *q, *u1, *u2, *bn;
+	int off1, off2 = 0, n, r1, r2 = 0, pairs, nb = 0, win;
+	char a[8], b[8], buf[60];
+
+	for (s1 = first.forw; s1 != 0; s1 = s1->forw) {
+		if (s1->op != MOV || s1->subop == BYTE || s1->code == 0)
+			continue;
+		n = -1;
+		if (sscanf(s1->code, "r%d,%d(r5)%n", &r1, &off1, &n) != 2 || n < 0 ||
+		    s1->code[n] != 0 || r1 > 4 || off1 >= 0)
+			continue;
+		/* one word, or two if the next store is the next word of a long */
+		s2 = s1->forw;
+		pairs = 1;
+		n = -1;
+		if (s2 && s2->op == MOV && s2->subop != BYTE && s2->code &&
+		    sscanf(s2->code, "r%d,%d(r5)%n", &r2, &off2, &n) == 2 && n >= 0 &&
+		    s2->code[n] == 0 && off2 == off1 + 2 && r2 <= 4 && r2 != r1)
+			pairs = 2;
+		if (slotrefs(s1, off1) != 2 || (pairs == 2 && slotrefs(s1, off2) != 2))
+			continue;
+		/* the reloads: a straight line to them, no stack use on the way */
+		snprintf(a, sizeof a, "%d(r5)", off1);
+		snprintf(b, sizeof b, "%d(r5)", off2);
+		bn = pairs == 2 ? s2 : s1;
+		u1 = u2 = 0;
+		for (q = bn->forw, win = 0; q != 0 && win < 10; q = q->forw, win++) {
+			if (q->op == LABEL || q->op == JBR || q->op == CBR || q->op == JMP ||
+			    q->op == JSR || q->op == JSW || q->code == 0 || strstr(q->code, "sp") != 0)
+				break;
+			if (!u1 && strncmp(q->code, a, strlen(a)) == 0 && q->code[strlen(a)] == ',' &&
+			    q->subop != BYTE && (q->op == MOV || q->op == ADD || q->op == SUB ||
+			    q->op == CMP || q->op == BIS || q->op == BIC)) {
+				u1 = q;
+				if (pairs == 1)
+					break;
+				continue;
+			}
+			if (pairs == 2 && u1 && !u2 && strncmp(q->code, b, strlen(b)) == 0 &&
+			    q->code[strlen(b)] == ',' && q->subop != BYTE &&
+			    (q->op == MOV || q->op == ADD || q->op == SUB || q->op == CMP ||
+			    q->op == BIS || q->op == BIC)) {
+				u2 = q;
+				break;
+			}
+			/* any other mention of the slots in the window spoils it */
+			if (strstr(q->code, a) != 0 || (pairs == 2 && strstr(q->code, b) != 0))
+				break;
+		}
+		if (!u1 || (pairs == 2 && !u2))
+			continue;
+		/* the pops are in the order of the stores: push the later word first */
+		if (pairs == 2) {
+			snprintf(buf, sizeof buf, "r%d,-(sp)", r2);
+			s1->code = copy(1, buf);
+			snprintf(buf, sizeof buf, "r%d,-(sp)", r1);
+			s2->code = copy(1, buf);
+		} else {
+			snprintf(buf, sizeof buf, "r%d,-(sp)", r1);
+			s1->code = copy(1, buf);
+		}
+		snprintf(buf, sizeof buf, "(sp)+%s", u1->code + strlen(a));
+		u1->code = copy(1, buf);
+		if (pairs == 2) {
+			snprintf(buf, sizeof buf, "(sp)+%s", u2->code + strlen(b));
+			u2->code = copy(1, buf);
+		}
+		nb++;
+	}
+	return nb;
+}
+
 int16_t main(int16_t argc, char **argv)
 {
 	register int16_t niter, maxiter, isend;
@@ -465,6 +685,8 @@ int16_t main(int16_t argc, char **argv)
 			rmove();
 		} while (nchange || jumpsw());
 		addsob();
+		{ int n; while ((n = autoinc()) > 0) nauto += n; }
+		nspillp += spillpush();
 		output();
 		if (niter > maxiter)
 			maxiter = niter;
@@ -487,6 +709,8 @@ int16_t main(int16_t argc, char **argv)
 		fprintf(stderr, "%d sob's added\n", nsob);
 		fprintf(stderr, "%d redundant tst's\n", nrtst);
 		fprintf(stderr, "%d literals eliminated\n", nlit);
+		fprintf(stderr, "%d autoincrement modes\n", nauto);
+		fprintf(stderr, "%d spills made pushes\n", nspillp);
 	}
 	exit(0);
 }

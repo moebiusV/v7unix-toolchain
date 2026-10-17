@@ -864,6 +864,9 @@ isptrvar(NODE *x)	/* a pointer held in memory, read twice without effects */
 		return 0;
 	if (x->n_op == NAME)
 		return 1;
+	/* a variable of the frame, already an OREG off the frame pointer */
+	if (x->n_op == OREG)
+		return regno(x) == FPREG && !R2TEST(x->n_rval) && x->n_name[0] == '\0';
 	if (x->n_op != UMUL)
 		return 0;
 	/*
@@ -985,42 +988,6 @@ toepilog(struct p2env *p2e, struct interpass *ip)
 	return q != e && q->type == IP_EPILOG;
 }
 
-static int
-hasside(NODE *p)
-{
-	int ty = optype(p->n_op);
-
-	if (p->n_op == ASSIGN || p->n_op == STASG || p->n_op == XASM)
-		return 1;
-	if (ty != LTYPE && hasside(p->n_left))
-		return 1;
-	return ty == BITYPE && hasside(p->n_right);
-}
-
-/*
- * (-xdmr) "v | E", v a register variable and E computed: "E | v".  The result
- * is then built in the register E arrives in and v is only read; with v first,
- * the OR is made in v's register (or a copy of it) and moved on afterwards:
- * getw's  return i | (getc(f) << 8)  is  bis r3,r0  in dmr-cc.
- */
-static NODE *orkeep;	/* an update in place, v = v | E: v stays first */
-
-static void
-orswap(NODE *p, void *arg)
-{
-	NODE *l, *r;
-
-	if (p == orkeep || p->n_op != OR || ISPTR(p->n_type) || (p->n_type != INT && p->n_type != UNSIGNED))
-		return;
-	l = p->n_left;
-	r = p->n_right;
-	if (l->n_op != REG || r->n_op == REG || r->n_op == ICON || r->n_op == NAME ||
-	    r->n_op == OREG || r->n_op == TEMP || hasside(r))
-		return;
-	p->n_left = r;
-	p->n_right = l;
-}
-
 /*
  * (-xdmr) "r = E; ret = r" just before the return, where r is a register and
  * dies there: "ret = E".  The last update of a register variable that is also
@@ -1037,16 +1004,6 @@ retfold(struct p2env *p2e)
 
 	if (!xdmr)
 		return;
-	for (ip = DLIST_NEXT(&p2e->ipole, qelem); ip != &p2e->ipole; ip = DLIST_NEXT(ip, qelem))
-		if (ip->type == IP_NODE) {
-			s2 = ip->ip_node;
-			orkeep = NULL;
-			if (s2->n_op == ASSIGN && s2->n_left->n_op == REG &&
-			    s2->n_right->n_op == OR && s2->n_right->n_left->n_op == REG &&
-			    regno(s2->n_right->n_left) == regno(s2->n_left))
-				orkeep = s2->n_right;
-			walkf(s2, orswap, 0);
-		}
 	for (ip = DLIST_NEXT(&p2e->ipole, qelem); ip != &p2e->ipole; ip = next) {
 		next = DLIST_NEXT(ip, qelem);
 		if (ip->type != IP_NODE || (s2 = ip->ip_node)->n_op != ASSIGN ||

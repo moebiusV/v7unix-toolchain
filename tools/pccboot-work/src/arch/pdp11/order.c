@@ -211,6 +211,10 @@ shumul(NODE *p, int shape)
 
 	if (p->n_op == NAME && (shape & STARNM))
 		return SRDIR;
+	/* *off(r5): a pointer in the frame, used in place through the deferred mode (-xdmr) */
+	if (xdmr && p->n_op == OREG && (shape & STARNM) && p->n_rval == FPREG &&
+	    !R2TEST(p->n_rval) && p->n_name[0] == '\0')
+		return SRDIR;
 	if (shape & SOREG)
 		return SROREG;	/* Calls offstar */
 	return SRNOPE;

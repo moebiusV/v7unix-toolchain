@@ -208,6 +208,7 @@ prtype(NODE *n)
  *  Q: call __fixunsdfdi
  */
 
+#define BITTEST	0x4000	/* n_qual of a compare that is really a bit test */
 #define	MVD	1 /* mov + dest type */
 #define	CVT	2 /* cvt + src type + dst type */
 #define	MVZ	3 /* movz + src type + dst type */
@@ -495,7 +496,9 @@ zzzcode(NODE *p, int c)
 		break;
 
 	case 'Q': /* integer compare: tst for a compare with zero (-xdmr) */
-		if (xdmr && p->n_right->n_op == ICON &&
+		if (p->n_qual == BITTEST)
+			expand(p, FORCC, "\tbitZL\tAR,AL\n");
+		else if (xdmr && p->n_right->n_op == ICON &&
 		    p->n_right->n_name[0] == '\0' && getlval(p->n_right) == 0)
 			expand(p, FORCC, "\ttstZL\tAL\n");
 		else
@@ -560,6 +563,17 @@ zzzcode(NODE *p, int c)
 
 	case 'G': /* emit conversion instructions */
 		sconv(p);
+		break;
+
+	case 'P': /* a narrow value in memory widened onto the stack (SCVTARG) */
+		{
+			NODE *c = p->n_left;
+
+			if (c->n_left->n_type == UCHAR || c->n_left->n_type == USHORT)
+				expand(c, FOREFF, "\tmovzZLl\tAL,-(" SPN ")\n");
+			else
+				expand(c, FOREFF, "\tcvtZLl\tAL,-(" SPN ")\n");
+		}
 		break;
 
 	case 'J': /* jump or ret? */
@@ -631,6 +645,7 @@ zzzcode(NODE *p, int c)
 	case 'S':  /* structure assignment */
 		{
 			register int size;
+			NODE *viaaddrof = NULL;
 
 			size = attr_find(p->n_ap, ATTR_P2STRUCT)->iarg(0);
 			SETOFF(size, 4);
@@ -649,7 +664,13 @@ zzzcode(NODE *p, int c)
 				}
 			else cerror( "STASG bad" );
 
-			if( r->n_op == ICON ) r->n_op = NAME;
+			if (r->n_op == ADDROF && (r->n_left->n_op == NAME || r->n_left->n_op == OREG)) {
+				/* the source is a named object: use its name, no address register (-xdmr) */
+				viaaddrof = r;
+				r = r->n_left;
+			} else if (r->n_op == PLUS || r->n_op == MINUS) {
+				viaaddrof = r;	/* fp + k: printed as k(fp) below */
+			} else if( r->n_op == ICON ) r->n_op = NAME;
 			else if( r->n_op == REG ) r->n_op = OREG;
 			else if( r->n_op != OREG ) cerror( "STASG-r" );
 
@@ -674,13 +695,19 @@ zzzcode(NODE *p, int c)
 					printf("	movc3	$%d,", size);
 					break;
 			}
-			adrput(stdout, r);
+			if (r->n_op == PLUS || r->n_op == MINUS)
+				printf("%ld(%s)", (long)(r->n_op == PLUS ? getlval(r->n_right) :
+				    -getlval(r->n_right)), rnames[regno(r->n_left)]);
+			else
+				adrput(stdout, r);
 			printf(",");
 			adrput(stdout, l);
 			printf("\n");
 		}
 
-			if( r->n_op == NAME ) r->n_op = ICON;
+			if (viaaddrof)
+				;
+			else if( r->n_op == NAME ) r->n_op = ICON;
 			else if( r->n_op == OREG ) r->n_op = REG;
 			if (p->n_op == STARG)
 				tfree(l);
@@ -1213,6 +1240,12 @@ mkcall(NODE *p, char *name)
 	p->n_left->n_name = name;
 }
 
+static int
+wordint(TWORD t)
+{
+	return t == INT || t == UNSIGNED || t == LONG || t == ULONG;
+}
+
 /* do local tree transformations and optimizations */
 static void
 optim2(NODE *p, void *arg)
@@ -1289,8 +1322,23 @@ optim2(NODE *p, void *arg)
 			s = r->n_left;
 			nfree(r);
 			p->n_right = s;
-		} else { /* insert complement node */
-			p->n_right = mkunode(COMPL, r, 0, r->n_type);
+		} else {
+			/*
+			 * A conversion between int and unsigned changes nothing here:
+			 * look through it for the complement, nm &= ~(b & m) with nm
+			 * unsigned (-xdmr).
+			 */
+			NODE **pp = &p->n_right;
+
+			while (xdmr && (*pp)->n_op == SCONV && wordint((*pp)->n_type) &&
+			    wordint((*pp)->n_left->n_type))
+				pp = &(*pp)->n_left;
+			if (xdmr && (*pp)->n_op == COMPL && pp != &p->n_right) {
+				s = *pp;
+				*pp = s->n_left;
+				nfree(s);
+			} else /* insert complement node */
+				p->n_right = mkunode(COMPL, r, 0, r->n_type);
 		}
 		break;
 	case SCONV:
@@ -1441,6 +1489,110 @@ trunc2(CONSZ v, TWORD t)
 	}
 }
 
+
+/*
+ * (-xdmr) EQ/NE of (x & mask) against zero is  bit mask,x  and a branch on Z:
+ * the compare node is rewritten to take x and the mask directly and marked, so
+ * the compare rules choose the operands (including a byte through a pointer)
+ * and ZQ prints bit for cmp.  c2 makes  bitb $128,(r10); jeql  a jbc.  A byte or
+ * short that was widened is tested as it lies when the mask is inside it.
+ */
+static void
+bittest(NODE *p, void *arg)
+{
+	NODE *a, *x, *m, *inner;
+	TWORD t;
+	CONSZ c;
+
+	if (!xdmr || (p->n_op != EQ && p->n_op != NE) || p->n_right->n_op != ICON ||
+	    p->n_right->n_name[0] != '\0' || getlval(p->n_right) != 0)
+		return;
+	a = p->n_left;
+	if (a->n_op != AND || (m = a->n_right)->n_op != ICON || m->n_name[0] != '\0')
+		return;
+	c = getlval(m);
+	x = a->n_left;
+	if (c < 0)
+		return;
+	/* look first, change nothing until it is sure */
+	if (x->n_op == SCONV && narrowtype(x->n_left->n_type)) {
+		t = x->n_left->n_type;
+		if (c > ((t == CHAR || t == UCHAR) ? 255 : 65535))
+			return;
+		inner = x->n_left;
+	} else if ((t = x->n_type) == INT || t == UNSIGNED || t == LONG ||
+	    t == ULONG || t == CHAR || t == UCHAR || t == SHORT || t == USHORT)
+		inner = x;
+	else
+		return;
+	if (inner->n_op != NAME && inner->n_op != OREG && inner->n_op != UMUL &&
+	    inner->n_op != REG && inner->n_op != TEMP)
+		return;
+	if (inner != x) {
+		a->n_left = inner;
+		nfree(x);
+		x = inner;
+	}
+	m->n_type = x->n_type;
+	p->n_left = x;
+	nfree(p->n_right);	/* the zero */
+	p->n_right = m;
+	p->n_qual = BITTEST;
+	nfree(a);
+}
+
+/*
+ * (-xdmr) ((int)c & 0377) is the byte zero-extended: movzbl x,r, not cvtbl then a
+ * mask (getc's  *p++ & 0377).  Same for a short and 0xffff.
+ */
+static void
+maskzext(NODE *p, void *arg)
+{
+	NODE *s, *x, *m;
+	CONSZ c;
+
+	if (!xdmr || p->n_op != AND || (s = p->n_left)->n_op != SCONV ||
+	    (m = p->n_right)->n_op != ICON || m->n_name[0] != '\0')
+		return;
+	x = s->n_left;
+	c = getlval(m);
+	if (!((x->n_type == CHAR && c == 255) || (x->n_type == SHORT && c == 65535)))
+		return;
+	if (p->n_type != INT && p->n_type != UNSIGNED && p->n_type != LONG &&
+	    p->n_type != ULONG)
+		return;
+	if (x->n_op != NAME && x->n_op != OREG && x->n_op != UMUL && x->n_op != REG &&
+	    x->n_op != TEMP)
+		return;
+	x->n_type = x->n_type == CHAR ? UCHAR : USHORT;
+	nfree(m);
+	*p = *s;
+	nfree(s);
+}
+
+/*
+ * (-xdmr) A long long element reached by base + scaled index: the compiler
+ * handles it as two longs, the upper at displacement + 4, and an index scales
+ * by the operand size, 4: so  *addr  becomes  *(&*addr)  where the inner access
+ * is only an address, movaq base[index],rX (scale 8), and the halves are (rX)
+ * and 4(rX).  A 32-bit register holds the address; everything stays correct.
+ */
+extern int quadindex(NODE *addr);
+
+static void
+quadaddr(NODE *p, void *arg)
+{
+	NODE *in, *ad;
+
+	if (!xdmr || p->n_op != UMUL || (p->n_type != LONGLONG && p->n_type != ULONGLONG) ||
+	    p->n_qual == QADDR || p->n_left->n_op == ADDROF || !quadindex(p->n_left))
+		return;
+	in = mkunode(UMUL, p->n_left, 0, p->n_type);
+	in->n_qual = QADDR;
+	ad = mkunode(ADDROF, in, 0, INCREF(p->n_type));
+	p->n_left = ad;
+}
+
 static void
 narrowops(NODE *p, void *arg)
 {
@@ -1519,6 +1671,8 @@ myreader(struct interpass *ipole)
 			continue;
 		if (kflag)
 			walkf(ip->ip_node, aofname, 0);
+		walkf(ip->ip_node, bittest, 0);
+		walkf(ip->ip_node, maskzext, 0);
 		walkf(ip->ip_node, optim2, 0);
 		walkf(ip->ip_node, narrowops, 0);
 		markincdec(ip);
@@ -1528,6 +1682,8 @@ myreader(struct interpass *ipole)
 void
 mycanon(NODE *p)
 {
+	/* after deltemp, which would fold &*x back to x */
+	walkf(p, quadaddr, 0);
 }
 
 void
@@ -1614,6 +1770,26 @@ int
 special(NODE *p, int shape)
 {
 	switch (shape) {
+	case SSTRSRC:
+		if (xdmr && p->n_op == ADDROF && (p->n_left->n_op == NAME ||
+		    (p->n_left->n_op == OREG && !R2TEST(p->n_left->n_rval))))
+			return SRDIR;
+		/* fp + k, ap + k: a frame object's address */
+		if (xdmr && (p->n_op == PLUS || p->n_op == MINUS) &&
+		    p->n_left->n_op == REG &&
+		    (regno(p->n_left) == FPREG || regno(p->n_left) == ARGREG) &&
+		    p->n_right->n_op == ICON && p->n_right->n_name[0] == '\0')
+			return SRDIR;
+		break;
+	case SCVTARG:
+		if (xdmr && p->n_op == SCONV && (p->n_left->n_op == NAME ||
+		    p->n_left->n_op == OREG) &&
+		    (p->n_left->n_type == CHAR || p->n_left->n_type == UCHAR ||
+		    p->n_left->n_type == SHORT || p->n_left->n_type == USHORT) &&
+		    (p->n_type == INT || p->n_type == UNSIGNED ||
+		    p->n_type == LONG || p->n_type == ULONG))
+			return SRDIR;
+		break;
 	case SADDRN:
 		if (xdmr && p->n_op == ADDROF && p->n_left->n_op == NAME &&
 		    p->n_left->n_name[0] != '\0')

@@ -1216,7 +1216,9 @@ struct node * bflow(struct node *p){
 		p=p->forw;
 	if (0<=(r=isreg(lastrand)) && r<NUSE && p->op!=PUSH &&
 	  uses[r]==p->forw && p->subop &&
-	  equtype(regs[r][0],p->subop)) {
+	  (equtype(regs[r][0],p->subop) ||
+	  /* cvtbl/movzbl: what is written is the destination type, not the source's */
+	  ((p->op==CVT || p->op==MOVZ) && ((p->subop>>4)&0xF)==(regs[r][0]&0xF)))) {
 		if (regs[r][1]!=0) {/* send directly to destination */
 			if (p->op==INC || p->op==DEC) {
 				if (p->op==DEC) p->op=SUB; else p->op=ADD;
@@ -1612,6 +1614,12 @@ struct node * nonlab(struct node *ap)
  */
 #define	ALLREGS	((1<<NUSE)-1)
 
+/*
+ * Does any function in the file return a double or long long, in r0 and r1?
+ * ccom, which knows, sets this to 0 and then to 1 as it meets such a function;
+ * run alone, c2 has to assume it.  When it is 0, ret leaves only r0 live.
+ */
+int c2_quadret = 1;
 static int *labin;	/* live registers at the label with this number */
 static int nlabin;
 
@@ -1723,7 +1731,7 @@ liveto(struct node *p)
 	int n;
 
 	if (p->op == JBR && p->subop == RET)
-		return 3;
+		return c2_quadret ? 3 : 1;	/* r1 only if some function returns a quad */
 	if (p->op == CASE || p->ref == 0 || p->ref->op != LABEL)
 		return ALLREGS;
 	n = p->ref->labno;
@@ -1931,6 +1939,19 @@ int repladdr(struct node *p)
 	char **preg; int nrepl;
 
 	preg=regs+RT1; nrepl=0;
+	/*
+	 * addl3 $1,X,rN followed by movl rN,X is incl X once the move is folded
+	 * in.  Put a register in place of X here and the two no longer name the
+	 * same operand: leave this one alone.
+	 */
+	if ((p->op==ADD || p->op==SUB) && OP3==((p->subop>>4)&0xF) &&
+	    equstr(regs[RT1],"$1") && p->forw && p->forw->op==MOV && p->forw->code) {
+		char buf[100];
+
+		snprintf(buf, sizeof buf, "%s,%s", regs[RT3], regs[RT2]);
+		if (strcmp(p->forw->code, buf)==0)
+			return 0;
+	}
 	while (lastrand!=(p1= *preg++))
 		if (!source(p1) && 0<=(r=findrand(p1,p->subop))) {
 			*p1++='r'; if (r>9) {*p1++='1'; r -= 10;} *p1++=r+'0'; *p1=0;

@@ -197,7 +197,6 @@ extern int vax_helpers;
 #define SAVEREGS_BY_MASK	/* callee-saved registers in use go in the entry mask, not copies */
 #define REGVARS		6	/* 'register' variables per function: r11 down to r6 */
 #define REGVAR0		R11	/* first one; the next go downwards */
-#define AUTOINC_MEM	/* x++ of an integer in memory is (x += 1) - 1 */
 #define AUTOINC		/* p++ and --p of a register pointer: (rN)+ and -(rN) */
 #define AUTOINC_SIZE(s)	((s) == SZCHAR || (s) == SZSHORT || (s) == SZINT || \
 			(s) == SZLONG || (s) == SZFLOAT || (s) == SZDOUBLE)
@@ -281,6 +280,9 @@ int xasmconstregs(char *s);
 int COLORMAP(int c, int *r);
 
 #define	SNCON		(MAXSPECIAL+1)	/* named constand */
+#define	QADDR		0x4010	/* n_qual of a quad UMUL that is only an address (movaq) */
+#define	SSTRSRC		(MAXSPECIAL+4)	/* &name or &frame-object: a struct copy reads it in place (-xdmr) */
+#define	SCVTARG		(MAXSPECIAL+3)	/* char/short in memory widened as a call argument: cvtbl m,-(sp) (-xdmr) */
 #define	SADDRN		(MAXSPECIAL+2)	/* &name: an address constant, printed $name+off (-xdmr) */
 
 #define TARGET_FLT_EVAL_METHOD	0	/* all as their type */

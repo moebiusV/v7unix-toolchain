@@ -483,29 +483,6 @@ buildtree(int o, P1ND *l, P1ND *r)
 			r = buildtree(PLUSEQ, l, eve(r));
 			r = buildtree(MINUS, r, eve(c));
 		} else
-#ifdef AUTOINC_MEM
-		/*
-		 * x++ and x-- of an integer in memory, or of a pointer reached
-		 * through another (not a plain name: that is use-first, see
-		 * postincfold): (x += 1) - 1
-		 * and (x -= 1) + 1 -- the variable is stepped in place and the
-		 * old value recomputed from the new one, with no copy.
-		 */
-		if (xdmr && q->n_op == ICON && (l->n_type == INT ||
-		    l->n_type == UNSIGNED || l->n_type == LONG ||
-		    l->n_type == ULONG) &&
-		    (l->n_qual & VOL) == 0) {
-			P1ND *c = p1tcopy(r);
-
-			if (o == INCR) {
-				r = buildtree(PLUSEQ, l, eve(r));
-				r = buildtree(MINUS, r, eve(c));
-			} else {
-				r = buildtree(MINUSEQ, l, eve(r));
-				r = buildtree(PLUS, r, eve(c));
-			}
-		} else
-#endif /* AUTOINC_MEM */
 #endif /* AUTOINC */
 		/* Boolean has special syntax. */
 		if (l->n_type == BOOL) {
@@ -3174,17 +3151,6 @@ unusedval(P1ND *p)
 		q = p->n_left;
 		p1nfree(p);
 		return unusedval(q);
-	case PLUS:
-	case MINUS:
-		/* (x += 1) - 1 as a statement, the form of x++ in memory: x += 1 */
-		if (nncon(p->n_right) &&
-		    (p->n_left->n_op == ASSIGN || p->n_left->n_op == COMOP)) {
-			q = p->n_left;
-			p1nfree(p->n_right);
-			p1nfree(p);
-			return unusedval(q);
-		}
-		break;
 	}
 	return p;
 }
@@ -3212,6 +3178,14 @@ ecomp(P1ND *p)
 #ifndef FIELDOPS
 	p = rmfldops(p);
 #endif
+	/* a no-effect constant first, the placeholder of a rewritten op=: look past it */
+	while (xdmr && p->n_op == COMOP && p->n_left->n_op == ICON && nncon(p->n_left)) {
+		P1ND *rest = p->n_right;
+
+		p1nfree(p->n_left);
+		p1nfree(p);
+		p = rest;
+	}
 	if (xdmr && p->n_op == COMOP && p->n_right->n_op == TEMP &&
 	    p->n_left->n_op == COMOP && p->n_left->n_left->n_op == ASSIGN &&
 	    p->n_left->n_left->n_left->n_op == TEMP &&
@@ -3232,8 +3206,8 @@ ecomp(P1ND *p)
 		p = unusedval(p);
 	comops(p);
 	rmcops(p);
-	if (p->n_op == ICON && p->n_type == VOID)
-		p1tfree(p);
+	if (p->n_op == ICON && (p->n_type == VOID || (xdmr && nncon(p))))
+		p1tfree(p);	/* a constant as a statement does nothing */
 	else
 		ecode(p);
 }

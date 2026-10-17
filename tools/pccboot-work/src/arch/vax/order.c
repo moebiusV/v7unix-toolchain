@@ -415,6 +415,20 @@ symaddr(NODE *n)
  * *bp is NULL for a symbol (the node carrying it in *cp), else the base node;
  * *dp is the displacement.
  */
+static NODE *idx_um;	/* the UMUL whose address indexform looks at */
+static int indexform(NODE *p, int sz, NODE **bp, NODE **ip, NODE **cp, CONSZ *dp);
+
+/* Is the address of a quad element base + scaled index, i.e. movaq-able? */
+int
+quadindex(NODE *addr)
+{
+	NODE *b, *i, *c;
+	CONSZ d;
+
+	idx_um = NULL;
+	return indexform(addr, 8, &b, &i, &c, &d);
+}
+
 static int
 indexform(NODE *p, int sz, NODE **bp, NODE **ip, NODE **cp, CONSZ *dp)
 {
@@ -422,6 +436,17 @@ indexform(NODE *p, int sz, NODE **bp, NODE **ip, NODE **cp, CONSZ *dp)
 	CONSZ k;
 
 	if (!xdmr || p->n_op != PLUS || (sz != 1 && sz != 2 && sz != 4 && sz != 8))
+		return 0;
+	/*
+	 * A long long is handled as two longs (the upper word is the displacement
+	 * plus 4), and an index scales by the size of the operand, 4 then: the
+	 * upper half would be at the wrong place.  Such an access is rewritten
+	 * (quadaddr() in local2.c) to take the element's address with movaq, which
+	 * scales by 8, and use that; the address-only access it leaves (QADDR) is
+	 * what this form is for.  A double is moved whole and needs nothing.
+	 */
+	if (idx_um != NULL && idx_um->n_qual != QADDR &&
+	    (idx_um->n_type == LONGLONG || idx_um->n_type == ULONGLONG))
 		return 0;
 	l = p->n_left;
 	r = p->n_right;
@@ -442,6 +467,11 @@ indexform(NODE *p, int sz, NODE **bp, NODE **ip, NODE **cp, CONSZ *dp)
 		if (b->n_op == PLUS && b->n_right->n_op == ICON &&
 		    b->n_right->n_name[0] == '\0' && ISPTR(b->n_left->n_type)) {
 			*dp += getlval(b->n_right);
+			b = b->n_left;
+		} else if (b->n_op == MINUS && b->n_right->n_op == ICON &&
+		    b->n_right->n_name[0] == '\0' && ISPTR(b->n_left->n_type)) {
+			/* fp - k, how a frame object below the frame pointer is spelt */
+			*dp -= getlval(b->n_right);
 			b = b->n_left;
 		}
 		*bp = b;
@@ -499,6 +529,7 @@ offstar(NODE *p, int shape)
 			offstar_um->n_qual = INCMARK;
 		return;
 	}
+	idx_um = offstar_um;
 	if (indexform(p, sz, &b, &i, &c, &d)) {
 		/* base and index in registers; converted in myormake() */
 		if (b != NULL && isreg(b) == 0)
@@ -829,6 +860,7 @@ myormake(NODE *q)
 		tfree(p);
 		return;
 	}
+	idx_um = q;
 	if (indexform(p, sz, &b, &i, &c, &d) && i->n_op == REG &&
 	    (b == NULL || b->n_op == REG)) {
 		q->n_op = OREG;

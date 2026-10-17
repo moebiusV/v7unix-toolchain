@@ -134,9 +134,23 @@ struct optab  table[] = {
 		NAREG,	RESC1,
 		"	movab	AL,A1\n", },
 
+/* the address of a quad element: movaq scales the index by 8 (-xdmr) */
+{ ADDROF,	INAREG,
+	SOREG,	TLL,
+	SAREG,	TANY,
+		NAREG,	RESC1,
+		"	movaq	AL,A1\n", },
+
 { STASG,	FOREFF,
 	SNAME|SOREG,	TANY,
 	SCON|SAREG,	TANY,
+		NST,	RNOP,
+		"ZS", },
+
+/* a named source: movc3 $n,name,dst, no address in a register (-xdmr) */
+{ STASG,	FOREFF,
+	SNAME|SOREG,	TANY,
+	SSTRSRC,	TANY,
 		NST,	RNOP,
 		"ZS", },
 
@@ -373,6 +387,13 @@ struct optab  table[] = {
 	SANY,	TWORD|TPOINT|TFLOAT,
 		0,	RNULL,
 		"	pushl	AL\n" },
+
+/* a char or short in memory widened as an argument: cvtbl m,-(sp) (-xdmr) */
+{ FUNARG,	FOREFF,
+	SCVTARG,	TANY,
+	SANY,		TANY,
+		0,	RNULL,
+		"ZP", },
 
 { FUNARG,	FOREFF,
 	SCON|SBREG|SNAME|SOREG,	TLL|TDOUBLE,

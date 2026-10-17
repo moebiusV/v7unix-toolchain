@@ -538,13 +538,14 @@ swmatch(NODE *p, int shape, int w)
  * instruction, ask for it to be put in a register.
  */
 static int
-chcheck(NODE *p, int shape, int rew)
+chcheck2(NODE *p, int shape, int rew, int *inplace)
 {
 	int sh, sha;
 
 	sha = shape;
 	if (shape & SPECIAL)
 		shape = 0;
+	*inplace = 0;
 
 	switch ((sh = tshape(p, sha))) {
 	case SRNOPE:
@@ -556,13 +557,30 @@ chcheck(NODE *p, int shape, int rew)
 	case SRDIR:
 		if (rew == 0)
 			break;
-		if (shape & INREGS)
+		if (shape & INREGS) {
+			/*
+			 * Already in a register of the class, to be modified:
+			 * no instruction is needed to get it there, unlike an
+			 * operand that has to be loaded.  The traversal still
+			 * treats it as a register to rewrite; the ranking of
+			 * the templates (findops) counts it cheaper.
+			 */
+			if (sh == SRDIR && (p->n_op == REG || p->n_op == TEMP))
+				*inplace = 1;
 			sh = SRREG;
-		else
+		} else
 			sh = SRNOPE;
 		break;
 	}
 	return sh;
+}
+
+static int
+chcheck(NODE *p, int shape, int rew)
+{
+	int inplace;
+
+	return chcheck2(p, shape, rew, &inplace);
 }
 
 /*
@@ -642,7 +660,7 @@ findops(NODE *p, int cookie)
 	extern int *qtable[];
 	struct optab *q, *qq = NULL;
 	int i, shl, shr, *ixp, sh;
-	int lvl = 10, idx = 0, gol = 0, gor = 0;
+	int lvl = 10, idx = 0, gol = 0, gor = 0, inl, inr, cost;
 	NODE *l, *r;
 
 	F2DEBUG(("findops node %p (%s)\n", p, prcook(cookie)));
@@ -667,15 +685,15 @@ findops(NODE *p, int cookie)
 
 		F2DEBUG(("findop got types\n"));
 
-		if ((shl = chcheck(l, n2osh(q->lshape),
-		    q->rewrite & RLEFT)) == SRNOPE)
+		if ((shl = chcheck2(l, n2osh(q->lshape),
+		    q->rewrite & RLEFT, &inl)) == SRNOPE)
 			continue;
 
 		F2DEBUG(("findop lshape %s\n", srtyp[shl]));
 		F2WALK(l);
 
-		if ((shr = chcheck(r, n2osh(q->rshape),
-		    q->rewrite & RRIGHT)) == SRNOPE)
+		if ((shr = chcheck2(r, n2osh(q->rshape),
+		    q->rewrite & RRIGHT, &inr)) == SRNOPE)
 			continue;
 
 		F2DEBUG(("findop rshape %s\n", srtyp[shr]));
@@ -695,9 +713,10 @@ findops(NODE *p, int cookie)
 		if (hasneed(q->needs, cNREW) != 0)
 			break;
 
-		if (lvl <= (shl + shr))
+		cost = shl + shr - inl - inr;
+		if (lvl <= cost)
 			continue;
-		lvl = shl + shr;
+		lvl = cost;
 		qq = q;
 		idx = ixp[i];
 		gol = shl;
