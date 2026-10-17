@@ -79,6 +79,42 @@ Template packaging files for the major distributions ship in `dist/` (rpm,
 debian, arch, alpine, freebsd, openbsd, netbsd, gentoo, nixos, slackware); the
 packager-facing guide is `README.distributions`.
 
+## Code quality: pcc against the original compilers
+
+The `pcc` this project compiles with (a fork, `moebiusV/pcc`) is also being
+taught the code-generation tricks of the compilers it replaces, so that its
+output is no bigger than theirs.  The work goes in two steps.
+
+1. **Bring the old targets up to the original standard.**  On the PDP-11 pcc is
+   measured against dmr's `cc`, and on the VAX (target `vax-unknown-unix32v`,
+   run on a real 32V under SIMH) against 32V's `cc -O`.  All of it is opt-in:
+   `-xdmr` (implied by `-O` on the PDP-11), plus `-xtemps -xdeljumps -xdce
+   -xinline`.  Everything else in pcc is unchanged.  The tricks that lived in the
+   old peephole optimizers (`c2`) are being moved into pcc's own machinery:
+   into the IR passes in `mip/optim2.c` where they only concern control flow and
+   values (loop rotation, cross-jumping), and into the pass-2 templates where
+   they choose instructions (autoincrement operands, `inc`/`dec`, read-modify-write,
+   `$name` operands).  `c2` itself now runs inside `ccom` (`-xc2`).
+2. **Port whatever has an analogue to the modern targets** (i386, amd64), through
+   the same IR passes and templates: `testl` instead of `cmpl $0`, byte
+   read-modify-write, `sym(,%reg,4)` indexing, frameless leaf functions, loop
+   rotation, `leal` for `&a[i]`.
+
+Every change is checked on the real system, not just by looking at assembly: 132
+bare-metal PDP-11 programs, the VAX tests on a real 32V in several flag sets,
+34 V7 commands built by pcc and run inside V7 beside the originals' builds, pcc
+compiling itself (identical stages), and the i386 and amd64 suites.  The tools
+are in `tools/`.
+
+Where to read more:
+
+* [`OPTIMIZATION-TRICKS.md`](OPTIMIZATION-TRICKS.md) -- each trick, how it was
+  ported, the size tables, the bugs found in the originals and in upstream pcc.
+* [`DMR-OPTIMIZATIONS-OTHER-TARGETS.md`](DMR-OPTIMIZATIONS-OTHER-TARGETS.md) --
+  the first survey of which tricks carry over to VAX and x86.
+* [`PCC-OPTIMIZER.md`](PCC-OPTIMIZER.md) -- the original plan (older than the
+  work above and partly overtaken by it).
+
 ## Notes on the port
 
 The full account is [`PORTING.md`](PORTING.md), and it is worth reading for its
