@@ -202,8 +202,14 @@ templates and let pass 2 skip the compare). Most ISAs with condition codes.
 
 **pcc.** `clocal` `CBRANCH`: if the left operand is `SCONV` from a char/short and
 the constant fits the narrow type, drop the conversion; for unsigned narrow types
-switch to the unsigned relation. VAX (and i386/amd64) handle it with the same
-code shape as the PDP-11's.
+switch to the unsigned relation.  Two operands that are both `SCONV` from the same
+narrow type are narrowed together (`*s1 == *s2++` is `cmpb (r4),(r3)+` on the
+PDP-11 and VAX).  PDP-11 and VAX had this first.  i386 and amd64 did not: upstream's
+version in `arch/i386/local.c` is disabled (`#ifdef notyet`, "breaks sometimes"), so
+the x86 backends compared `movzbl; cmpl $200`.  They now have their own, under
+`-xdmr`: `cmpb $200,(%eax)`, and `movb (%eax),%al; cmpb %al,(%edx)` for two bytes
+(x86 has no memory-to-memory compare).  libc: i386 19252 -> 19052, amd64 22572 ->
+22404.
 
 **Port.** Any target with byte/halfword compare instructions (x86, 680x0). ARM,
 MIPS, RISC-V have none: the load already extends.
