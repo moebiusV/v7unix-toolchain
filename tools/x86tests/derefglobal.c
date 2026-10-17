@@ -39,5 +39,25 @@ int test(void)
 	if (i != 7 || cp != cbuf + 2) bad |= 2048;
 	i = *cp;
 	if (i != -56) bad |= 4096;
+	/* in place through the pointer: ++*p, --*p, (*p)++, *p += k */
+	ip = ibuf;
+	ibuf[0] = 10;
+	++*ip;
+	if (ibuf[0] != 11) bad |= 8192;
+	--*ip;
+	--*ip;
+	if (ibuf[0] != 9) bad |= 16384;
+	(*ip)++;
+	(*ip)++;
+	if (ibuf[0] != 11) bad |= 32;
+	*ip += 5;
+	*ip -= 2;
+	if (ibuf[0] != 14) bad |= 64;
+	cp = cbuf;
+	cbuf[0] = 20;
+	++*cp;
+	(*cp)--;
+	(*cp)--;
+	if (cbuf[0] != 19) bad |= 128;
 	return bad == 0;
 }
