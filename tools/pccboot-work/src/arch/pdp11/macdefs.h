@@ -246,6 +246,7 @@ int COLORMAP(int c, int *r);
 //#define R2REGS	1	/* permit double indexing */
 
 /* XXX - to die */
+#define MEM_DEFERRED 1	/* deferred modes: *p with p in memory (optim2.c postincfold) */
 #define FPREG	R5	/* frame pointer */
 #define STKREG	SP	/* stack pointer */
 

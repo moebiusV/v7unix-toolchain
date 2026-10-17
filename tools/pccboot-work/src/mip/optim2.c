@@ -55,6 +55,7 @@
 
 static int dfsnum;
 
+static void postincfold(struct p2env *);
 void saveip(struct interpass *ip);
 void deljumps(struct p2env *);
 void optdump(struct interpass *ip);
@@ -114,6 +115,7 @@ optimize(struct p2env *p2e)
 		printip(ipole);
 	}
 
+	postincfold(p2e);
 	if (xdeljumps)
 		deljumps(p2e); /* Delete redundant jumps and dead code */
 
@@ -835,6 +837,209 @@ tailmerge(struct dlnod *dl)
 					n += mergetails(k, j);
 	}
 	return n;
+}
+
+/*
+ * Post-increment through a pointer that lives in memory (-xdmr, targets with
+ * deferred addressing: MEM_DEFERRED).  pass 1 splits  *p++ = c  into
+ *	t = p;  p = p + 1;  *t = c;
+ * which costs a register and an extra instruction.  The increment can follow the
+ * use, which then goes through the pointer itself, as dmr-cc has it:
+ *	*p = c;  p = p + 1;		movb r4,*_p ; inc _p
+ * Done when t has no other use, the statement that uses it has no call (the
+ * callee could look at p), no branch, and does not mention p.
+ */
+#ifndef MEM_DEFERRED
+#define MEM_DEFERRED 0
+#endif
+
+static int
+isptrvar(NODE *x)	/* a pointer held in memory, read twice without effects */
+{
+	NODE *a;
+
+	if (!ISPTR(x->n_type) || ISVOL(x->n_qual))
+		return 0;
+	if (x->n_op == NAME)
+		return 1;
+	if (x->n_op != UMUL)
+		return 0;
+	/*
+	 * A variable of the frame, *(fp+k).  Through any other register the
+	 * deferred form  *(rN)  costs an index word, no better than loading it.
+	 */
+	a = x->n_left;
+	if (a->n_op == PLUS && a->n_right->n_op == ICON && a->n_right->n_name[0] == '\0')
+		a = a->n_left;
+	else if (a->n_op == MINUS && a->n_right->n_op == ICON && a->n_right->n_name[0] == '\0')
+		a = a->n_left;
+	return a->n_op == REG && regno(a) == FPREG;
+}
+
+static int cnt_t, cnt_call;
+
+static void
+cntwalk(NODE *p, void *arg)
+{
+	if (p->n_op == TEMP && regno(p) == cnt_t)
+		cnt_call++;
+}
+
+static void
+callwalk(NODE *p, void *arg)
+{
+	if (callop(p->n_op))
+		cnt_t = -1;
+}
+
+static int
+mentions(NODE *p, NODE *x)	/* is x, as a tree, somewhere in p? */
+{
+	if (nodeeq(p, x))
+		return 1;
+	switch (optype(p->n_op)) {
+	case UTYPE: return mentions(p->n_left, x);
+	case BITYPE: return mentions(p->n_left, x) || mentions(p->n_right, x);
+	}
+	return 0;
+}
+
+/* replace UMUL(TEMP t) by UMUL(copy of x); returns the number of uses seen */
+static int
+subst(NODE *p, int t, NODE *x)
+{
+	int n = 0;
+
+	if (p->n_op == UMUL && p->n_left->n_op == TEMP && regno(p->n_left) == t) {
+		nfree(p->n_left);
+		p->n_left = tcopy(x);
+		return 1;
+	}
+	switch (optype(p->n_op)) {
+	case UTYPE: n += subst(p->n_left, t, x); break;
+	case BITYPE: n += subst(p->n_left, t, x); n += subst(p->n_right, t, x); break;
+	}
+	return n;
+}
+
+static int
+tempuses(struct p2env *p2e, int t)
+{
+	struct interpass *ip;
+
+	cnt_t = t;
+	cnt_call = 0;
+	DLIST_FOREACH(ip, &p2e->ipole, qelem)
+		if (ip->type == IP_NODE)
+			walkf(ip->ip_node, cntwalk, 0);
+	return cnt_call;
+}
+
+/* ip1: t = x;  ip2: x = x +- k */
+static int
+incpair(struct interpass *ip1, struct interpass *ip2, int *tp, NODE **xp)
+{
+	NODE *n1, *n2, *r;
+
+	if (ip1->type != IP_NODE || ip2->type != IP_NODE)
+		return 0;
+	n1 = ip1->ip_node;
+	n2 = ip2->ip_node;
+	if (n1->n_op != ASSIGN || n1->n_left->n_op != TEMP ||
+	    !ISPTR(n1->n_left->n_type) || !isptrvar(n1->n_right))
+		return 0;
+	if (n2->n_op != ASSIGN || !nodeeq(n2->n_left, n1->n_right))
+		return 0;
+	r = n2->n_right;
+	if ((r->n_op != PLUS && r->n_op != MINUS) || r->n_right->n_op != ICON ||
+	    r->n_right->n_name[0] != '\0' || !nodeeq(r->n_left, n1->n_right))
+		return 0;
+	*tp = regno(n1->n_left);
+	*xp = n1->n_right;
+	return 1;
+}
+
+static void
+postincfold(struct p2env *p2e)
+{
+	struct interpass *ip, *ip1, *ip2, *u, *next;
+	struct interpass *first[4], *second[4];
+	int ts[4], n, i, ok, t;
+	NODE *xs[4], *x;
+
+	if (!MEM_DEFERRED || !xdmr || !xtemps)
+		return;
+	for (ip = DLIST_NEXT(&p2e->ipole, qelem); ip != &p2e->ipole; ip = next) {
+		next = DLIST_NEXT(ip, qelem);
+		/* a run of  t = x; x = x + k  pairs, then the statement using them */
+		n = 0;
+		ip1 = ip;
+		while (n < 4 && (ip2 = DLIST_NEXT(ip1, qelem)) != &p2e->ipole &&
+		    incpair(ip1, ip2, &ts[n], &xs[n])) {
+			first[n] = ip1;
+			second[n] = ip2;
+			n++;
+			ip1 = DLIST_NEXT(ip2, qelem);
+			if (ip1 == &p2e->ipole)
+				break;
+		}
+		if (n == 0)
+			continue;
+		u = ip1;
+		next = DLIST_NEXT(second[n-1], qelem);
+		if (u == &p2e->ipole || u->type != IP_NODE)
+			continue;
+		switch (u->ip_node->n_op) {
+		case CBRANCH: case GOTO: case STASG: case STCALL: case USTCALL:
+			continue;
+		}
+		if (callop(u->ip_node->n_op))
+			continue;
+		/* no call anywhere in the statement; each pointer used once as *t */
+		cnt_t = 0;
+		walkf(u->ip_node, callwalk, 0);
+		if (cnt_t < 0)
+			continue;
+		ok = 1;
+		for (i = 0; i < n && ok; i++) {
+			int j;
+
+			t = ts[i];
+			x = xs[i];
+			if (tempuses(p2e, t) != 2 || mentions(u->ip_node, x))
+				ok = 0;
+			for (j = 0; j < i && ok; j++)
+				if (nodeeq(xs[j], x) || mentions(xs[j], x) || mentions(x, xs[j]))
+					ok = 0;
+		}
+		if (!ok)
+			continue;
+		/* every use must be a  *t  */
+		for (i = 0; i < n; i++) {
+			NODE *copy = tcopy(u->ip_node);
+
+			if (subst(copy, ts[i], xs[i]) != 1) {
+				tfree(copy);
+				ok = 0;
+				break;
+			}
+			tfree(copy);
+		}
+		if (!ok)
+			continue;
+		for (i = 0; i < n; i++)
+			subst(u->ip_node, ts[i], xs[i]);
+		/* the copies  t = x  go; the increments move behind the use */
+		for (i = 0; i < n; i++) {
+			DLIST_REMOVE(first[i], qelem);
+			tfree(first[i]->ip_node);
+		}
+		for (i = n - 1; i >= 0; i--) {
+			DLIST_REMOVE(second[i], qelem);
+			DLIST_INSERT_AFTER(u, second[i], qelem);
+		}
+		next = DLIST_NEXT(u, qelem);
+	}
 }
 
 static void

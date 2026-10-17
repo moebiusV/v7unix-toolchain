@@ -262,6 +262,7 @@ extern int vax_helpers;
 
 /* size, in registers, needed to hold thing of type t */
 #define	szty(t)	(((t) == DOUBLE || (t) == LONGLONG || (t) == ULONGLONG) ? 2 : 1)
+#define MEM_DEFERRED 1	/* deferred modes: *p with p in memory (optim2.c postincfold) */
 #define FPREG	FP	/* frame pointer */
 #define STKREG	SP
 #define ARGREG	AP
