@@ -67,15 +67,18 @@ long that lives across calls fits the callee-saved pair and costs 2 bytes more p
 in memory (ld.c, ftell).  fseek +62 -> +10, ctime +46 -> gone, libc 17132 -> 17022.
 What remains in fseek is the `sxt` against `clr` sign extension of an int into a long.
 
-**G. Operand order in address arithmetic.  TRIED, NO GAIN.**  Putting the expression
-first (swapping `reg + expr`) changed nothing in libc and cost 10 bytes in cmd/;
-reverted.  The simple shapes already come out right; malloc's remaining +36 is
-a mix of this and the other causes and needs its own look.  malloc (+40), qsort: `p + (n << 1)`
-is `mov r2,r0; asl r0; add r4,r0` in dmr (3 instructions) and
-`mov r4,r0; mov r2,r1; asl r1; add r1,r0` in pcc (4): the pointer is put in the
-result register first, and the shifted index then needs a second one.  *Fixable:*
-yes, in pass 2 prefer the operand that needs computing as the one that goes in the
-destination register (commutative `PLUS`), `arch/pdp11/order.c` or `table.c`.
+**G. Operand order in address arithmetic.  FIXED** with a table rule: a sum may be left
+in the register of its right operand (`add AL,AR`), so `p + (n << 1)` is `mov r2,r0;
+asl r0; add r4,r0` and `p` is no longer copied into the result register first.  My first
+attempt, swapping the operands in a pass, produced wrong code: the shared `setleft()`
+puts pointers first again at emit time, after the instruction was chosen for the other
+order, so the add went into the variable instead of the sum.  That rule, unlike most of
+this work, is not conditional on `-xdmr`: a table rule has nothing to test, and a
+special shape would hide the register from the allocator.
+
+**K. Small structures.  FIXED** (-xdmr).  A structure of 2 or 4 bytes assigned as a
+statement was the general counted block move (`mov $1,r2; 1: mov (r0)+,(r1)+; sob
+r2,1b`); it is now one or two movs (malloc's `*t++ = *s++` on a union of one word).
 
 **H. Register and frame choices (not yet examined file by file).**  crypt (+6),
 mon (+6), ld.c (+48, 71 more `mov`s), c21.c (+124, 45 more `cmp`s): pcc copies
