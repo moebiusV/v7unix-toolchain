@@ -344,6 +344,46 @@ adrputv(NODE *v)
 	printf("%ld(r5)", (long)(a->n_op == PLUS ? getlval(a->n_right) : -getlval(a->n_right)));
 }
 
+/*
+ * (-xdmr) The word that a long operand is made from by widening, or NULL: then the
+ * operand is pushed as  mov x,-(sp)  and  sxt -(sp)  (clr for an unsigned), no pair.
+ */
+static NODE *
+widened(NODE *n)
+{
+	NODE *c;
+
+	if (!xdmr || n->n_op != SCONV || (n->n_type != LONG && n->n_type != ULONG))
+		return NULL;
+	c = n->n_left;
+	if (c->n_type != INT && c->n_type != UNSIGNED && c->n_type != SHORT &&
+	    c->n_type != USHORT)
+		return NULL;
+	if (c->n_op != REG && c->n_op != NAME && !(c->n_op == OREG && !R2TEST(c->n_rval)) &&
+	    !framevar(c))
+		return NULL;
+	return c;
+}
+
+static void
+pushwidened(NODE *n)
+{
+	NODE *c = widened(n);
+
+	printf("\tmov\t");
+	if (framevar(c) && c->n_op != OREG)
+		adrputv(c);
+	else
+		adrput(stdout, c);
+	printf(",-(sp)\n");
+	if (c->n_type == UNSIGNED || c->n_type == USHORT)
+		printf("\tclr\t-(sp)\n");
+	else
+		printf("\tsxt\t-(sp)\n");
+}
+
+
+
 static int sametree(NODE *, NODE *);
 
 /*
@@ -619,10 +659,14 @@ zzzcode(NODE *p, int c)
 		o = spcoff++;
 		if (p->n_right->n_op == ICON) {
 			lconarg(p->n_right);
+		} else if (widened(p->n_right)) {
+			pushwidened(p->n_right);
 		} else
 			expand(p, FOREFF, "mov	UR,-(sp)\nmov	AR,-(sp)\n");
 		if (p->n_left->n_op == ICON) {
 			lconarg(p->n_left);
+		} else if (widened(p->n_left)) {
+			pushwidened(p->n_left);
 		} else
 			expand(p, FOREFF, "mov	UL,-(sp)\nmov	AL,-(sp)\n");
 		s = p->n_op == MUL ? "lmul" :
@@ -2106,6 +2150,10 @@ special(NODE *p, int shape)
 		if (p->n_op == ASSIGN && p->n_right->n_op == PLUS &&
 		    treecmp(p->n_left, p->n_right->n_left) &&
 		    is1con(p->n_right->n_right))
+			return SRDIR;
+		break;
+	case SSXT:
+		if (widened(p) != NULL)
 			return SRDIR;
 		break;
 	case SSTARINC:

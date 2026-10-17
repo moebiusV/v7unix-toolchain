@@ -261,6 +261,7 @@ int COLORMAP(int c, int *r);
 #define	SARGINC		(MAXSPECIAL+5)	/* post-increment arg */
 #define	SSTARX		(MAXSPECIAL+7)	/* *name, a word or byte through a pointer at a fixed address (-xdmr) */
 #define	SSTARINC	(MAXSPECIAL+8)	/* *(p += k) - k with p a frame variable: use through it, then add in place (-xdmr) */
+#define	SSXT		(MAXSPECIAL+9)	/* a long made by widening a word: pushed as mov x,-(sp); sxt -(sp), no pair (-xdmr) */
 #define	SDIVCON		(MAXSPECIAL+6)	/* constant 2..32767: div by it is right for an unsigned dividend */
 
 /* floating point definitions */
