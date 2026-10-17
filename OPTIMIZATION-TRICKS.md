@@ -21,7 +21,7 @@ The two compilers:
 Where dmr-cc is a hand-written one-pass-per-stage compiler, 32V's cc gets most
 of its quality from `c2`; the compiler proper (pcc) is generic.
 
-## Status of this work (2026-10-17)
+## Status of this work (2026-10-18)
 
 All dmr/32V-inspired transformations are opt-in with `-xdmr` (`pcc -O` implies it on
 the PDP-11). Everything else is unchanged. Three things are not gated, on purpose:
@@ -31,9 +31,9 @@ sizeof being unsigned on the PDP-11 (a correctness fix), and the shared bug fixe
 | Target | Corpus | original cc | ours | |
 |---|---|---|---|---|
 | PDP-11 | libc, 89 files | dmr 17356 | 16918 | -2.5% |
-| PDP-11 | `cmd/`, 51 files | dmr 90178 | 86566 | -4.0% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19056 | -13.3% |
-| VAX (32V) | 56 command sources | `cc -O` 118444 | 109980 | -7.1% |
+| PDP-11 | `cmd/`, 51 files | dmr 90178 | 86502 | -4.1% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19088 | -13.1% |
+| VAX (32V) | 56 command sources | `cc -O` 118444 | 108812 | -8.1% |
 | i386 | libc gen+stdio (91 files) | n/a | 21382 (27839 with no flags) | -23% |
 | amd64 | libc gen+stdio (91 files) | n/a | 24771 (39919 with no flags) | -38% |
 
@@ -44,15 +44,15 @@ All numbers are text+data bytes, assembled with the target's own assembler
 The x86 "no flags" column is the upstream default; most of that difference is
 `-xtemps` and friends, not `-xdmr`, which is worth 1126 bytes of the 22508 on i386.
 
-PDP-11 files still bigger than dmr's (6 of 89 in libc, 2 of 51 in `cmd/`, 8 in all);
+PDP-11 files still bigger than dmr's: 6 of 89 in libc, 1 of 51 in `cmd/` (7 in all);
 every one is explained in `BIGGER-THAN-ORIGINAL.md`, and the two big ones
-(`qsort`, `sh/print`) are the correct unsigned-divide helpers. VAX: 11 of the 56
-command files are bigger than `cc -O`; not yet examined function by function
-(`tools/vaxfunsize.py` is the tool for that).
+(`qsort`, `sh/print`) are the correct unsigned-divide helpers. VAX: 5 of the 56
+command files are bigger than `cc -O` (`dumpdir` +28, `deroff` +24, `cron` +24,
+`chmod` +24, `args` +12); `tools/vaxfunsize.py` finds the functions.
 
-Correctness gates, all passing: 212 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
-four flag sets), 144 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
-flag sets, one with c2 and one with `-xssa`), 110 i386 and 100 amd64 runs, pcc
+Correctness gates, all passing: 228 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
+four flag sets), 171 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
+flag sets, one with c2 and one with `-xssa`), 130 i386 and 120 amd64 runs, pcc
 compiling itself with identical stage 1 and 2 (`tools/pccboot.sh`; note it builds
 the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built by
 `pcc -O` and run inside real V7 next to V7's own cc builds (`tools/v7progs.py`).
@@ -77,7 +77,7 @@ the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built
 | 14 | Send a result straight to its destination (`bflow`) | c2 (2-address) | c2 (3-address) | via c2 | no (2-address ISA) | risc: no |
 | 15 | Address constants: `movab`/`pushab`/`moval` | - | c2 | done (vax) | **done** on amd64 (`leaq sym(%rip)`, `movl $c`); `leal` for `&a[i]` open | m68k `lea` |
 | 16 | Counted-loop instructions | `sob` | `sobgeq` `aoblss` `acbl` | via c2 | `loop` is slow: no | ppc `bdnz`, arm64 none |
-| 17 | Switch via jump table | inline compare chain, sorted | `casel` | **done** (pdp11 `mygenswitch`); vax open | exists (generic) | needs `mygenswitch` per target |
+| 17 | Switch via jump table | inline compare chain, sorted | `casel` | **done** (pdp11 and vax `mygenswitch`) | exists (generic) | needs `mygenswitch` per target |
 | 18 | Callee-saved registers in an entry mask | csv | `.word mask` | done (vax) | push/pop | no |
 | 19 | Floating immediates | first word of a double | - | done (pdp11) | no | no |
 | 20 | `x++;` without a copy of the old value | c1 | pcc | done (`-xdmr`, pass 1) | generic (pass 1) | generic |
@@ -96,6 +96,8 @@ the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built
 | 33 | Condition codes at a join; `?:` arms straight into the argument slot; `clr r0; mov r0,D` | c2 | c2 | done (pdp11 c2 port); vax open | no (no c2) | no |
 | 34 | A char from a word in memory is a byte load | c1 | - | done (pdp11) | free: x86 loads partial registers | little-endian targets |
 | 35 | `sizeof` is unsigned | c0 | pcc | done (pdp11: **was a bug**) | already `unsigned long` | all 16-bit targets |
+| 36 | `x op= e` / `x++` through a pointer: pointer kept once, offset in the address | c1 | pcc | done (pass 1, all targets) | done (same) | generic |
+| 37 | `x++;` of an integer in memory is one `incl` | c1 | pcc | done (vax) | generic | generic |
 
 "done" means implemented and covered by tests that run on the real system (PDP-11
 under SIMH with V7, VAX under SIMH with 32V) or natively (x86).
@@ -420,10 +422,18 @@ wrapper in pass 1). It saved 792 bytes over the commands. dmr's own rule is
 `range <= 3 * ncase`; ours is "table if it is smaller than the chain", which
 also accounts for the range check. Test: `pcctests/switchtab.c`.
 
-**VAX.** Not done: `casel` needs the table in the instruction stream, and the selector in a
-register, which the IR cannot express without an `XASM` or a computed goto. 32V's cc
-does not use `casel` for sparse cases either (it builds a decision tree, which is why
-`dump.c` is larger here).
+**VAX.** `mygenswitch` in `arch/vax/code.c`, same rule (a table when it is smaller than
+the chain, `chain` counted from the length of each `cmpl`/`jeql`, `table` from `casel`'s two
+literals and two bytes per entry).  The dispatch is an extended-asm node, `casel %0,$min,$range`
+with the selector as an `"r"` input (the allocator puts it in a register: this is the same
+`XASM` the `ffs` builtin uses), followed by an `IP_ASM` node holding `Ltab:` and one
+`.word Lcase-Ltab` per value in the range, gaps pointing at the default.  That is the layout
+32V's cc writes, so the VAX c2 port recognises it and renumbers the table label.  Out of range
+falls through, so a switch with a default gets a `branch(default)` after the table; without one
+the fall-through is the end of the switch (pass 1 emits the dispatch after the body).  Case
+labels are recorded with `swlabel` so nothing prunes them.  `advance()` in grep and ed
+(19 cases) went from 449 to 396 bytes.  Test: `pcctests/casesel.c` (negative minimum, byte and
+unsigned selectors, with and without default).
 
 ## 18. Entry-mask register saving
 
@@ -615,6 +625,41 @@ not apply (flsbuf).
 See "Defects in upstream pcc". On a 16-bit target it matters for size too: the
 product is unsigned, so widening it to long is `clr`, not `tst; sxt`.
 
+## 36. The lvalue of `x op= e` and `x++` is used twice: keep its pointer once
+
+**What.** pass 1 rewrites `x op= e` as `x = x op e` and `x++` as `t = x, x = x + 1, t`
+with a *copy* of the lvalue.  Unless the lvalue has side effects the copy is the same
+tree again, so `map[(ino - 1) / 16] |= m` computed the index three times (dump's `mark`
++88 bytes against `cc -O`), and `iop->_ptr++` with `iop` a parameter loaded `iop` twice
+into two registers, so the two operands were different `OREG`s and `incl` could not match
+(`getc` is this, everywhere).  32V's cc computes the index once.
+
+**pcc (`cc/ccom/trees.c`, `-xdmr`, every target).**
+`addrcost()` counts the work in an address: binary operators (not a constant added,
+subtracted, shifted or multiplied in: the scale of an index), a `UMUL` inside it, a pointer
+variable in memory (it has to be loaded to be indexed from), a call.  When the count is 2 or
+more, `hoistbase()` puts the pointer part in a temporary and leaves a constant offset in the
+address: `p->n += 3` is `t = p; t->n = t->n + 3`, which on the VAX is
+`movl 4(ap),r1; incl 4(r1)` and on the PDP-11 `mov 2(sp),r0; inc 4(r0)`.  A bare
+`*gp` (address is a name) is left alone: a deferred operand is one instruction.
+Hoisting the *whole* address was tried first and was worse on the PDP-11 (`gb->n++` became
+`mov $4,r0; add _gb,r0; inc (r0)`; commands +88 bytes): keeping the offset in the addressing
+mode is the point.  Tests: `pcctests/opeqaddr.c`, `ptrmember.c`.
+
+**A bug this found, in every configuration:** `has_se()`, which decides whether the lvalue
+needs a temporary at all, did not treat a call as a side effect, so `map[idx(35)] += 5`
+called `idx` twice.  It does now.
+
+## 37. `x++;` on an integer in memory (VAX)
+
+`AUTOINC_MEM` (VAX only) writes `x++` of an integer in memory as `(x += 1) - 1`, so the
+variable is stepped in place and the old value recomputed.  As a statement the `- 1` is dead:
+`unusedval()` now strips a constant plus/minus above an assignment, so `y++;` is `incl _y`
+(it was `addl3 $1,_y,r0; movl r0,_y`).  The form is for integers only: for a pointer in
+memory the old `(t = x, x += 1, t)` is smaller, because `postincfold()` then turns it into a
+use through the pointer followed by the increment (`cvtbl *_gp,r0; incl _gp`).  Turning
+`AUTOINC_MEM` off altogether made VAX libc 216 bytes bigger.  Test: `pcctests/stmtinc.c`.
+
 ## How to port a trick to another backend
 
 1. **Measure first.** `tools/x86size.sh` (i386/amd64), `tools/vaxdiff.py` (VAX under
@@ -761,6 +806,10 @@ latent: nothing the original compilers produced reached them.
 **In upstream pcc** (PortableCC/pcc, the PDP-11 and VAX backends and the shared
 code they rely on):
 
+* `a[f()] += v` called `f` twice (and `p->m[f()]++`, any lvalue containing a call):
+  `has_se()` in `trees.c` did not count a call as a side effect, so the lvalue was
+  copied instead of kept in a temporary.  Found by a test written for something else
+  (`pcctests/opeqaddr.c`, fails without `-xdmr` on the old compiler).
 * `sizeof` was typed `int` on the PDP-11 (`SIZET` is `INTPTR`, which is `INT` on a
   16-bit target), so `(long)(n * sizeof x)` sign-extended a product over 32767.
   dmr-cc compiles the same expression with `clr` for the high word (getlogin.c).
@@ -816,13 +865,13 @@ declaration forms (3).
   match, so such a rule wins even for `x | 040` and costs a `mov $40,r1`. A shape bit
   that excludes `SCON` while still allowing the operand to be put in a register
   would make it a table rule for every target.
-* **VAX:** 11 of the 56 command files are bigger than `cc -O` (`dump` +240, `deroff`
-  +148, `grep` +116, `ed` +60, ...). `tools/vaxfunsize.py` points at the functions
-  (`dump`: `mark`, `add`; `grep`: `main`, `advance`; `col`: `emit`). Known causes:
-  32V's decision-tree switch, our `extzv` for `>> 4`, `addl3` where 32V has `incl`,
-  `casel`. The c2 counters (`tools/c2stats.sh vax`) say 2640 redundant moves remain
-  for c2 to remove over 130 files: the next IR pass to write is a block-local copy
-  forwarder over `TEMP`s.
+* **VAX:** 5 of the 56 command files are still bigger than `cc -O` (`dumpdir` +28, `deroff`
+  +24, `cron` +24, `chmod` +24, `args` +12), 11 were bigger at the start of this round.  What
+  cleared the rest was, in order: the `op=` address kept once (36), `casel` (17), `incl` for
+  `y++;` (37), `getc`'s increment.  Next: read `dumpdir` `readtap`/`getfile`, `cron` `init`
+  (`getc` into an `int` goes through `cvtbl; movzbl`), `deroff` `eqn`/`regline`, `args` `main`.
+  The c2 counters (`tools/c2stats.sh vax`) say 2640 redundant moves remain for c2 over 130
+  files: the next IR pass is a block-local copy forwarder over `TEMP`s.
 * x86: `testl` after `decl`/`addl`, `leal` for `&a[i]`, the dead mask fold for every
   target (22 above), `jumpsw`-like layout not worth doing.
 * DCE (`-xdce`, pass 1 dead-arm discard and constant folding exist; constant `switch`,
