@@ -189,6 +189,7 @@ def main():
     flags = ''
     ccom = os.environ.get('VAXCCOM')
     keep = None
+    guestcc = False
     while args and args[0].startswith('-'):
         if args[0] == '-f':
             flags = args[1]; args = args[2:]
@@ -196,8 +197,12 @@ def main():
             ccom = args[1]; args = args[2:]
         elif args[0] == '--keep':
             keep = args[1]; args = args[2:]
+        elif args[0] == '--guestcc':
+            guestcc = True; args = args[1:]
         else:
             sys.exit('usage: vax32v.py [-f flags] --ccom CCOM files.c')
+    if guestcc and not ccom:
+        ccom = 'unused'
     if not ccom or not args:
         sys.exit('usage: vax32v.py [-f flags] --ccom CCOM files.c')
     disk0 = os.environ['VAX32V_DISK']
@@ -209,19 +214,24 @@ def main():
     failed = {}
     for n, src in enumerate(args):
         name = os.path.splitext(os.path.basename(src))[0]
-        asm, err = compile_one(ccom, flags, src, work)
-        if err:
-            failed[name] = err
-            continue
-        # V7 file names are 14 characters at most: t<n>.s, m<n>.c
-        files['t%d.s' % n] = asm.encode()
+        if guestcc:
+            # 32V's own cc compiles the test (to see what the original does)
+            asm, err = open(src, errors='replace').read(), None
+            files['t%d.c' % n] = asm.encode()
+        else:
+            asm, err = compile_one(ccom, flags, src, work)
+            if err:
+                failed[name] = err
+                continue
+            # V7 file names are 14 characters at most: t<n>.s, m<n>.c
+            files['t%d.s' % n] = asm.encode()
         files['m%d.c' % n] = ('main() { alarm(' + os.environ.get('VAX32V_TESTSECS', '30') +
                               '); printf("RESULT %s %d\\n", "' + name + '", test()); exit(0); }\n').encode()
         names.append(name)
         ids.append(n)
     sh = 'cd /tmp\nfor t in ' + ' '.join('%d' % n for n in ids) + '\ndo\n' \
          '\t# the first as after a boot sometimes fails with a bogus syntax error: retry once\n' \
-         '\tif cc -o t$t.out m$t.c t$t.s > e$t 2>&1 || cc -o t$t.out m$t.c t$t.s > e$t 2>&1\n\tthen\n\t\t./t$t.out || echo "RESULT n$t CRASH"\n' \
+         '\tif cc -o t$t.out m$t.c t$t.' + ('c' if guestcc else 's') + ' > e$t 2>&1 || cc -o t$t.out m$t.c t$t.' + ('c' if guestcc else 's') + ' > e$t 2>&1\n\tthen\n\t\t./t$t.out || echo "RESULT n$t CRASH"\n' \
          '\telse\n\t\techo "RESULT n$t BUILDFAIL"; head -3 e$t\n\tfi\ndone\necho ALLDONE\n'
     files['run.sh'] = sh.encode()
     if keep:

@@ -583,6 +583,15 @@ latent: nothing the original compilers produced reached them.
   and cost a few bytes per file that uses them (see BIGGER-THAN-ORIGINAL.md); that
   is the intended trade, since size is not worth a wrong answer.
 
+**In 32V's cc** (Johnson's PCC with the 32V tables, run with `tools/vax32v.py --guestcc`):
+
+* Unsigned `/` and `%` are compiled as the signed `divl3` (`table.c` groups `TUNSIGNED`
+  and `TULONG` with `TINT` for `DIV` and `MOD`), so a value with the top bit set is
+  divided as a negative number: `4000000000u / 7u` and `4294967295u / 3000000000u` are
+  wrong.  `tools/dmrbugs/udiv-variable-vax.c` returns the failing cases (15 under 32V's
+  cc, 0 under pcc).  pcc's `__udiv` and `__urem` are right for every value and cost a
+  few dozen bytes per file that divides (`ed` pays 41).
+
 **In upstream pcc** (PortableCC/pcc, the PDP-11 and VAX backends and the shared
 code they rely on):
 
