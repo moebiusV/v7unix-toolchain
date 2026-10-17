@@ -42,6 +42,21 @@ int sums(cp, ip) char *cp; int *ip;
 	return tot + j + k + (int)(c - cp) + (int)(w - ip) + i;
 }
 
+union cell { union cell *next; int v; };
+
+/* the pointee is a 2-byte union: the access is a word move (as realloc's *t++ = *s++) */
+int ucopy(from, to, n) union cell *from, *to; int n;
+{
+	register int i, j, k;
+	union cell *s, *t;
+
+	i = n; j = 1; k = 2;
+	s = from; t = to;
+	g(i, j, k);
+	while (i--) *t++ = *s++;
+	return j + k;
+}
+
 int test()
 {
 	int bad, i, w1[4], w2[4];
@@ -58,5 +73,11 @@ int test()
 	w1[0] = 100; w1[1] = 0;
 	if (sums(b1, w1) != 1 + 2 + 100 + 1 + 2 + 3 + 2) bad |= 16;
 	if (b1[2] != 99 || w1[1] != 7) bad |= 32;
+	{
+		union cell a[3], b[3];
+
+		a[0].v = 5; a[1].v = 6; a[2].v = 7; b[0].v = b[1].v = b[2].v = 0;
+		if (ucopy(a, b, 3) != 3 || b[0].v != 5 || b[1].v != 6 || b[2].v != 7) bad |= 64;
+	}
 	return bad ? bad : 1;
 }
