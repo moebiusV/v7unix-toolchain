@@ -45,13 +45,17 @@ matches frame pointer plus constant).  `f(&x)`: dmr
 *Files:* printf (+2), sprintf (+4), ctime, and several in cmd/.  *Fixable:* yes, a
 template for `ADDROF` of an automatic straight to the stack.
 
-**E. Unsigned divide by a variable.**  qsort (+20) divides an unsigned by a variable.
-dmr emits `clr r0; div (sp)+,r0`, which is wrong whenever the divisor is 32768 or
-more; pcc calls a helper that is right, and appends the helper's text to the file
-(about 30 bytes, paid once per file that uses it).  *Not fixable by being smaller
-in the same way:* the inline form is incorrect.  *Improvable:* put the helpers in
-libc once instead of in every object (a decision for the C library, not the
-compiler).  Also affects scanf, getpw, mon where they divide.
+**E. Unsigned divide by a variable.  EXPLAINED, 4 bytes recovered.**  qsort
+divides an unsigned by a variable (`n / (2*es)`).  dmr emits `clr r0; div (sp)+,r0`,
+4 bytes, which is only right while the divisor is below 32768 (the `div` takes a
+signed divisor); pcc calls `udiv`, a routine it writes into the file, which is right for
+every divisor.  The routine is 30 bytes (36 until the quotient of a divisor over 32767
+became `cmp r0,r1; mov $1,r0; sbc r0`, since `mov` leaves the carry alone), paid once per
+file that divides by a variable.  That is all of qsort's remaining +14: pcc is smaller than
+dmr everywhere else in that file.  In the two corpora only qsort and sh/print.c carry a
+helper, so a shared runtime copy would save about 60 bytes and need the driver to link
+a support library; not done.  Test: `pcctests/udiv16.c` covers every branch of the
+helper (divisor 0/1, 2, 32767, 32768, 40000; dividend 0, equal, smaller, 65535).
 
 **F. 32-bit arithmetic.  FIXED for the common case.**  fseek (+62) and ctime (+46)
 update longs.  dmr keeps every long in memory and updates it there
