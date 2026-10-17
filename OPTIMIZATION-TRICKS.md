@@ -255,10 +255,25 @@ one branch per iteration instead of two.
 **c2.** In both c2s (`loopiv`): a conditional branch to a label that ends in an
 unconditional jump back is rotated. No front-end involvement.
 
-**pcc.** PDP-11 and VAX get it from `c2`. **x86 does not have a pass yet.** The
-simplest implementation is a text pass like `frameless()`: find
-`L1: cmp; jcc L2; body...; jmp L1; L2:` and rewrite. A cleaner one: do it in the
-IR in `mip` before instruction selection (`optim2.c`) for every target.
+**pcc.** `looprot()` in `mip/optim2.c`, run by `deljumps` under `-xdmr`, does it
+on the IR for every target.  Pattern: a label, up to 16 statements and a
+conditional branch out of the loop, a body, then a `jbr` back to the label with the
+branch's target label right after it.  The test block (with its labels, so a
+`continue` still finds it) is moved below the body, its condition inverted and
+aimed at a new label at the top of the body, and the back-jump becomes the entry
+jump in front of the body (dropped if nothing falls into the loop).  Not done for
+floating-point tests (inverting those is wrong with NaNs) or an empty body.  The
+new label's `interpass` is allocated before `deljumps` takes its mark, since the
+working storage is freed when it returns.
+
+This replaced a text pass over the assembly in `common/x86peep.h`; i386 libc went
+19500 -> 19498 and amd64 22819 -> 22816.  PDP-11 and VAX sizes are unchanged because
+c2 had already done it; c2's own rotation now finds nothing left to do.  Test:
+`pcctests/looprot.c` (while, for with `continue`, `break`, nested, do-while, a test
+with side effects, a float loop, a loop at the top of the function).
+
+Pitfall found on the way: the list head has no `interpass`, so a loop at the very
+start of the node list needs the queue position remembered (`headip`).
 
 ## 12. Jump cleanup
 
