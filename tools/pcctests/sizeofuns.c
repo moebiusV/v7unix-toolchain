@@ -14,5 +14,5 @@ int test()
 	if (mulw(m) != 40000L) bad |= 2;
 	if (sizeof(int) - 3 < 0) bad |= 4;		/* unsigned: 2 - 3 is large */
 	if ((long)(m * sizeof(long[20])) < 0) bad |= 8;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

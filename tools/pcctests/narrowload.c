@@ -20,5 +20,5 @@ int test()
 	a[0] = 0x1234; a[1] = -2;
 	if (lowb(a) != 0x34 || lowb(a + 1) != -2) bad |= 8;
 	if (ulow(0x1ff) != 255 || ulow(-1) != 255) bad |= 16;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

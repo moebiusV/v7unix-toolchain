@@ -33,5 +33,5 @@ int test()
 	b.cnt = *b.ip++;
 	b.cnt += *b.ip;
 	if (b.cnt != 30 || b.ip != arr + 1) bad |= 32;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

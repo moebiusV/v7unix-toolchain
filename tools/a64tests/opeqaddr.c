@@ -22,5 +22,5 @@ int test()
 	map[(i + n) / 16 + 1] <<= 1;
 	map[i * n / 16 - 2] |= 8;
 	if (map[2] != 10 || map[1] != 9) bad |= 8;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

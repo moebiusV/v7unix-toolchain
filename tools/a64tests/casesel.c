@@ -72,5 +72,5 @@ int test()
 	i = 0;
 	switch (i) { case 0: hit = 1; break; case 1: hit = 2; break; case 2: hit = 3; break; case 3: hit = 4; }
 	if (hit != 1) bad |= 64;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

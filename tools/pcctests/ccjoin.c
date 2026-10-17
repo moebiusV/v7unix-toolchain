@@ -51,5 +51,5 @@ int test()
 	if (viabis(0, 1) != 1 || viabis(0, 0) != 2 || viabis(5, 0) != 3) bad |= 4;
 	if (viacom(-1, 1) != 1 || viacom(0, 1) != 0 || viacom(-1, 0) != 0 || viacom(7, 0) != 1) bad |= 8;
 	if (viasub(0, 1) != 1 || viasub(5, 1) != 0 || viasub(9, 1) != 0 || viasub(0, 0) != 0) bad |= 16;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

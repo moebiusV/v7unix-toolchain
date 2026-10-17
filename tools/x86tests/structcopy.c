@@ -30,5 +30,5 @@ int test()
 	if (viaptr(&lc, &gb) != 4) bad |= 128;
 	lc = ret(&hb); if (lc.v[10] != 11) bad |= 256;
 	lb = lc; if (lb.v[29] != 30) bad |= 512;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

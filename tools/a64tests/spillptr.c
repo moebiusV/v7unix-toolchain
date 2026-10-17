@@ -79,5 +79,5 @@ int test()
 		a[0].v = 5; a[1].v = 6; a[2].v = 7; b[0].v = b[1].v = b[2].v = 0;
 		if (ucopy(a, b, 3) != 3 || b[0].v != 5 || b[1].v != 6 || b[2].v != 7) bad |= 64;
 	}
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

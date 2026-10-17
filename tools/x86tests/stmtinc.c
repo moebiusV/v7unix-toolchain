@@ -38,5 +38,5 @@ int test()
 	if (r != 6 || gi != 7) bad |= 1024;
 	r = --gi + gi--;
 	if (gi != 5) bad |= 2048;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

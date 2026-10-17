@@ -40,5 +40,5 @@ int test()
 	gs = 0x100; if (bg() != 3) bad |= 4096;
 	guc = 0x80; if (bg() != 2) bad |= 4096;
 	gc = -128; if (bg() != 1) bad |= 4096;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

@@ -20,5 +20,5 @@ int test()
 	cnt = 0;
 	if (bump(1) != 2 || bump(0) != 3) bad |= 8;
 	if (dsum(1.5, 2.25) != 3.75) bad |= 16;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

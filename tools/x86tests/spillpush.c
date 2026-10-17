@@ -44,5 +44,5 @@ int test()
 	if (word1(50, 20) != 50 - 21 - 71) bad |= 8;
 	if (mixed(3, 4) != 18L - 4L - 21L) bad |= 16;
 	if (diff1(-100, -5L) != -5L - 100 - 21L) bad |= 32;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

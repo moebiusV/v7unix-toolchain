@@ -14,5 +14,5 @@ int test()
 	if (r != 50283L) bad |= 1;
 	r = id((long)(m * sizeof(long[10])), 1, (long)u);
 	if (r != 50281L) bad |= 2;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

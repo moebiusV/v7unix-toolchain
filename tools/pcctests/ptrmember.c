@@ -42,5 +42,5 @@ int test()
 	pick()->n++;
 	pick()->n += 5;
 	if (loads != 2 || g.n != 18) bad |= 8;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

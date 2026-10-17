@@ -24,5 +24,5 @@ int test()
 	if (nest(1, 1) != 145) bad |= 4;
 	if (nest(1, 0) != 245) bad |= 8;
 	if (nest(0, 1) != 346) bad |= 16;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

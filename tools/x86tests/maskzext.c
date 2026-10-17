@@ -24,5 +24,5 @@ int test()
 	buf[0] = -1; buf[1] = 1;
 	if (zi(buf) != 256) bad |= 128;
 	if (((int)gc & 0377) + ((int)gc & 0377) != 508) bad |= 256;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

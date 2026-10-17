@@ -58,5 +58,5 @@ int test()
 	if (pick(3, 0) != 0) bad |= 4;
 	if (pick(2, 1) != 0) bad |= 8;
 	if (quads(0) != 0 || quads(2) != 0 || quads(3) != 0) bad |= 16;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

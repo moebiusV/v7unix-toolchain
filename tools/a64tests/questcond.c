@@ -47,5 +47,5 @@ int test()
 	if (trace != 3 || n != 7) bad |= 64;
 	trace = 0; m = (0 ? t(3) : t(0)) ? 7 : 8;
 	if (trace != 0 || m != 8) bad |= 128;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

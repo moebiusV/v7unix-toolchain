@@ -32,5 +32,5 @@ int test()
 	if (w2[0] != 1 || w2[1] != 4) bad |= 128;
 	ip = &w1[2];
 	if (deref(&ip) != 7 + 1) bad |= 256;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

@@ -17,5 +17,5 @@ int test()
 	if (f4(0x3c, 0x0f) != 0x30) bad |= 8;
 	if (f5(0xff, 0x0f, 0xc0) != 0x30) bad |= 16;
 	if (f6(0x0f, 0x30) != ~0x3f) bad |= 32;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }

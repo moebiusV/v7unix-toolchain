@@ -37,5 +37,5 @@ int test()
 	if (stores((char *)7, (unsigned)9) != 9 || w[0] != 7 || w[1] != 9 || w[2] != 7) bad |= 256;
 	gp = (char *)100;
 	if (mix((char *)20) != 120) bad |= 512;
-	return bad ? bad : 1;
+	return bad ? 2 * bad + 1000 : 1;
 }
