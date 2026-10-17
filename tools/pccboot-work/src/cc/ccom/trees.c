@@ -2838,6 +2838,28 @@ rmfldops(P1ND *p)
 }
 #endif
 
+/*
+ * (-xdmr) The value of an expression statement is not used.  A ?: in that
+ * position (the stdio putc macro) is then a conditional statement, with no
+ * temporary to hold a value: its arms are evaluated for effect only.
+ */
+static void
+unusedval(P1ND *p)
+{
+	switch (p->n_op) {
+	case QUEST:
+		if (p->n_type != VOID && p->n_right->n_op == COLON) {
+			p->n_type = VOID;
+			unusedval(p->n_right->n_left);
+			unusedval(p->n_right->n_right);
+		}
+		break;
+	case COMOP:
+		unusedval(p->n_right);
+		break;
+	}
+}
+
 void
 ecomp(P1ND *p)
 {
@@ -2877,6 +2899,8 @@ ecomp(P1ND *p)
 		p1nfree(p);
 		p = u;
 	}
+	if (xdmr)
+		unusedval(p);
 	comops(p);
 	rmcops(p);
 	if (p->n_op == ICON && p->n_type == VOID)
