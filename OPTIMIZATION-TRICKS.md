@@ -30,10 +30,10 @@ the PDP-11). Everything else is unchanged.
 |---|---|---|---|---|
 | PDP-11 | libc, 89 files | dmr 17356 | 17234 | -0.7% |
 | PDP-11 | `cmd/`, 51 files (sh now included) | dmr 90178 | 88482 | -1.9% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19224 | -12.5% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19112 | -13.0% |
 | VAX (32V) | 39 command sources | `cc -O` 77760 | 70900 | -8.8% |
-| i386 | libc | n/a | 20763 -> 20142 with `-xdmr` | -3.0% |
-| amd64 | libc | n/a | 25227 -> 23524 with `-xdmr` | -6.8% |
+| i386 | libc gen+stdio (82 files) | n/a | 19052 | |
+| amd64 | libc gen+stdio (82 files) | n/a | 22400 | |
 
 All numbers are text+data bytes, assembled with the target's own assembler
 (`tools/pccdiff.sh`, `tools/vaxdiff.py`, `tools/x86size.sh`). Flags used:

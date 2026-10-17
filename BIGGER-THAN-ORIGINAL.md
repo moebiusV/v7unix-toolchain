@@ -5,9 +5,9 @@ text+data bytes after V7 `as`).  Totals are below the originals; this is about t
 files that are not.  "Fixable" says whether the cause can be removed without making
 the compiler wrong, and where the change would go.
 
-PDP-11 libc: 25 of 89 files were bigger when this was first written and 18 are now (2 to
-62 bytes, 214 bytes in all; libc as a whole is 214 bytes under dmr's after the changes
-below).  The first count was 25 of 89 files bigger, by 2 to 62 bytes (252 bytes in all, more than
+PDP-11 libc: 25 of 89 files were bigger when this was first written and 17 are now (2 to
+36 bytes, 114 bytes in all; libc as a whole is 334 bytes under dmr's, 17022 against 17356,
+after the changes below).  The first count was 25 of 89 files bigger, by 2 to 62 bytes (252 bytes in all, more than
 made up by about 400 bytes saved in the other 64 files: libc is 152 bytes smaller overall).  Commands: 10 of 51, by 2 to 454 bytes.
 
 ## The causes, most files first
@@ -53,14 +53,19 @@ in the same way:* the inline form is incorrect.  *Improvable:* put the helpers i
 libc once instead of in every object (a decision for the C library, not the
 compiler).  Also affects scanf, getpw, mon where they divide.
 
-**F. 32-bit arithmetic.**  fseek (+62) and ctime (+46) work on `long`.  dmr updates
-a long in memory in place (`add r0,-12(r5); add r1,-10(r5); adc -12(r5)`) and keeps
-temporaries on the stack with `-(sp)`/`(sp)+`; pcc loads the pair into registers,
-operates, stores it back, and spills temporaries to frame slots.  It also zero
-extends where dmr sign extends (`clr -(sp)` against `sxt -(sp)`) in one place: the
-conversion looks right for the unsigned operand but needs checking.  *Fixable:*
-partly, a large piece of work.  In-place long `+=`/`-=` on memory is a template
-(`arch/pdp11/table.c`); the spills are the register allocator's choice.
+**F. 32-bit arithmetic.  FIXED for the common case.**  fseek (+62) and ctime (+46)
+update longs.  dmr keeps every long in memory and updates it there
+(`add r0,-12(r5); add r1,-10(r5); adc -12(r5)`); pcc kept them in register pairs, and
+when the allocator spilled one it loaded the pair, updated it and stored it back around
+every use, because a spilled temporary is rewritten as load / operate / store.  Now,
+when two longs are live across calls (long multiply and divide are calls), the ones
+updated with `x += e` / `x -= e` stay in memory, where the existing in-place templates
+apply, and a long parameter updated that way is used in its own slot with no copy
+(`longmem()` in `arch/pdp11/local2.c`).  The rule is that narrow on purpose: every long
+in memory made libc 38 bytes smaller and the commands 316 bytes bigger, and a single
+long that lives across calls fits the callee-saved pair and costs 2 bytes more per use
+in memory (ld.c, ftell).  fseek +62 -> +10, ctime +46 -> gone, libc 17132 -> 17022.
+What remains in fseek is the `sxt` against `clr` sign extension of an int into a long.
 
 **G. Operand order in address arithmetic.  TRIED, NO GAIN.**  Putting the expression
 first (swapping `reg + expr`) changed nothing in libc and cost 10 bytes in cmd/;
