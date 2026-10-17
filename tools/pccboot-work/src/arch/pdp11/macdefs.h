@@ -58,6 +58,7 @@
 #define SZLONGLONG	64
 /* sizeof is unsigned, as in V7 C and the standard: (long)(n * sizeof x) does not sign-extend */
 #define SIZET	UNSIGNED
+#define POSTSPILL(p)	pdp11_postspill(p)
 #define SZPOINT(t)	16
 
 /*

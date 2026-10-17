@@ -36,6 +36,10 @@
 #endif
 #include <stdlib.h>
 
+#ifdef POSTSPILL
+void pdp11_postspill(NODE *);
+#endif
+
 #define	MAXLOOP	20 /* Max number of allocation loops XXX 3 should be enough */
 
 #ifndef MAX
@@ -2969,6 +2973,9 @@ leafrewrite(struct interpass *ipole, REGW *rpole)
 		nodepole = ip->ip_node;
 		thisline = ip->lineno;
 		walkf(ip->ip_node, longtemp, 0); /* convert temps to oregs */
+#ifdef POSTSPILL
+		POSTSPILL(ip->ip_node);
+#endif
 	}
 	nodepole = NIL;
 	spole = NULL;

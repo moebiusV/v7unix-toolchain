@@ -606,7 +606,7 @@ struct optab table[] = {
 	SBREG,	TLONG|TULONG,
 	SAREG|SCON,	TINT|TUNSIGNED,
 		NEEDS(NREG(B, 1), NSL(B), NLEFT(R01), NRES(R01)),	RESC1,
-		"ashc	AR,A1\n", },
+		"ashc	AR,r0\n", },	/* the pair is pinned: A1 may be coloured elsewhere and copied to */
 
 { LS,	INAREG|FOREFF,
 	SAREG,	TWORD,

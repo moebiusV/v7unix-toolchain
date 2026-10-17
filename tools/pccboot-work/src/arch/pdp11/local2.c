@@ -1806,6 +1806,42 @@ lowword(NODE *p, void *arg)
  * (-xdmr) A char made from a word in memory is the low byte of it, at the
  * same address (little-endian): movb 4(r5),r0, not  mov 4(r5),r0; movb r0,r0.
  */
+/*
+ * (-xdmr) int, unsigned, short and pointer are all one word, so a conversion of a
+ * plain operand among them changes nothing but its type: (int)p, (unsigned)i.  As
+ * a node it is a template that rewrites its operand, and for a variable that
+ * costs a copy (mov r1,r0; mov r0,*_buf).  The operand is retyped instead.
+ */
+static int
+oneword(TWORD t)
+{
+	return t == INT || t == UNSIGNED || t == SHORT || t == USHORT || ISPTR(t);
+}
+
+static void
+nopconv(NODE *p, void *arg)
+{
+	NODE *q, o;
+
+	if (!xdmr || (p->n_op != SCONV && p->n_op != PCONV) || !oneword(p->n_type))
+		return;
+	q = p->n_left;
+	if (!oneword(q->n_type) || ISVOL(q->n_qual))
+		return;
+	if (q->n_op != TEMP && q->n_op != REG && q->n_op != NAME && q->n_op != OREG &&
+	    q->n_op != ICON)
+		return;
+	if (q->n_op == ICON && q->n_name[0] != '\0')
+		return;
+	o = *p;
+	*p = *q;
+	p->n_type = o.n_type;
+	p->n_ap = o.n_ap;
+	nfree(q);
+}
+
+static int framevar(NODE *);
+
 static void
 narrowload(NODE *p, void *arg)
 {
@@ -1815,12 +1851,20 @@ narrowload(NODE *p, void *arg)
 		return;
 	l = p->n_left;
 	if ((l->n_type != INT && l->n_type != UNSIGNED) ||
-	    !(l->n_op == NAME || (l->n_op == OREG && !R2TEST(l->n_rval))) ||
+	    !(l->n_op == NAME || (l->n_op == OREG && !R2TEST(l->n_rval)) || framevar(l)) ||
 	    ISVOL(l->n_qual))
 		return;
 	l->n_type = p->n_type;
 	*p = *l;
 	nfree(l);
+}
+
+void
+pdp11_postspill(NODE *p)
+{
+	if (xdmr) {
+		walkf(p, narrowload, 0);
+	}
 }
 
 void
@@ -1845,6 +1889,8 @@ myreader(struct interpass *ipole)
 			walkf(ip->ip_node, lowword, 0);
 		if (xdmr)
 			walkf(ip->ip_node, narrowload, 0);
+		if (xdmr)
+			walkf(ip->ip_node, nopconv, 0);
 		walkf(ip->ip_node, fixops, 0);
 		canon(ip->ip_node); /* call it early */
 		if (xdmr) {
