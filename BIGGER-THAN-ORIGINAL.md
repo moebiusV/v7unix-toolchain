@@ -5,7 +5,9 @@ text+data bytes after V7 `as`).  Totals are below the originals; this is about t
 files that are not.  "Fixable" says whether the cause can be removed without making
 the compiler wrong, and where the change would go.
 
-PDP-11 libc: 25 of 89 files are bigger, by 2 to 62 bytes (252 bytes in all, more than
+PDP-11 libc: 25 of 89 files were bigger when this was first written and 18 are now (2 to
+62 bytes, 214 bytes in all; libc as a whole is 214 bytes under dmr's after the changes
+below).  The first count was 25 of 89 files bigger, by 2 to 62 bytes (252 bytes in all, more than
 made up by about 400 bytes saved in the other 64 files: libc is 152 bytes smaller overall).  Commands: 10 of 51, by 2 to 454 bytes.
 
 ## The causes, most files first
@@ -29,13 +31,15 @@ store.  2 bytes per `putc`.  *Files:* puts, putchar, putw, cpp.c.  *Fixable:* ye
 Evaluate the arms of a `?:` whose value is unused for effect only; an IR rewrite in
 `clocal` or a `FOREFF` rule.
 
-**C. Comparing two bytes in memory.**  dmr: `cmpb (r4),(r3)+`.  pcc loads both
+**C. Comparing two bytes in memory.  FIXED** in `clocal` (PDP-11, VAX; the x86
+backends got compare narrowing too, which they never had).  dmr: `cmpb (r4),(r3)+`.  pcc loads both
 into registers and compares them: `movb (r4),r1; movb (r3)+,r0; cmp r1,r0` (+4).
 *Files:* strcmp (+4), strncmp (+4), index (+4), rindex (+4), getenv (+2).
 *Fixable:* yes, a template for `cmpb` with two byte operands that are memory or
 autoincrement (`arch/pdp11/table.c`).
 
-**D. The address of a local goes through a register.**  `f(&x)`: dmr
+**D. The address of a local goes through a register.  FIXED** (`SARGSUB` now also
+matches frame pointer plus constant).  `f(&x)`: dmr
 `mov r5,-(sp); add $6,(sp)`; pcc `mov r5,r0; add $6,r0; mov r0,-(sp)` (+2).
 *Files:* printf (+2), sprintf (+4), ctime, and several in cmd/.  *Fixable:* yes, a
 template for `ADDROF` of an automatic straight to the stack.
@@ -57,7 +61,10 @@ conversion looks right for the unsigned operand but needs checking.  *Fixable:*
 partly, a large piece of work.  In-place long `+=`/`-=` on memory is a template
 (`arch/pdp11/table.c`); the spills are the register allocator's choice.
 
-**G. Operand order in address arithmetic.**  malloc (+40), qsort: `p + (n << 1)`
+**G. Operand order in address arithmetic.  TRIED, NO GAIN.**  Putting the expression
+first (swapping `reg + expr`) changed nothing in libc and cost 10 bytes in cmd/;
+reverted.  The simple shapes already come out right; malloc's remaining +36 is
+a mix of this and the other causes and needs its own look.  malloc (+40), qsort: `p + (n << 1)`
 is `mov r2,r0; asl r0; add r4,r0` in dmr (3 instructions) and
 `mov r4,r0; mov r2,r1; asl r1; add r1,r0` in pcc (4): the pointer is put in the
 result register first, and the shifted index then needs a second one.  *Fixable:*
@@ -74,6 +81,12 @@ single missing rule.  *Fixable:* unknown until looked at.
 repeated `jmp cret`), the order of `cmp` operands with the branch reversed, static
 data in `.bss` against `.data`, and symbol-name truncation to 7 characters in dmr's
 output are the same number of bytes.
+
+**J. A variable updated in a condition (found in malloc).**  `if (++temp > 1)`:
+dmr `inc L1; cmp $1,L1`; pcc loaded, incremented, stored and compared through a
+register.  **FIXED** in pass 1 (`andorbr`, `-xdmr`): the update becomes a statement
+and the variable is compared.  Not done for a register variable, a plain
+assignment or a compare with 0, where the old form is smaller.
 
 ## Per file, PDP-11 libc
 
