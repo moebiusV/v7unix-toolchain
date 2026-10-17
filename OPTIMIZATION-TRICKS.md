@@ -572,6 +572,17 @@ latent: nothing the original compilers produced reached them.
   label it makes (6 of the 91 libc files differ from the original's output once
   the port avoids it).
 
+**In dmr-cc itself** (found by running its output, `tools/dmrtest.sh`, against pcc's):
+
+* Unsigned division and remainder by a variable are compiled as `clr r0; div b,r0`.
+  The PDP-11 `div` takes a signed divisor and needs a quotient that fits a signed
+  word, so the result is wrong for a divisor of 32768 or more and for a divisor of
+  1 with a dividend of 32768 or more: `60000u / 40000u` is not 1, and neither is
+  `65535u / 65535u`.  `tools/dmrbugs/udiv-variable.c` returns the failing cases
+  (87 under dmr-cc, 0 under pcc).  pcc's `udiv` and `urem` are right for every divisor
+  and cost a few bytes per file that uses them (see BIGGER-THAN-ORIGINAL.md); that
+  is the intended trade, since size is not worth a wrong answer.
+
 **In upstream pcc** (PortableCC/pcc, the PDP-11 and VAX backends and the shared
 code they rely on):
 

@@ -47,8 +47,10 @@ template for `ADDROF` of an automatic straight to the stack.
 
 **E. Unsigned divide by a variable.  EXPLAINED, 4 bytes recovered.**  qsort
 divides an unsigned by a variable (`n / (2*es)`).  dmr emits `clr r0; div (sp)+,r0`,
-4 bytes, which is only right while the divisor is below 32768 (the `div` takes a
-signed divisor); pcc calls `udiv`, a routine it writes into the file, which is right for
+4 bytes, which is wrong for a divisor of 32768 or more (the `div` takes a signed divisor) and
+for a divisor of 1 with a large dividend: shown by running dmr-cc's own output, see
+`tools/dmrbugs/udiv-variable.c` and `tools/dmrtest.sh` (87 failing-case bits under
+dmr-cc, 0 under pcc); pcc calls `udiv`, a routine it writes into the file, which is right for
 every divisor.  The routine is 30 bytes (36 until the quotient of a divisor over 32767
 became `cmp r0,r1; mov $1,r0; sbc r0`, since `mov` leaves the carry alone), paid once per
 file that divides by a variable.  That is all of qsort's remaining +14: pcc is smaller than
