@@ -12,17 +12,18 @@ made up by about 400 bytes saved in the other 64 files: libc is 152 bytes smalle
 
 ## The causes, most files first
 
-**A. Deferred addressing is missing for a pointer held in memory.**  dmr stores
-through a pointer that lives in a global or a struct with one instruction,
-`movb r3,*10+__iob` or `movb *(r4),r0`; pcc loads the pointer into a register first
-(`mov 10+__iob,r0; movb r3,(r0)`), 2 bytes more each time.  Hits every stdio
-`putc`/`getc` macro use.  *Files:* puts (+8), putchar (+4), putw (+4), getw (+2),
-fgets (+2), getchar (+2), sprintf, filbuf, flsbuf, and most of the cpp.c (+454),
-macro.c, ld.c and c21.c excess.  *Fixable:* yes.  The VAX backend has the same
-feature (`deferred()` in `arch/vax/order.c`, the `*` flag in the packed register);
-the PDP-11 backend has the `*off(rN)` half (a `UMUL` of an `OREG`) but not `*name`,
-and not the case where the pointer is also incremented in memory (`*p->_ptr++`).
-Place: `arch/pdp11/order.c` (`offstar`, `myormake`), `local2.c` (`adrput`).
+**A. Deferred addressing is missing for a pointer held in memory.  PARTLY FIXED.**
+dmr stores through a pointer that lives in a global or the frame with one
+instruction, `movb r3,*10+__iob; inc 10+__iob`; pcc made a copy of the pointer in a
+register first (`t = p; p = p + 1; *t = c`).  pass 1 produces those three statements for
+`*p++`; `postincfold()` in `mip/optim2.c` (-xdmr, targets with `MEM_DEFERRED`: pdp11,
+vax) now puts the use first, through the pointer itself, and the increment after it.
+Only for a global or a frame variable: through a register the deferred form `*(rN)` is
+`@0(rN)`, an index word, which is as long as loading the pointer (found when getpass.c
+grew 2 bytes).  libc 17138 -> 17132, commands 88268 -> 88202.  Still different from
+dmr: a pointer reached through another pointer in a register (`*iop->_ptr++`, where
+dmr's `*(r4)` is no shorter either), and the `movb r3,r3` that remains where the
+value of the assignment is used (putchar's return value).
 
 **B. A value computed only for its effect is still converted.**  `putc(c, f)` is
 `cond ? *p++ = c : _flsbuf(c, f)`; used as a statement its value is dropped, but
