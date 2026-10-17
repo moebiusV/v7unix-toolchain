@@ -9,18 +9,17 @@ compiler wrong, and where the change would go.
 
 ## PDP-11
 
-libc: 16918 bytes against dmr's 17356 (-2.5%); 6 of 89 files are bigger (it was 25).
-commands: 86502 against 90178 (-4.1%); 1 of 51 files is bigger (it was 10).
+libc: 16914 bytes against dmr's 17356 (-2.5%); 5 of 89 files are bigger (it was 25).
+commands: 86456 against 90178 (-4.1%); 1 of 51 files is bigger (it was 10).
 
 | file | bytes over | cause |
 |---|---|---|
 | `libc/gen/qsort.c` | +14 | **correctness**: the unsigned-divide helper (below); without its 34 bytes the file is 20 smaller than dmr's |
 | `cmd/sh/print.c` | +58 | **correctness**: `udiv` and `urem`, 74 bytes; without them 16 smaller |
 | `libc/gen/malloc.c` | +12 | allocator choices (B); partly **correctness**: `(nw + BLOCK/WORD) / (BLOCK/WORD)` is unsigned (sizeof is), pcc shifts, dmr emits a signed `sxt; div` |
-| `libc/gen/mon.c` | +6 | a parameter used twice is copied into a register (A) |
-| `libc/stdio/fseek.c` | +6 | the same, and a 32-bit value spilled to frame slots where dmr pushes and pops (A, B) |
+| `libc/gen/mon.c` | +6 | not understood in detail: parameters copied to registers and a few extra `mov`s (A) |
+| `libc/stdio/fseek.c` | +6 | a 32-bit value spilled to frame slots where dmr pushes and pops; not understood further (A, B) |
 | `libc/stdio/flsbuf.c` | +4 | an address-taken `char` temporary is stored from a register after template selection: `mov 4(r5),r0; movb r0,r0; movb r0,-10(r5)` against dmr's `movb 4(r5),-12(r5)` (C) |
-| `libc/stdio/sprintf.c` | +2 | a parameter copied into a register (A) |
 
 ### The causes
 
@@ -35,12 +34,10 @@ dividends 0, equal, smaller, 65535).  A shared copy in a runtime library would s
 60 bytes over the two corpora and needs the driver to link a support library; not done.
 The same applies to `uldiv` and `ulrem`.
 
-**A. A parameter used twice is copied into a register.**  The register costs a 2-word
-`mov 4(r5),r2` and saves a word per use (an operand `4(r5)` has an index word), so at two
-uses it is a draw in bytes and the register pressure causes spills.  `parmprop()` in
-`arch/pdp11/local2.c` already uses a parameter in place when it has one use.  Using it in
-place at two uses as well was tried and made libc 14 bytes and commands 6 bytes bigger,
-so it was dropped.  *Fixable:* only by a better spill decision in the allocator.
+**A. Parameters copied into registers.**  `parmprop()` now decides by the cost of the uses
+(OPTIMIZATION-TRICKS.md 39), which settled `fputc` and others but not `mon` or `fseek`; I wrote
+here earlier that those were two-use parameters, and that was a guess the cost model did not
+bear out.  *Not understood yet.*
 
 **B. Allocator spill choices.**  malloc and fseek keep a temporary in a frame slot where
 dmr keeps nothing live; `mov _alloct,r0; mov (r0),r0` is two loads where dmr reused the

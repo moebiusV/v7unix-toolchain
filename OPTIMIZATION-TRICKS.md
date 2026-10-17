@@ -21,7 +21,7 @@ The two compilers:
 Where dmr-cc is a hand-written one-pass-per-stage compiler, 32V's cc gets most
 of its quality from `c2`; the compiler proper (pcc) is generic.
 
-## Status of this work (2026-10-18)
+## Status of this work (2026-10-18, later)
 
 All dmr/32V-inspired transformations are opt-in with `-xdmr` (`pcc -O` implies it on
 the PDP-11). Everything else is unchanged. Three things are not gated, on purpose:
@@ -30,12 +30,12 @@ sizeof being unsigned on the PDP-11 (a correctness fix), and the shared bug fixe
 
 | Target | Corpus | original cc | ours | |
 |---|---|---|---|---|
-| PDP-11 | libc, 89 files | dmr 17356 | 16918 | -2.5% |
-| PDP-11 | `cmd/`, 51 files | dmr 90178 | 86502 | -4.1% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19088 | -13.1% |
-| VAX (32V) | 56 command sources | `cc -O` 118444 | 108812 | -8.1% |
-| i386 | libc gen+stdio (91 files) | n/a | 21382 (27839 with no flags) | -23% |
-| amd64 | libc gen+stdio (91 files) | n/a | 24771 (39919 with no flags) | -38% |
+| PDP-11 | libc, 89 files | dmr 17356 | 16914 | -2.5% |
+| PDP-11 | `cmd/`, 51 files | dmr 90178 | 86456 | -4.1% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19040 | -13.4% |
+| VAX (32V) | 56 command sources | `cc -O` 118444 | 108472 | -8.4% |
+| i386 | libc gen+stdio (91 files) | n/a | 21369 (27839 with no flags) | -23% |
+| amd64 | libc gen+stdio (91 files) | n/a | 24747 (39919 with no flags) | -38% |
 
 All numbers are text+data bytes, assembled with the target's own assembler
 (`tools/pccdiff.sh`, `tools/vaxdiff.py`, `tools/x86size.sh`). Flags used:
@@ -44,15 +44,15 @@ All numbers are text+data bytes, assembled with the target's own assembler
 The x86 "no flags" column is the upstream default; most of that difference is
 `-xtemps` and friends, not `-xdmr`, which is worth 1126 bytes of the 22508 on i386.
 
-PDP-11 files still bigger than dmr's: 6 of 89 in libc, 1 of 51 in `cmd/` (7 in all);
+PDP-11 files still bigger than dmr's: 5 of 89 in libc, 1 of 51 in `cmd/` (6 in all);
 every one is explained in `BIGGER-THAN-ORIGINAL.md`, and the two big ones
 (`qsort`, `sh/print`) are the correct unsigned-divide helpers. VAX: 5 of the 56
 command files are bigger than `cc -O` (`dumpdir` +28, `deroff` +24, `cron` +24,
 `chmod` +24, `args` +12); `tools/vaxfunsize.py` finds the functions.
 
-Correctness gates, all passing: 228 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
-four flag sets), 171 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
-flag sets, one with c2 and one with `-xssa`), 130 i386 and 120 amd64 runs, pcc
+Correctness gates, all passing: 232 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
+four flag sets), 174 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
+flag sets, one with c2 and one with `-xssa`), 135 i386 and 125 amd64 runs, pcc
 compiling itself with identical stage 1 and 2 (`tools/pccboot.sh`; note it builds
 the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built by
 `pcc -O` and run inside real V7 next to V7's own cc builds (`tools/v7progs.py`).
@@ -97,7 +97,9 @@ the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built
 | 34 | A char from a word in memory is a byte load | c1 | - | done (pdp11) | free: x86 loads partial registers | little-endian targets |
 | 35 | `sizeof` is unsigned | c0 | pcc | done (pdp11: **was a bug**) | already `unsigned long` | all 16-bit targets |
 | 36 | `x op= e` / `x++` through a pointer: pointer kept once, offset in the address | c1 | pcc | done (pass 1, all targets) | done (same) | generic |
-| 37 | `x++;` of an integer in memory is one `incl` | c1 | pcc | done (vax) | generic | generic |
+| 37 | `x++;` as a statement leaves no copy of the old value | c1 | pcc | done (pass 1, all targets) | generic | generic |
+| 38 | Deferred operand through a pointer in the frame (`clrb *-16(r5)`) | c1 | pcc | done (pdp11) | n/a | m68k |
+| 39 | A parameter used from its slot when its uses are cheap | c1 | pcc | done (pdp11) | allocator | allocator |
 
 "done" means implemented and covered by tests that run on the real system (PDP-11
 under SIMH with V7, VAX under SIMH with 32V) or natively (x86).
@@ -576,18 +578,26 @@ the zero high word is the c2 peephole `clrmov` (item 33). Tests: `lowword.c`,
 ## 32. The last update of a register variable that is also the result
 
 **What.** `return i | (getc(f) << 8)` with `i` in r3: dmr `bis r3,r0`; pcc built the
-`or` in r3 (the left operand) and moved it: `bis r0,r3; mov r3,r0`. **pcc.**
-`retfold()` in `mip/optim2.c` (`-xdmr`, all targets) does two things. (a) `orswap`
-puts the computed operand of an `OR` first when the other is a register variable and
-the computed one has no side effects, except for an in-place update `v = v | E`
-(there `v` stays first; swapping it cost 2 bytes in `cp.c`). (b) `r = E; ret = r`
-directly before the return, where `r` is a register, becomes `ret = E`: it needs
-`toepilog()`, "the next statement jumps straight to the epilogue" (a goto to a label
-followed only by labels and `EPILOG`, or no statement at all), because then nothing but
-the result is live. That version works on `REG` nodes; a register variable on the
-PDP-11 is a `REG` in the IR, not a `TEMP`, so a pass in `regs.c` written for `TEMP`s
-never fired. **Why not a table rule:** see "What is still open" (no matcher shape for a
-register that is not a constant).
+`or` in r3 (the left operand) and moved it: `bis r0,r3; mov r3,r0`.  Two pieces.
+
+(a) `retfold()` in `mip/optim2.c` (`-xdmr`, all targets): `r = E; ret = r` directly before
+the return, where `r` is a register, becomes `ret = E`.  It needs `toepilog()`, "the next
+statement jumps straight to the epilogue" (a goto to a label followed only by labels and
+`EPILOG`, or no statement at all), because then nothing but the result is live.  It works on
+`REG` nodes: a register variable on the PDP-11 is a `REG` in the IR, not a `TEMP`, so a pass in
+`regs.c` written for `TEMP`s never fired.
+
+(b) The `OR` itself is a **matcher** fix, and it helped every target.  `chcheck()` in
+`mip/match.c` upgrades an operand that a template modifies (`RLEFT`/`RRIGHT`) from "direct" (1) to
+"must be in a register" (3), so a register that already holds the value cost the same as one
+that has to be loaded, and a rule that leaves its result in the right operand (`bis AL,AR`) tied
+with the plain one; the earlier rule won.  `findops()` now ranks such an operand one cheaper
+(`inplace`), without changing the code `shswitch()` uses to walk the tree.  Alone it made the
+PDP-11 commands 38 bytes smaller, i386 13 and amd64 24, and the VAX unchanged.  With it a
+table rule is enough: `OR` may leave its result in the right operand's register
+(`arch/pdp11/table.c`), and `x | 040` still gets `bis $40,r0` (the first attempt at the table
+rule, before the ranking fix, produced `mov $40,r1; bis r0,r1`).  An IR operand swap I wrote
+first was a workaround for exactly this ranking defect, matched only `REG` nodes, and is gone.
 
 ## 33. c2 peepholes that need the label graph (PDP-11 c2 port, `cc2/cc2.pdp11.c`)
 
@@ -650,15 +660,43 @@ mode is the point.  Tests: `pcctests/opeqaddr.c`, `ptrmember.c`.
 needs a temporary at all, did not treat a call as a side effect, so `map[idx(35)] += 5`
 called `idx` twice.  It does now.
 
-## 37. `x++;` on an integer in memory (VAX)
+## 37. `x++;` as a statement leaves no copy
 
-`AUTOINC_MEM` (VAX only) writes `x++` of an integer in memory as `(x += 1) - 1`, so the
-variable is stepped in place and the old value recomputed.  As a statement the `- 1` is dead:
-`unusedval()` now strips a constant plus/minus above an assignment, so `y++;` is `incl _y`
-(it was `addl3 $1,_y,r0; movl r0,_y`).  The form is for integers only: for a pointer in
-memory the old `(t = x, x += 1, t)` is smaller, because `postincfold()` then turns it into a
-use through the pointer followed by the increment (`cvtbl *_gp,r0; incl _gp`).  Turning
-`AUTOINC_MEM` off altogether made VAX libc 216 bytes bigger.  Test: `pcctests/stmtinc.c`.
+pass 1 writes `x++` as `((t = x, x += 1), t)`, and the `+= 1` is itself a `COMOP(0, x = x + 1)` whose
+`0` is a placeholder, so the whole thing is `COMOP(0, COMOP(COMOP(t = x, ...), t))`.  `ecomp()`
+recognises the statement form `x++;` and keeps only `x += 1`, but it looked at the root, where
+the placeholder was, so for most variables the fold never fired and the copy `t = x` stayed (`movl
+r11,r0; incl r11` for a register variable; the VAX cannot rely on DCE to remove it, `dce()` is off
+there).  `ecomp()` now skips a leading `COMOP(constant, X)`, and a statement that is only a
+constant is dropped.  The VAX had worked around this with `AUTOINC_MEM`, which wrote an integer
+`x++` as `(x += 1) - 1`; with the fold fixed the plain form is smaller in every case
+(`movl _n,r0; incl _n` against `addl3 $1,_n,r0; movl r0,_n; decl r0`), so `AUTOINC_MEM` and the
+special case in `unusedval()` that existed for it are removed (VAX libc 19056 -> 19040).  Test:
+`pcctests/stmtinc.c`.  Lesson: a pattern matched at the root of a tree breaks silently when a
+rewrite adds a wrapper; check the real shape (`p1fwalk`) before trusting the fold works.
+
+## 38. Frame-slot pointers: deferred operands and use-first increments
+
+**What.** `putc('\0', &buf)` on a local struct stores through `buf._ptr`, a pointer in the frame:
+dmr `clrb *-16(r5)`; pcc loaded the pointer into a register first.  **pcc.** Two things were wrong.
+`isptrvar()` (the test `postincfold()` uses to reorder `t = x; x = x + 1; use(*t)` into use-first)
+accepted `NAME` and the `UMUL(r5 - k)` spelling of a frame variable, but at that point a frame
+variable is already an `OREG k(r5)`, so no frame pointer was ever reordered.  And the PDP-11
+shapes `STARNM` (`shumul()` in `order.c`) and `SSTARX` (`special()`) matched `UMUL(NAME)` only; both
+now also match `UMUL(OREG k(r5))`, non-indexed, so every existing deferred rule (byte stores,
+`clrb`, loads, `inc`, `tst`) applies, printed `*-16(r5)`.  Test: `pcctests/frameptr.c`.
+
+## 39. A parameter used in place when the uses are cheap
+
+`parmprop()` (`arch/pdp11/local2.c`) uses a parameter from its stack slot instead of copying it to
+a register.  The copy is one 2-word `mov 4(r5),r2`; an operand `4(r5)` has an index word, so a use as
+an operand (`cmp`, `add`, `mov` to the stack, a same-type `mov`) costs one word more than `r2`, and a use
+that needs a register anyway (the base of a dereference, a conversion, a shift, a store to a char)
+costs the 2-word load again.  In place when the extra words are at most 2 and there are at most two
+uses (`ptcost()`).  Two earlier attempts: every two-use parameter in place (libc +14), and the same
+with all uses counted as one word (the char store case lost).  After the replacement `narrowload`
+runs again, because a slot under a char conversion is only now visible.  The gain is small (a few
+bytes, `fputc`) and is mostly that the register stays free.
 
 ## How to port a trick to another backend
 
@@ -853,18 +891,10 @@ declaration forms (3).
 
 ## What is still open
 
-* **PDP-11, the last bytes** (details in `BIGGER-THAN-ORIGINAL.md`): the allocator copies a
-  parameter used twice into a register where dmr uses it in place (`fseek`, `mon`,
-  `sh/main`; using it in place at two uses was tried and made libc 14 bytes bigger);
-  an address-taken char temporary is stored through a register after template
-  selection (`flsbuf`); dmr's `clr -(sp)` for a zero long word is done by a c2
-  peephole, not a template.
-* **A matcher-level "register, but not a constant" shape.** A commutative rule that
-  leaves the result in the right operand's register (`bis AL,AR`) would do what
-  `retfold`'s operand swap does, but `match()` ranks a rewrite no worse than an exact
-  match, so such a rule wins even for `x | 040` and costs a `mov $40,r1`. A shape bit
-  that excludes `SCON` while still allowing the operand to be put in a register
-  would make it a table rule for every target.
+* **PDP-11, the last bytes** (details in `BIGGER-THAN-ORIGINAL.md`): `mon`, `fseek`, `malloc` and
+  `flsbuf` are not understood in detail; an address-taken char temporary is stored through a
+  register after template selection (`flsbuf`); dmr's `clr -(sp)` for a zero long word is done
+  by a c2 peephole, not a template.
 * **VAX:** 5 of the 56 command files are still bigger than `cc -O` (`dumpdir` +28, `deroff`
   +24, `cron` +24, `chmod` +24, `args` +12), 11 were bigger at the start of this round.  What
   cleared the rest was, in order: the `op=` address kept once (36), `casel` (17), `incl` for
