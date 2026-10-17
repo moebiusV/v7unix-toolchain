@@ -1406,6 +1406,57 @@ longmem(struct interpass *ipole)
 	}
 }
 
+/*
+ * A structure of 2 or 4 bytes assigned as a statement is an int or a long
+ * assignment, one or two movs, not the general block move with a counter
+ * (-xdmr): *t++ = *s++ on a union of one word is  mov (r0)+,(r1)+.
+ */
+static void
+smallstasg(struct interpass *ip)
+{
+	NODE *root = ip->ip_node, *st, *l, *r, *u;
+	struct attr *ap;
+	int sz;
+	TWORD t;
+
+	st = root;
+	if (root->n_op == UMUL && root->n_left->n_op == STASG)
+		st = root->n_left;
+	if (st->n_op != STASG)
+		return;
+	if ((ap = attr_find(st->n_ap, ATTR_P2STRUCT)) == NULL)
+		return;
+	sz = ap->iarg(0);
+	if (sz != 2 && sz != 4)
+		return;
+	if (ap->iarg(1) < 2)	/* needs word alignment */
+		return;
+	t = sz == 2 ? INT : LONG;
+	l = st->n_left;
+	r = st->n_right;
+	l->n_type = t;
+	if (r->n_op == ADDROF) {
+		u = r->n_left;
+		nfree(r);
+		u->n_type = t;
+	} else if (r->n_op == ICON && r->n_name[0] != '\0') {
+		/* the address of a named object: the object itself */
+		u = r;
+		u->n_op = NAME;
+		u->n_type = t;
+	} else
+		u = mkunode(UMUL, r, 0, t);
+	st->n_op = ASSIGN;
+	st->n_type = t;
+	st->n_ap = NULL;
+	st->n_left = l;
+	st->n_right = u;
+	if (root != st) {
+		ip->ip_node = st;
+		nfree(root);
+	}
+}
+
 void
 myreader(struct interpass *ipole)
 {
@@ -1422,6 +1473,8 @@ myreader(struct interpass *ipole)
 	DLIST_FOREACH(ip, ipole, qelem) {
 		if (ip->type != IP_NODE)
 			continue;
+		if (xdmr)
+			smallstasg(ip);
 		walkf(ip->ip_node, fixops, 0);
 		canon(ip->ip_node); /* call it early */
 		if (xdmr) {
@@ -1633,6 +1686,11 @@ special(NODE *p, int shape)
 		if (p->n_op == ASSIGN && p->n_right->n_op == PLUS &&
 		    treecmp(p->n_left, p->n_right->n_left) &&
 		    is1con(p->n_right->n_right))
+			return SRDIR;
+		break;
+	case SSTARX:
+		if (xdmr && p->n_op == UMUL && p->n_left->n_op == NAME &&
+		    p->n_left->n_name[0] != '\0')
 			return SRDIR;
 		break;
 	case SARGSUB:

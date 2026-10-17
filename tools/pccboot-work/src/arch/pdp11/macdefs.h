@@ -256,6 +256,7 @@ int COLORMAP(int c, int *r);
 #define	SINCW		(MAXSPECIAL+3)	/* post-increment */
 #define	SARGSUB		(MAXSPECIAL+4)	/* arg pointer to array */
 #define	SARGINC		(MAXSPECIAL+5)	/* post-increment arg */
+#define	SSTARX		(MAXSPECIAL+7)	/* *name, a word or byte through a pointer at a fixed address (-xdmr) */
 #define	SDIVCON		(MAXSPECIAL+6)	/* constant 2..32767: div by it is right for an unsigned dividend */
 
 /* floating point definitions */

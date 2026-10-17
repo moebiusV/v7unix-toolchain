@@ -4,20 +4,18 @@
  * uldiv/ulrem: C calling convention (compiled from C by this compiler). */
 static const char helper_udiv[] =
 	"udiv:\n"
-	"	mov	r1,-(sp)\n"
-	"	bmi	hd1\n"
 	"	cmp	r1,$1\n"
-	"	beq	hd2\n"
+	"	blos	hd2\n"		/* divisor 1 (or 0): the quotient is the dividend */
+	"	tst	r1\n"
+	"	bmi	hd1\n"
+	"	mov	r1,-(sp)\n"
 	"	mov	r0,r1\n"
 	"	clr	r0\n"
 	"	div	(sp)+,r0\n"
-	"	rts	pc\n"
-	"hd1:	cmp	r0,(sp)\n"
-	"	blo	hd3\n"
-	"	mov	$1,r0\n"
-	"	br	hd2\n"
-	"hd3:	clr	r0\n"
-	"hd2:	tst	(sp)+\n"
+	"hd2:	rts	pc\n"
+	"hd1:	cmp	r0,r1\n"	/* divisor of 32768 or more: the quotient is 0 or 1 */
+	"	mov	$1,r0\n"	/* (mov leaves the carry alone) */
+	"	sbc	r0\n"
 	"	rts	pc\n";
 
 static const char helper_urem[] =

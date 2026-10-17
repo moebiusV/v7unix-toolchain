@@ -908,6 +908,18 @@ int16_t rmove(void)
 		if (p->subop==BYTE)
 			goto dble;
 		dualop(p);
+		/*
+		 * mov rN,rN moves nothing; it is a test of rN.  If the codes are
+		 * those of rN already, it is not even that.
+		 */
+		if (flt == 0 && isreg(regs[RT1]) >= 0 && equstr(regs[RT1], regs[RT2]) &&
+		    (p->forw->op != CBR || equstr(regs[RT2], ccloc))) {
+			p->forw->back = p->back;
+			p->back->forw = p->forw;
+			redunm++;
+			nchange++;
+			continue;
+		}
 		if ((r = findrand(regs[RT1], flt)) >= 0) {
 			if (r == flt+isreg(regs[RT2]) && p->forw->op!=CBR
 			   && p->forw->op!=SXT
@@ -978,7 +990,11 @@ int16_t rmove(void)
 		dest(regs[RT2], flt);
 		if (p->op==DIV && (r = isreg(regs[RT2])>=0))
 			regs[r+1][0] = 0;
-		ccloc[0] = 0;
+		/* movb to a register sets the codes of the sign-extended byte */
+		if (p->op==MOV && p->subop==BYTE && flt==0 && isreg(regs[RT2]) >= 0)
+			setcc(regs[RT2]);
+		else
+			ccloc[0] = 0;
 		continue;
 
 	case CLRF:

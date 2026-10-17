@@ -111,6 +111,13 @@ struct optab table[] = {
 		XSL(A),	RESC1,
 		"movb	AL,A1\n", },
 
+/* char through a pointer at a fixed address to (u)int (-xdmr) */
+{ SCONV,	INAREG,
+	SSTARX,	TCHAR,
+	SAREG,	TINT,
+		NAREG,	RESC1,
+		"movb	AL,A1\n", },
+
 /* convert uchar to (u)int in reg */
 /* Nothing to do since reg is already large enough */
 { SCONV,	INAREG,
@@ -118,6 +125,13 @@ struct optab table[] = {
 	SAREG,	TINT|TUNSIGNED,
 		0,	RLEFT,
 		"", },
+
+/* uchar through a pointer at a fixed address to (u)int (-xdmr) */
+{ SCONV,	INAREG,
+	SSTARX,	TUCHAR,
+	SAREG,	TINT|TUNSIGNED,
+		NAREG,	RESC1,
+		"clr	A1\nbisb	AL,A1\n", },
 
 /* convert uchar to (u)int from mem */
 { SCONV,	INAREG,
@@ -458,6 +472,13 @@ struct optab table[] = {
 		0,	RLEFT,
 		"add	AR,AL\n", },
 
+/* An addend in a register of its own: add to it, whatever the other is */
+{ PLUS,		INAREG|FORCC,
+	SAREG|SNAME|SOREG,	TWORD|TPOINT,
+	SAREG,			TWORD|TPOINT,
+		0,	RRIGHT|RESCC,
+		"add	AL,AR\n", },
+
 /* Add to reg left and reclaim reg */
 { PLUS,		INAREG|FOREFF|FORCC,
 	SAREG|SNAME|SOREG,	TWORD|TPOINT,
@@ -687,6 +708,25 @@ struct optab table[] = {
 		0,	RESCC,
 		"ZV", },
 
+/* a word through a pointer at a fixed address: mov *_p,r0; mov $5,*_p (-xdmr) */
+{ ASSIGN,	FOREFF|INAREG|FORCC,
+	SAREG,		TWORD|TPOINT,
+	SSTARX,		TWORD|TPOINT,
+		0,	RDEST|RESCC,
+		"mov	AR,AL\n", },
+
+{ ASSIGN,	FOREFF|FORCC,
+	SNAME|SOREG,	TWORD|TPOINT,
+	SSTARX,		TWORD|TPOINT,
+		0,	RESCC,
+		"mov	AR,AL\n", },
+
+{ ASSIGN,	FOREFF|FORCC,
+	SSTARX,			TWORD|TPOINT,
+	SNAME|SOREG|SCON,	TWORD|TPOINT,
+		0,	RESCC,
+		"mov	AR,AL\n", },
+
 { ASSIGN,	FOREFF|INAREG|FORCC,
 	SAREG,		TCHAR|TUCHAR,
 	ARONS|SCON,	TCHAR|TUCHAR,
@@ -883,9 +923,21 @@ struct optab table[] = {
 		"mov	AL,A1\n", },
 
 { UMUL,	INAREG,
+	SANY,	TPOINT|TWORD,
+	SSTARX,	TPOINT|TWORD,
+		NAREG,	RESC1,
+		"mov	AL,A1\n", },
+
+{ UMUL,	INAREG,
 	SANY,	TANY,
 	SOREG,	TCHAR|TUCHAR,
 		XSL(A),	RESC1,
+		"movb	AL,A1\n", },
+
+{ UMUL,	INAREG,
+	SANY,	TANY,
+	SSTARX,	TCHAR|TUCHAR,
+		NAREG,	RESC1,
 		"movb	AL,A1\n", },
 
 { UMUL,	INCREG,
