@@ -705,6 +705,31 @@ findlabelrefs(struct p2env *p2e)
 }
 #endif
 
+
+/*
+ * The last interpass of the function so far, and a way back to it: pass 1 uses
+ * these to drop the code of a branch that cannot be taken (see deadbegin()).
+ */
+struct interpass *
+p2_mark(void)
+{
+	return DLIST_PREV(&p2env.ipole, qelem);
+}
+
+void
+p2_discard(struct interpass *mark)
+{
+	struct interpass *ip;
+
+	while ((ip = DLIST_PREV(&p2env.ipole, qelem)) != mark &&
+	    ip != &p2env.ipole) {
+		DLIST_REMOVE(ip, qelem);
+		if (ip->type == IP_NODE)
+			tfree(ip->ip_node);
+		free(ip);
+	}
+}
+
 /*
  * Receives interpass structs from pass1.
  */

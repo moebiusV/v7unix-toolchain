@@ -893,12 +893,14 @@ begin:		  '{' {
 
 statement:	   e ';' { ecomp(eve($1)); symclear(blevel); }
 		|  compoundstmt
-		|  ifprefix statement { plabel($1); reached = 1; }
+		|  ifprefix statement { ifthenend(); plabel($1); reached = 1; ifleave(); }
 		|  ifelprefix statement {
+			ifelseend();
 			if ($1 != NOLAB) {
 				plabel( $1);
 				reached = 1;
 			}
+			ifleave();
 		}
 		|  whprefix statement {
 			branch(contlab);
@@ -1067,15 +1069,15 @@ cnstr:		   svstr { $$ = xasmop($1, bcon(0)); }
 		|  cnstr ',' svstr { $$ = cmop($1, xasmop($3, bcon(0))); }
                 ;
 
-label:		   C_NAME ':' attr_var { deflabel($1, $3); reached = 1; }
-		|  C_TYPENAME ':' attr_var { deflabel($1, $3); reached = 1; }
-		|  C_CASE e ':' { addcase(eve($2)); reached = 1; }
+label:		   C_NAME ':' attr_var { deflabel($1, $3); reached = 1; deadkeep(); }
+		|  C_TYPENAME ':' attr_var { deflabel($1, $3); reached = 1; deadkeep(); }
+		|  C_CASE e ':' { addcase(eve($2)); reached = 1; deadkeep(); }
 /* COMPAT_GCC */|  C_CASE e C_ELLIPSIS e ':' {
 #ifdef GCC_COMPAT
-			gcccase(eve($2), eve($4)); reached = 1;
+			gcccase(eve($2), eve($4)); reached = 1; deadkeep();
 #endif
 		}
-		|  C_DEFAULT ':' { reached = 1; adddef(); flostat |= FDEF; }
+		|  C_DEFAULT ':' { reached = 1; adddef(); flostat |= FDEF; deadkeep(); }
 		;
 
 doprefix:	C_DO {
@@ -1087,17 +1089,23 @@ doprefix:	C_DO {
 		}
 		;
 ifprefix:	C_IF '(' e ')' {
-			xcbranch(eve($3), $$ = getlab());
+			P1ND *c = eve($3);
+			int k = constcond(c);
+
+			xcbranch(c, $$ = getlab());
 			reached = 1;
+			ifenter(k);
 		}
 		;
 ifelprefix:	  ifprefix statement C_ELSE {
+			ifthenend();
 			if (reached)
 				branch($$ = getlab());
 			else
 				$$ = NOLAB;
 			plabel( $1);
 			reached = 1;
+			ifelsebegin();
 		}
 		;
 

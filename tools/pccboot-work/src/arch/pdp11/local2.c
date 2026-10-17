@@ -1015,12 +1015,24 @@ byterw(NODE *p)
 		nfree(r);
 		return;
 	}
-	if ((l->n_op == OREG || l->n_op == NAME || l->n_op == UMUL) &&
-	    (o->n_type == INT || o->n_type == UNSIGNED) &&
-	    o->n_op != ICON && o->n_op != SCONV) {
-		/* the int goes to a register; movb stores its low byte */
-		p->n_right = o;
-		nfree(r);
+	{
+		/* int <-> unsigned conversions change nothing: look through them */
+		NODE *oo = o, *x, *nx;
+
+		while (oo->n_op == SCONV && (oo->n_type == INT || oo->n_type == UNSIGNED) &&
+		    (oo->n_left->n_type == INT || oo->n_left->n_type == UNSIGNED))
+			oo = oo->n_left;
+		if ((l->n_op == OREG || l->n_op == NAME || l->n_op == UMUL) &&
+		    (oo->n_type == INT || oo->n_type == UNSIGNED) &&
+		    oo->n_op != ICON && oo->n_op != SCONV) {
+			/* the int goes to a register; movb stores its low byte */
+			for (x = o; x != oo; x = nx) {
+				nx = x->n_left;
+				nfree(x);
+			}
+			p->n_right = oo;
+			nfree(r);
+		}
 	}
 }
 

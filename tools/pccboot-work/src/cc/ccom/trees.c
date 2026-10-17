@@ -2218,6 +2218,149 @@ updates(P1ND *v, P1ND *r)
 }
 
 /*
+ * Dead branches (-xdce).  The arm of an if whose condition is a constant that
+ * cannot be taken is parsed and type-checked like any other, but what it
+ * generates is dropped again, with the string literals first used in it.  It is
+ * kept if a label in it could be reached from outside (a goto, a case).
+ */
+#define	MAXDEAD	64
+static struct deadreg {
+	struct interpass *mark;
+	int keep;
+	int nstr;
+} deadstk[MAXDEAD];
+static int deadsp;
+static int ifsp;
+static struct symtab *deadstr[256];
+static int ndeadstr;
+
+struct interpass *p2_mark(void);
+void p2_discard(struct interpass *);
+
+void
+deadbegin(void)
+{
+	struct deadreg *d;
+
+	if (!xdce || isinlining || cftnsp == NULL || deadsp >= MAXDEAD || nerrors)
+		return;
+	d = &deadstk[deadsp++];
+	d->mark = p2_mark();
+	d->keep = 0;
+	d->nstr = ndeadstr;
+}
+
+void
+deadend(void)
+{
+	struct deadreg *d;
+	int i;
+
+	if (deadsp == 0)
+		return;
+	d = &deadstk[--deadsp];
+	if (d->keep || nerrors)
+		return;
+	p2_discard(d->mark);
+	for (i = d->nstr; i < ndeadstr; i++)
+		deadstr[i]->sflags &= ~SASG;
+	ndeadstr = d->nstr;
+}
+
+/* a label that code outside can jump to: nothing now open may be dropped */
+void
+deadkeep(void)
+{
+	int i;
+
+	for (i = 0; i < deadsp; i++)
+		deadstk[i].keep = 1;
+}
+
+void
+deadreset(void)
+{
+	deadsp = ndeadstr = 0;
+	ifsp = 0;
+}
+
+/* a string used for the first time while a dead region is open */
+static void
+deadnote(struct symtab *sp)
+{
+	if (deadsp > 0 && ndeadstr < 256 && (sp->sflags & SASG) == 0)
+		deadstr[ndeadstr++] = sp;
+}
+
+/*
+ * The if statement.  k is 1 or 0 if the condition is a constant, else -1.
+ */
+static struct {
+	int k;
+	int then, els;		/* a region is open for this arm */
+} ifstk[MAXDEAD];
+
+void
+ifenter(int k)
+{
+	int open = 0;
+
+	if (ifsp >= MAXDEAD)
+		return;
+	ifstk[ifsp].k = k;
+	ifstk[ifsp].then = ifstk[ifsp].els = 0;
+	if (k == 0 && deadsp < MAXDEAD) {
+		deadbegin();
+		ifstk[ifsp].then = 1;
+	}
+	(void)open;
+	ifsp++;
+}
+
+void
+ifthenend(void)
+{
+	if (ifsp > 0 && ifstk[ifsp-1].then) {
+		ifstk[ifsp-1].then = 0;
+		deadend();
+	}
+}
+
+void
+ifelsebegin(void)
+{
+	if (ifsp > 0 && ifstk[ifsp-1].k == 1) {
+		deadbegin();
+		ifstk[ifsp-1].els = 1;
+	}
+}
+
+void
+ifelseend(void)
+{
+	if (ifsp > 0 && ifstk[ifsp-1].els) {
+		ifstk[ifsp-1].els = 0;
+		deadend();
+	}
+}
+
+void
+ifleave(void)
+{
+	if (ifsp > 0)
+		ifsp--;
+}
+
+int
+constcond(P1ND *p)
+{
+	if (p->n_op == ICON && p->n_sp == NULL)
+		return glval(p) != 0;
+	return -1;
+}
+
+
+/*
  * Write out logical expressions as branches.
  */
 static void
@@ -2843,21 +2986,30 @@ rmfldops(P1ND *p)
  * position (the stdio putc macro) is then a conditional statement, with no
  * temporary to hold a value: its arms are evaluated for effect only.
  */
-static void
+static P1ND *
 unusedval(P1ND *p)
 {
+	P1ND *q;
+
 	switch (p->n_op) {
 	case QUEST:
 		if (p->n_type != VOID && p->n_right->n_op == COLON) {
 			p->n_type = VOID;
-			unusedval(p->n_right->n_left);
-			unusedval(p->n_right->n_right);
+			p->n_right->n_left = unusedval(p->n_right->n_left);
+			p->n_right->n_right = unusedval(p->n_right->n_right);
 		}
 		break;
 	case COMOP:
-		unusedval(p->n_right);
+		p->n_right = unusedval(p->n_right);
 		break;
+	case SCONV:
+	case PCONV:
+		/* converting a value nobody uses: just compute it */
+		q = p->n_left;
+		p1nfree(p);
+		return unusedval(q);
 	}
+	return p;
 }
 
 void
@@ -2900,7 +3052,7 @@ ecomp(P1ND *p)
 		p = u;
 	}
 	if (xdmr)
-		unusedval(p);
+		p = unusedval(p);
 	comops(p);
 	rmcops(p);
 	if (p->n_op == ICON && p->n_type == VOID)
@@ -3102,8 +3254,10 @@ p2tree(P1ND *p)
 #endif
 			    ) {
 				np->n_name = sptostr(q);
-				if ((q->sflags & SMASK) == SSTRING)
+				if ((q->sflags & SMASK) == SSTRING) {
+					deadnote(q);
 					q->sflags |= SASG;
+				}
 			} else
 				np->n_name = getexname(q);
 		} else

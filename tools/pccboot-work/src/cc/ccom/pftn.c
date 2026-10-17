@@ -631,6 +631,7 @@ done:
 void
 ftnend(void)
 {
+	deadreset();
 #ifdef GCC_COMPAT
 	struct attr *gc, *gd;
 #endif
