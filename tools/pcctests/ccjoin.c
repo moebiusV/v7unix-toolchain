@@ -17,7 +17,7 @@ int viabis(a, sel) int a, sel;
 {
 	register c;
 
-	c = sel ? (a | 0100000) : get(a);
+	c = sel ? (a | (-32767 - 1)) : get(a);
 	if (c < 0) return 1;
 	if (c == 0) return 2;
 	return 3;
@@ -36,7 +36,7 @@ int viasub(a, sel) int a, sel;
 {
 	register c;
 
-	c = sel ? a - 32767 - 2 : get(a);
+	c = sel ? a - 5 : get(a);
 	if (c < 0) return 1;
 	return 0;
 }
@@ -50,6 +50,6 @@ int test()
 	if (viabic(256, 1) != 2 || viabic(255, 1) != 3) bad |= 2;
 	if (viabis(0, 1) != 1 || viabis(0, 0) != 2 || viabis(5, 0) != 3) bad |= 4;
 	if (viacom(-1, 1) != 1 || viacom(0, 1) != 0 || viacom(-1, 0) != 0 || viacom(7, 0) != 1) bad |= 8;
-	if (viasub(0, 1) != 0 || viasub(-32767, 1) != 0 || viasub(5, 1) != 1) bad |= 16;
+	if (viasub(0, 1) != 1 || viasub(5, 1) != 0 || viasub(9, 1) != 0 || viasub(0, 0) != 0) bad |= 16;
 	return bad ? bad : 1;
 }
