@@ -1,4 +1,5 @@
-/* expect: 1 -- (int) of a long in memory is its low word: statics, autos, parameters, signed and unsigned */
+/* expect: 1 -- (int) of a long in memory is its low word: statics, autos, parameters, signed and unsigned.
+   (Only where long is twice as wide as int, the PDP-11, is there anything to check.) */
 long gl;
 unsigned long gul;
 
@@ -11,6 +12,9 @@ int test(void)
 {
 	int bad = 0, k;
 	long big;
+
+	if (sizeof(long) != 2 * sizeof(int))
+		return 1;
 
 	big = 305419896L;			/* 0x12345678 */
 	if (low(big) != 0x5678) bad |= 1;
