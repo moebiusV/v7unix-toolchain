@@ -56,6 +56,7 @@
 static int dfsnum;
 
 static void postincfold(struct p2env *);
+static void retfold(struct p2env *);
 void saveip(struct interpass *ip);
 void deljumps(struct p2env *);
 void optdump(struct interpass *ip);
@@ -118,6 +119,7 @@ optimize(struct p2env *p2e)
 	postincfold(p2e);
 	if (xdeljumps)
 		deljumps(p2e); /* Delete redundant jumps and dead code */
+	retfold(p2e);
 
 	if (xssa)
 		add_labels(p2e) ;
@@ -957,6 +959,117 @@ incpair(struct interpass *ip1, struct interpass *ip2, int *tp, NODE **xp)
 	*tp = regno(n1->n_left);
 	*xp = n1->n_right;
 	return 1;
+}
+
+/*
+ * Does control go from ip, the statement after a copy, straight to the
+ * epilogue: a jump to a label that is followed only by labels and the epilogue,
+ * or no statement at all?  Then nothing but the return value is live.
+ */
+static int
+toepilog(struct p2env *p2e, struct interpass *ip)
+{
+	struct interpass *q, *e = &p2e->ipole;
+	NODE *g;
+
+	q = ip;
+	if (ip != e && ip->type == IP_NODE && (g = ip->ip_node)->n_op == GOTO) {
+		if (g->n_left->n_op != ICON || g->n_left->n_name[0] != '\0')
+			return 0;
+		for (q = DLIST_NEXT(e, qelem); q != e; q = DLIST_NEXT(q, qelem))
+			if (q->type == IP_DEFLAB && q->ip_lbl == getlval(g->n_left))
+				break;
+	}
+	while (q != e && q->type == IP_DEFLAB)
+		q = DLIST_NEXT(q, qelem);
+	return q != e && q->type == IP_EPILOG;
+}
+
+static int
+hasside(NODE *p)
+{
+	int ty = optype(p->n_op);
+
+	if (p->n_op == ASSIGN || p->n_op == STASG || p->n_op == XASM)
+		return 1;
+	if (ty != LTYPE && hasside(p->n_left))
+		return 1;
+	return ty == BITYPE && hasside(p->n_right);
+}
+
+/*
+ * (-xdmr) "v | E", v a register variable and E computed: "E | v".  The result
+ * is then built in the register E arrives in and v is only read; with v first,
+ * the OR is made in v's register (or a copy of it) and moved on afterwards:
+ * getw's  return i | (getc(f) << 8)  is  bis r3,r0  in dmr-cc.
+ */
+static NODE *orkeep;	/* an update in place, v = v | E: v stays first */
+
+static void
+orswap(NODE *p, void *arg)
+{
+	NODE *l, *r;
+
+	if (p == orkeep || p->n_op != OR || ISPTR(p->n_type) || (p->n_type != INT && p->n_type != UNSIGNED))
+		return;
+	l = p->n_left;
+	r = p->n_right;
+	if (l->n_op != REG || r->n_op == REG || r->n_op == ICON || r->n_op == NAME ||
+	    r->n_op == OREG || r->n_op == TEMP || hasside(r))
+		return;
+	p->n_left = r;
+	p->n_right = l;
+}
+
+/*
+ * (-xdmr) "r = E; ret = r" just before the return, where r is a register and
+ * dies there: "ret = E".  The last update of a register variable that is also
+ * the result (getw: i |= getc(f) << 8; return i;) is computed in the result
+ * register, as dmr-cc does (bis r3,r0), not in r3 and then copied (bis r0,r3;
+ * mov r3,r0).
+ */
+static void
+retfold(struct p2env *p2e)
+{
+	struct interpass *ip, *pip, *next;
+	NODE *s1, *s2;
+	TWORD t;
+
+	if (!xdmr)
+		return;
+	for (ip = DLIST_NEXT(&p2e->ipole, qelem); ip != &p2e->ipole; ip = DLIST_NEXT(ip, qelem))
+		if (ip->type == IP_NODE) {
+			s2 = ip->ip_node;
+			orkeep = NULL;
+			if (s2->n_op == ASSIGN && s2->n_left->n_op == REG &&
+			    s2->n_right->n_op == OR && s2->n_right->n_left->n_op == REG &&
+			    regno(s2->n_right->n_left) == regno(s2->n_left))
+				orkeep = s2->n_right;
+			walkf(s2, orswap, 0);
+		}
+	for (ip = DLIST_NEXT(&p2e->ipole, qelem); ip != &p2e->ipole; ip = next) {
+		next = DLIST_NEXT(ip, qelem);
+		if (ip->type != IP_NODE || (s2 = ip->ip_node)->n_op != ASSIGN ||
+		    s2->n_left->n_op != REG || s2->n_right->n_op != REG)
+			continue;
+		pip = DLIST_PREV(ip, qelem);
+		if (pip == &p2e->ipole || pip->type != IP_NODE ||
+		    (s1 = pip->ip_node)->n_op != ASSIGN || s1->n_left->n_op != REG)
+			continue;
+		t = s2->n_right->n_type;
+		if (regno(s1->n_left) != regno(s2->n_right) ||
+		    regno(s2->n_left) == regno(s2->n_right) ||
+		    s1->n_left->n_type != t || s2->n_left->n_type != t ||
+		    !(t == INT || t == UNSIGNED || ISPTR(t)))
+			continue;
+		if (!toepilog(p2e, next))
+			continue;
+		tfree(s1->n_left);
+		s1->n_left = s2->n_left;
+		nfree(s2->n_right);
+		nfree(s2);
+		DLIST_REMOVE(ip, qelem);
+	}
 }
 
 static void

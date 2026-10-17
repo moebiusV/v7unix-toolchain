@@ -103,6 +103,7 @@ extern	char *scnames(int);
 #define	SBUILTIN	02000	/* this is a builtin function */
 #define	SASG		04000	/* symbol is assigned to already */
 #define	SINREG		010000	/* variable is put in reg */
+#define	SCVAL		020000	/* const integer with a known initial value: sconst (-xdce) */
 
 
 	/* alignment of initialized quantities */
@@ -183,6 +184,7 @@ struct	symtab {
 	struct	tdef td[1];
 
 	struct	attr *sap;	/* the base type attribute list */
+	CONSZ	sconst;		/* the value, if SCVAL (last: positional initializers) */
 };
 
 #define	ISSOU(ty)   ((ty) == STRTY || (ty) == UNIONTY)
@@ -393,6 +395,7 @@ int ninval(CONSZ, int, P1ND *);
 void infld(CONSZ, int, CONSZ);
 void zbits(CONSZ, int);
 void instring(struct symtab *);
+void swlabel(int);
 void deadbegin(void);
 void deadend(void);
 void deadkeep(void);
@@ -403,6 +406,8 @@ void ifelsebegin(void);
 void ifelseend(void);
 void ifleave(void);
 int constcond(P1ND *);
+P1ND *cfold(P1ND *);
+void constrecord(struct symtab *, P1ND *);
 void inwstring(struct symtab *);
 void plabel(int);
 void bjobcode(void);

@@ -156,6 +156,58 @@ static char *tnames[] = {
 /* negatives of relationals */
 //int p1negrel[] = { NE, EQ, GT, GE, LT, LE, UGT, UGE, ULT, ULE };
 
+/*
+ * (-xdmr) The lvalue l (a UMUL) is used twice, as the target of x op= e or x++.
+ * Keep the pointer its address is made from in a temporary, so it is fetched
+ * once, and leave a constant offset in the address: "p->n += 3" is
+ * "t = p; t->n = t->n + 3", the offset still an addressing mode, and both
+ * sides the same operand (incl 4(r1), not a load and an add and a store).
+ * Returns the assignment to the temporary.
+ */
+static P1ND *
+hoistbase(P1ND *l)
+{
+	P1ND *ll = l->n_left, **pp = &l->n_left, *q;
+
+	if ((ll->n_op == PLUS || ll->n_op == MINUS) && ll->n_right->n_op == ICON)
+		pp = &ll->n_left;
+	ll = *pp;
+	q = cstknode(ll->n_type, ll->n_df, ll->pss);
+	*pp = p1tcopy(q);
+	return buildtree(ASSIGN, q, ll);
+}
+
+
+/*
+ * (-xdmr) How much computing the address in p takes: binary operators, not
+ * counting a constant added, subtracted, shifted or multiplied in (the scale of
+ * an index).  "a[(i-1)/16] |= m" is the address computed twice unless it is
+ * kept: this says when it is worth a temporary.
+ */
+static int
+addrcost(P1ND *p)
+{
+	int n = 0, o = p->n_op;
+
+	if (o == NAME && ISPTR(p->n_type) && (p->n_sp == NULL || p->n_sp->sclass != REGISTER))
+		return 2;	/* a pointer in memory: loaded to be indexed from */
+	if (coptype(o) == LTYPE)
+		return 0;
+	if (o == CALL || o == UCALL || o == STCALL || o == USTCALL)
+		return 9;
+	n = addrcost(p->n_left);
+	if (o == UMUL)
+		n += 2;		/* a pointer fetched to make the address: once, not twice */
+	if (coptype(o) == BITYPE) {
+		n += addrcost(p->n_right);
+		if (!((o == PLUS || o == MINUS || o == LS || o == MUL) &&
+		    p->n_right->n_op == ICON))
+			n++;
+	}
+	return n;
+}
+
+
 /* Have some defaults for most common targets */
 #ifndef WORD_ADDRESSED
 #define	offcon(o,td) xbcon((o/SZCHAR), NULL, INTPTR)
@@ -188,6 +240,14 @@ buildtree(int o, P1ND *l, P1ND *r)
 		/* operand lost to an earlier syntax error */
 		uerror("operand missing");
 		return l != NULL ? l : r != NULL ? r : bcon(0);
+	}
+
+	/* reads of const objects with a known value (-xdce) */
+	if (xdce && o != ADDROF && o != INCR && o != DECR && !casgop(o)) {
+		if (l != NULL && opty != LTYPE)
+			l = cfold(l);
+		if (r != NULL && opty == BITYPE)
+			r = cfold(r);
 	}
 
 	/* check for constants */
@@ -370,6 +430,9 @@ buildtree(int o, P1ND *l, P1ND *r)
 			q = cstknode(ll->n_type, ll->n_df, ll->pss);
 			l->n_left = p1tcopy(q);
 			q = buildtree(ASSIGN, q, ll);
+		} else if (xdmr && l->n_op == UMUL && l->n_left->n_op != NAME &&
+		    addrcost(l->n_left) >= 2) {
+			q = hoistbase(l);
 		} else 
 			q = bcon(0); /* No side effects */
 
@@ -397,6 +460,9 @@ buildtree(int o, P1ND *l, P1ND *r)
 			q = cstknode(ll->n_type, ll->n_df, ll->pss);
 			l->n_left = p1tcopy(q);
 			q = buildtree(ASSIGN, q, ll);
+		} else if (xdmr && l->n_op == UMUL && l->n_left->n_op != NAME &&
+		    addrcost(l->n_left) >= 2) {
+			q = hoistbase(l);
 		} else 
 			q = bcon(0); /* No side effects */
 
@@ -419,13 +485,15 @@ buildtree(int o, P1ND *l, P1ND *r)
 		} else
 #ifdef AUTOINC_MEM
 		/*
-		 * x++ and x-- of an int or a pointer in memory: (x += 1) - 1
+		 * x++ and x-- of an integer in memory, or of a pointer reached
+		 * through another (not a plain name: that is use-first, see
+		 * postincfold): (x += 1) - 1
 		 * and (x -= 1) + 1 -- the variable is stepped in place and the
 		 * old value recomputed from the new one, with no copy.
 		 */
-		if (xdmr && q->n_op == ICON && (ISPTR(l->n_type) ||
-		    l->n_type == INT || l->n_type == UNSIGNED ||
-		    l->n_type == LONG || l->n_type == ULONG) &&
+		if (xdmr && q->n_op == ICON && (l->n_type == INT ||
+		    l->n_type == UNSIGNED || l->n_type == LONG ||
+		    l->n_type == ULONG) &&
 		    (l->n_qual & VOL) == 0) {
 			P1ND *c = p1tcopy(r);
 
@@ -2218,6 +2286,71 @@ updates(P1ND *v, P1ND *r)
 }
 
 /*
+ * A const integer object initialised with a constant (-xdce): its reads are that
+ * constant, so  if (debug)  with  static const int debug = 0;  is as dead as
+ * if (0).  Not volatile, not an array or a pointer, and the value must fit.
+ */
+static struct { int nr; CONSZ val; } ctmp[64];
+static int nctmp;
+
+void
+constrecord(struct symtab *sp, P1ND *p)
+{
+	TWORD t = sp->stype;
+	CONSZ v;
+
+	if (!xdce || p->n_op != ICON || p->n_sp != NULL)
+		return;
+	if (!ISCON(cqual(t, sp->squal)) || (cqual(t, sp->squal) & VOL))
+		return;
+	if (t != CHAR && t != UCHAR && t != SHORT && t != USHORT && t != INT &&
+	    t != UNSIGNED && t != LONG && t != ULONG)
+		return;
+	v = glval(p);
+	switch (t) {
+	case CHAR: if (v < -128 || v > 127) return; break;
+	case UCHAR: if (v < 0 || v > 255) return; break;
+	case SHORT: if (v < -32768 || v > 32767) return; break;
+	case USHORT: if (v < 0 || v > 65535) return; break;
+	case INT: if (v < MIN_INT || v > MAX_INT) return; break;
+	case UNSIGNED: if (v < 0 || v > MAX_UNSIGNED) return; break;
+	}
+	sp->sconst = v;
+	sp->sflags |= SCVAL;
+	/* a local kept in a temporary is read through the temporary */
+	if ((sp->sflags & STNODE) && nctmp < 64) {
+		ctmp[nctmp].nr = sp->soffset;
+		ctmp[nctmp].val = v;
+		nctmp++;
+	}
+}
+
+/* a read of such an object is its value */
+P1ND *
+cfold(P1ND *p)
+{
+	P1ND *q;
+	int i;
+
+	if (!xdce || p == NULL)
+		return p;
+	if (p->n_op == TEMP) {
+		for (i = 0; i < nctmp; i++)
+			if (ctmp[i].nr == regno(p)) {
+				q = xbcon(ctmp[i].val, NULL, p->n_type);
+				p1nfree(p);
+				return q;
+			}
+		return p;
+	}
+	if (p->n_op != NAME || p->n_sp == NULL || (p->n_sp->sflags & SCVAL) == 0)
+		return p;
+	q = xbcon(p->n_sp->sconst, NULL, p->n_type);
+	p1nfree(p);
+	return q;
+}
+
+/*
  * Dead branches (-xdce).  The arm of an if whose condition is a constant that
  * cannot be taken is parsed and type-checked like any other, but what it
  * generates is dropped again, with the string literals first used in it.  It is
@@ -2282,6 +2415,7 @@ deadreset(void)
 {
 	deadsp = ndeadstr = 0;
 	ifsp = 0;
+	nctmp = 0;
 }
 
 /* a string used for the first time while a dead region is open */
@@ -2499,7 +2633,37 @@ calc:		if (_true < 0) {
 		p1nfree(p);
 		break;
 
+	case QUEST:
+		if (!xdmr || p->n_right->n_op != COLON)
+			goto dflt;
+		/*
+		 * (-xdmr) c ? a : b as a condition: each arm branches on its own,
+		 * not a 0 or 1 made in a register and tested again.
+		 */
+		lab = getlab();
+		q = p->n_right;
+		andorbr(p->n_left, -1, lab);
+		comops(q->n_left);
+		andorbr(q->n_left, _true, _false);
+		if (_true < 0 || _false < 0) {
+			int end = getlab();
+
+			branch(end);
+			plabel(lab);
+			comops(q->n_right);
+			andorbr(q->n_right, _true, _false);
+			plabel(end);
+		} else {
+			plabel(lab);
+			comops(q->n_right);
+			andorbr(q->n_right, _true, _false);
+		}
+		p1nfree(q);
+		p1nfree(p);
+		break;
+
 	default:
+	dflt:
 		rmcops(p);
 		if (_true >= 0)
 			fixbranch(p, _true);
@@ -2684,6 +2848,8 @@ has_se(P1ND *p)
 		return 1;
 	if (cdope(p->n_op) & ASGFLG)
 		return 1;
+	if (p->n_op == CALL || p->n_op == UCALL || p->n_op == STCALL || p->n_op == USTCALL)
+		return 1;	/* a[f()] += 1 calls f once */
 	if (coptype(p->n_op) == LTYPE)
 		return 0;
 	if (has_se(p->n_left))
@@ -3008,6 +3174,17 @@ unusedval(P1ND *p)
 		q = p->n_left;
 		p1nfree(p);
 		return unusedval(q);
+	case PLUS:
+	case MINUS:
+		/* (x += 1) - 1 as a statement, the form of x++ in memory: x += 1 */
+		if (nncon(p->n_right) &&
+		    (p->n_left->n_op == ASSIGN || p->n_left->n_op == COMOP)) {
+			q = p->n_left;
+			p1nfree(p->n_right);
+			p1nfree(p);
+			return unusedval(q);
+		}
+		break;
 	}
 	return p;
 }

@@ -1312,6 +1312,7 @@ simpleinit(struct symtab *sp, NODE *p)
 		if (p->n_op == NAME && p->n_sp &&
 		    (p->n_sp->sflags & SMASK) == SSTRING)
 			p->n_sp->sflags |= SASG;
+		constrecord(sp, p);
 		p = optloop(buildtree(ASSIGN, nt, p));
 		if (p->n_op != ASSIGN) {
 			/* the assignment was refused (error already given) */
@@ -1343,7 +1344,10 @@ simpleinit(struct symtab *sp, NODE *p)
 			r = imop(ASSIGN, q, p);
 		else
 #endif
+		{
+			constrecord(sp, p);
 			r = buildtree(ASSIGN, q, p);
+		}
 		ecomp(r);
 		break;
 

@@ -541,7 +541,78 @@ fldty(struct symtab *p)
 int
 mygenswitch(int num, TWORD type, struct swents **p, int n)
 {
-	return 0;
+	CONSZ min, max, range, v;
+	int chain, table, tab, endlab, dflt, i, k;
+	struct symtab *sp;
+	P1ND *t2, *e;
+	char *buf, *q;
+	size_t sz;
+
+	/*
+	 * A dense switch is a table of labels (-xdmr), as dmr-cc has it:
+	 *	sub $min,r0; cmp r0,$range; jhi default; asl r0; jmp *L(r0)
+	 * Used when it is smaller than a compare and jump for every case.
+	 */
+	if (!xdmr || n < 2)
+		return 0;
+	if (type != INT && type != UNSIGNED && type != SHORT && type != USHORT &&
+	    type != CHAR && type != UCHAR)
+		return 0;
+	min = p[1]->sval;
+	max = p[n]->sval;
+	range = max - min;
+	if (range <= 0 || range > 1000)
+		return 0;
+	chain = 0;
+	for (i = 1; i <= n; i++)
+		chain += p[i]->sval == 0 ? 4 : 6;
+	table = 20 + 2 * (int)(range + 1);
+	if (table >= chain)
+		return 0;
+
+	dflt = p[0]->slab > 0 ? p[0]->slab : 0;
+	endlab = dflt ? dflt : getlab();
+	tab = getlab();
+
+	/* idx = (unsigned)(value - min); if (idx > range) goto default; */
+	e = tempnode(num, type, 0, 0);
+	if (min != 0)
+		e = buildtree(MINUS, e, bcon(min));
+	e = ccast(e, UNSIGNED, 0, NULL, NULL);
+	t2 = tempnode(0, UNSIGNED, 0, 0);
+	ecomp(buildtree(ASSIGN, p1tcopy(t2), e));
+	cbranch(buildtree(GT, p1tcopy(t2), bcon(range)), bcon(endlab));
+
+	/* goto *table[idx]; */
+	sp = calloc(1, sizeof(*sp));
+	sp->sclass = STATIC;
+	sp->slevel = 1;
+	sp->soffset = tab;
+	sp->sname = "swtab";
+	sp->stype = INCREF(VOID);
+	e = xbcon(0, sp, INCREF(INCREF(VOID)));
+	e = buildtree(UMUL, buildtree(PLUS, e, t2), NIL);
+	ecomp(block(GOTO, e, NIL, INT, 0, 0));
+
+	/* the table, in the data segment, in the middle of the code as dmr-cc does */
+	sz = 64 + (size_t)(range + 1) * 12;
+	buf = q = tmpalloc(sz);
+	q += snprintf(q, sz, ".data\n" LABFMT ":\n", tab);
+	for (v = min, k = 1; v <= max; v++) {
+		int lab;
+
+		if (k <= n && p[k]->sval == v)
+			lab = p[k++]->slab;
+		else
+			lab = endlab;
+		swlabel(lab);
+		q += snprintf(q, sz - (q - buf), LABFMT "\n", lab);
+	}
+	snprintf(q, sz - (q - buf), ".text\n");
+	send_passt(IP_ASM, buf);
+	if (!dflt)
+		plabel(endlab);
+	return 1;
 }
 
 /*

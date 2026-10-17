@@ -325,7 +325,74 @@ fldty(struct symtab *p)
 int
 mygenswitch(int num, TWORD type, struct swents **p, int n)
 {
-	return 0;
+	CONSZ min, max, range, v;
+	int chain, table, tab, endlab, dflt, i, k;
+	P1ND *e, *r, *q;
+	char *buf, *w;
+	size_t sz;
+
+	/*
+	 * A dense switch is a casel and a table of word offsets (-xdmr), as 32V's
+	 * cc has it:
+	 *	casel r0,$min,$range ; L: .word case1-L, ...
+	 * Out of range falls through to the next instruction.  Used when it is
+	 * smaller than a compare and branch for every case.
+	 */
+	if (!xdmr || n < 2)
+		return 0;
+	if (type != INT && type != UNSIGNED && type != SHORT && type != USHORT &&
+	    type != CHAR && type != UCHAR && type != LONG && type != ULONG)
+		return 0;
+	min = p[1]->sval;
+	max = p[n]->sval;
+	range = max - min;
+	if (range <= 0 || range > 5000)
+		return 0;
+#define LITB(x)	((x) >= 0 && (x) <= 63 ? 1 : 5)
+	chain = 0;
+	for (i = 1; i <= n; i++)
+		chain += (p[i]->sval == 0 ? 2 : 2 + LITB(p[i]->sval)) + 2;
+	dflt = p[0]->slab > 0 ? p[0]->slab : 0;
+	table = 2 + LITB(min) + LITB(range) + 2 * (int)(range + 1) + (dflt ? 3 : 0);
+	if (table >= chain)
+		return 0;
+
+	endlab = dflt ? dflt : getlab();
+	tab = getlab();
+
+	/* casel selector,$min,$range */
+	e = tempnode(num, type, 0, 0);
+	if (type != INT)
+		e = ccast(e, INT, 0, NULL, NULL);
+	r = block(XARG, e, NIL, INT, 0, 0);
+	r->n_name = "r";
+	q = block(XASM, r, block(ICON, 0, 0, STRTY, 0, 0), INT, 0, 0);
+	sz = 64;
+	w = tmpalloc(sz);
+	snprintf(w, sz, "casel %%0,$%ld,$%ld", (long)min, (long)range);
+	q->n_name = w;
+	ecomp(q);
+
+	/* the table of offsets follows the instruction directly */
+	sz = 64 + (size_t)(range + 1) * 40;
+	buf = w = tmpalloc(sz);
+	w += snprintf(w, sz, LABFMT ":\n", tab);
+	for (v = min, k = 1; v <= max; v++) {
+		int lab;
+
+		if (k <= n && p[k]->sval == v)
+			lab = p[k++]->slab;
+		else
+			lab = endlab;
+		swlabel(lab);
+		w += snprintf(w, sz - (w - buf), "\t.word\t" LABFMT "-" LABFMT "\n", lab, tab);
+	}
+	send_passt(IP_ASM, buf);
+	if (dflt)
+		branch(dflt);		/* out of range */
+	else
+		plabel(endlab);
+	return 1;
 }
 
 #ifdef notyet

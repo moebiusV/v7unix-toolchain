@@ -1123,6 +1123,50 @@ parmprop(struct interpass *ipole)
 }
 
 /*
+ * x *= e, x /= e and x %= e on a long in memory, statements: the library's
+ * almul, aldiv and alrem take the address of x and do the update there, as
+ * dmr-cc calls them (-xdmr); no load and store of x around ldiv.
+ */
+static void
+longcall(NODE *p, NODE *l, NODE *o)
+{
+	NODE *a, *r, *fn, *cm, *call;
+	TWORD pt = INCREF(p->n_type);
+	char *name;
+
+	switch (o->n_op) {
+	case MUL: name = "almul"; break;
+	case DIV: name = "aldiv"; break;
+	default: name = "alrem"; break;
+	}
+	r = o->n_right;
+	if (l->n_op == UMUL) {
+		a = l->n_left;
+		nfree(l);
+	} else if (l->n_op == NAME) {
+		a = mklnode(ICON, getlval(l), 0, pt);
+		a->n_name = l->n_name;
+		nfree(l);
+	} else {			/* OREG: base register and offset */
+		if (R2TEST(l->n_rval))
+			return;
+		a = mkbinode(PLUS, mklnode(REG, 0, l->n_rval, pt),
+		    mklnode(ICON, getlval(l), 0, INT), pt);
+		nfree(l);
+	}
+	a->n_type = pt;
+	tfree(o->n_left);
+	nfree(o);
+	cm = mkbinode(CM, mkunode(FUNARG, a, 0, pt),
+	    mkunode(FUNARG, r, 0, r->n_type), INT);
+	fn = mklnode(ICON, 0, 0, INCREF(FTN + INT));
+	fn->n_name = name;
+	call = mkbinode(CALL, fn, cm, INT);
+	*p = *call;
+	nfree(call);
+}
+
+/*
  * "a += b" and "a -= b" on a long in memory whose value is not used:
  * add and adc straight into the variable, as dmr-cc does, not load,
  * add, store.
@@ -1139,8 +1183,15 @@ longrw(NODE *p)
 	l = p->n_left;
 	o = p->n_right;
 	if (!(l->n_op == NAME || l->n_op == OREG || (l->n_op == UMUL && pure(l))) ||
-	    (o->n_op != PLUS && o->n_op != MINUS) || o->n_type != p->n_type ||
-	    !sametree(o->n_left, l))
+	    (o->n_op != PLUS && o->n_op != MINUS && o->n_op != MUL &&
+	    o->n_op != DIV && o->n_op != MOD) ||
+	    o->n_type != p->n_type || !sametree(o->n_left, l))
+		return;
+	if (o->n_op == MUL || (p->n_type == LONG && (o->n_op == DIV || o->n_op == MOD))) {
+		longcall(p, l, o);
+		return;
+	}
+	if (o->n_op != PLUS && o->n_op != MINUS)
 		return;
 	p->n_qual = o->n_op == PLUS ? LONG_ADD : LONG_SUB;
 	p->n_right = o->n_right;
@@ -1326,33 +1377,43 @@ lm_replace(NODE *p, void *arg)
 		storemod(p, lm_off, FPREG);
 }
 
+static int lm_nonconst[32];
+static int lm_param(struct interpass *, int);
+static void lm_demote(struct interpass *, int);
+
 static void
 lm_find(NODE *p, void *arg)
 {
 	int *tab = arg;		/* tab[0] = count, then register numbers */
 	NODE *r;
-	int i;
+	int i, nc;
 
 	if (p->n_op != ASSIGN || p->n_left->n_op != TEMP ||
 	    (p->n_left->n_type != LONG && p->n_left->n_type != ULONG))
 		return;
 	r = p->n_right;
-	if ((r->n_op != PLUS && r->n_op != MINUS) || r->n_left->n_op != TEMP ||
-	    regno(r->n_left) != regno(p->n_left) || r->n_right->n_op == ICON)
+	if ((r->n_op != PLUS && r->n_op != MINUS && r->n_op != MUL &&
+	    r->n_op != DIV && r->n_op != MOD) || r->n_left->n_op != TEMP ||
+	    regno(r->n_left) != regno(p->n_left))
 		return;
+	/* the update the register-pair rule above is about: x +- (not a constant) */
+	nc = (r->n_op == PLUS || r->n_op == MINUS) && r->n_right->n_op != ICON;
 	for (i = 1; i <= tab[0]; i++)
-		if (tab[i] == regno(p->n_left))
+		if (tab[i] == regno(p->n_left)) {
+			lm_nonconst[i] |= nc;
 			return;
-	if (tab[0] < 30)
+		}
+	if (tab[0] < 30) {
 		tab[++tab[0]] = regno(p->n_left);
+		lm_nonconst[tab[0]] = nc;
+	}
 }
 
 static void
 longmem(struct interpass *ipole)
 {
-	struct interpass *ip, *nip;
+	struct interpass *ip;
 	int tab[32], i;
-	NODE *a, *b, *x;
 
 	tab[0] = 0;
 	DLIST_FOREACH(ip, ipole, qelem)
@@ -1381,12 +1442,55 @@ longmem(struct interpass *ipole)
 			if (lm_across(lm_seen[i]))
 				nacross++;
 		if (nacross < 2)
-			return;
+			nacross = 0;
+		else
+			nacross = 1;
+		if (nacross == 0)
+			goto params;
 	}
 	for (i = 1; i <= tab[0]; i++) {
-		if (!lm_across(tab[i]))
+		if (tab[i] == 0 || !lm_nonconst[i] || !lm_across(tab[i]))
 			continue;
-		lm_reg = tab[i];
+		lm_demote(ipole, tab[i]);
+		tab[i] = 0;
+	}
+params:
+	/* a parameter that is updated is used in its own slot, whatever the update */
+	for (i = 1; i <= tab[0]; i++)
+		if (tab[i] != 0 && lm_param(ipole, tab[i]))
+			lm_demote(ipole, tab[i]);
+}
+
+/* the temporary has its value at entry from a parameter slot? */
+static int
+lm_param(struct interpass *ipole, int reg)
+{
+	struct interpass *ip;
+	NODE *a, *b, *x;
+
+	DLIST_FOREACH(ip, ipole, qelem) {
+		if (ip->type != IP_NODE)
+			continue;
+		a = ip->ip_node;
+		if (a->n_op == ASSIGN && a->n_left->n_op == TEMP &&
+		    regno(a->n_left) == reg &&
+		    (b = a->n_right)->n_op == UMUL &&
+		    (x = b->n_left)->n_op == PLUS &&
+		    x->n_left->n_op == REG && regno(x->n_left) == FPREG &&
+		    x->n_right->n_op == ICON && getlval(x->n_right) > 0)
+			return 1;
+	}
+	return 0;
+}
+
+static void
+lm_demote(struct interpass *ipole, int reg)
+{
+	{
+		struct interpass *ip, *nip;
+		NODE *a, *b, *x;
+
+		lm_reg = reg;
 		lm_off = 0;
 		/* a parameter copied into the temporary at entry: use its slot */
 		DLIST_FOREACH(ip, ipole, qelem) {
@@ -1469,6 +1573,60 @@ smallstasg(struct interpass *ip)
 	}
 }
 
+/*
+ * (int)x of a long x in memory is its low word, the second of the two: use that
+ * word where it is, add -10(r5),(r4), not load it into a register first.
+ */
+static void
+lowword(NODE *p, void *arg)
+{
+	NODE *l, *a;
+
+	if (p->n_op != SCONV || (p->n_type != INT && p->n_type != UNSIGNED &&
+	    p->n_type != SHORT && p->n_type != USHORT))
+		return;
+	l = p->n_left;
+	if (l->n_type != LONG && l->n_type != ULONG)
+		return;
+	if (l->n_op == NAME && l->n_name[0] == '\0')
+		return;
+	if (l->n_op == NAME) {
+		setlval(l, getlval(l) + 2);
+	} else if (l->n_op == UMUL && (a = l->n_left)->n_op == PLUS &&
+	    a->n_right->n_op == ICON && a->n_right->n_name[0] == '\0') {
+		setlval(a->n_right, getlval(a->n_right) + 2);
+	} else if (l->n_op == UMUL && (a = l->n_left)->n_op == MINUS &&
+	    a->n_right->n_op == ICON && a->n_right->n_name[0] == '\0') {
+		setlval(a->n_right, getlval(a->n_right) - 2);
+	} else
+		return;
+	/* the word is the node: the conversion goes */
+	l->n_type = p->n_type == SHORT || p->n_type == USHORT ? INT : p->n_type;
+	*p = *l;
+	nfree(l);
+}
+
+/*
+ * (-xdmr) A char made from a word in memory is the low byte of it, at the
+ * same address (little-endian): movb 4(r5),r0, not  mov 4(r5),r0; movb r0,r0.
+ */
+static void
+narrowload(NODE *p, void *arg)
+{
+	NODE *l;
+
+	if (p->n_op != SCONV || (p->n_type != CHAR && p->n_type != UCHAR))
+		return;
+	l = p->n_left;
+	if ((l->n_type != INT && l->n_type != UNSIGNED) ||
+	    !(l->n_op == NAME || (l->n_op == OREG && !R2TEST(l->n_rval))) ||
+	    ISVOL(l->n_qual))
+		return;
+	l->n_type = p->n_type;
+	*p = *l;
+	nfree(l);
+}
+
 void
 myreader(struct interpass *ipole)
 {
@@ -1487,6 +1645,10 @@ myreader(struct interpass *ipole)
 			continue;
 		if (xdmr)
 			smallstasg(ip);
+		if (xdmr)
+			walkf(ip->ip_node, lowword, 0);
+		if (xdmr)
+			walkf(ip->ip_node, narrowload, 0);
 		walkf(ip->ip_node, fixops, 0);
 		canon(ip->ip_node); /* call it early */
 		if (xdmr) {

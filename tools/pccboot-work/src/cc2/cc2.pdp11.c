@@ -187,6 +187,165 @@ char * findcon(int16_t i);
 int16_t compare(int16_t oper, char *cp1, char *cp2);
 void setcon(char *ar1, char *ar2);
 int16_t equstr(char *ap1, char *ap2);
+/*
+ * Does q leave the condition codes those of register r, as a test of r would
+ * (the overflow bit clear, so that signed branches agree)?  mov, bic, bis,
+ * com and clr do; the arithmetic ones can set overflow.
+ */
+static int ccofreg(struct node *q, char *r)
+{
+	char *d;
+
+	if (q->code == 0)
+		return 0;
+	switch (q->op) {
+	case MOV:
+	case BIC:
+	case BIS:
+		if (q->subop == BYTE && q->op != MOV)
+			return 0;
+		if ((d = strrchr(q->code, ',')) == 0)
+			return 0;
+		d++;
+		break;
+	case COM:
+	case CLR:
+		if (q->subop == BYTE)
+			return 0;
+		d = q->code;
+		break;
+	default:
+		return 0;
+	}
+	return strcmp(d, r) == 0;
+}
+
+/*
+ * The label l is followed by a test of register r.  If every way to l sets the
+ * codes from r (the code before it, unless that jumps away, and every jump to
+ * it, all unconditional), the test is redundant.
+ */
+static int joinscc(struct node *l, char *r)
+{
+	struct node *q;
+	int n;
+
+	if (l->op != LABEL || isreg(r) < 0)
+		return 0;
+	q = l->back;
+	if (q && q->op != JBR && q->op != JMP && q->op != LABEL && !ccofreg(q, r))
+		return 0;
+	if (q && q->op == LABEL)
+		return 0;
+	n = 0;
+	for (q = first.forw; q != 0; q = q->forw) {
+		if (q->ref != l)
+			continue;
+		if (q->op != JBR || q->back == 0 || !ccofreg(q->back, r))
+			return 0;
+		n++;
+	}
+	return n == l->refc && n > 0;
+}
+
+/* Is r0 dead from q on: only moves and adds that do not mention it, then a call? */
+static int r0dead(struct node *q)
+{
+	for (; ; q = q->forw) {
+		if (q == 0 || q->code == 0 || strstr(q->code, "r0") != 0)
+			return 0;
+		if (q->op == JSR)
+			return strncmp(q->code, "pc,", 3) == 0;
+		if (q->op != MOV && q->op != CLR && q->op != ADD && q->op != SUB)
+			return 0;
+	}
+}
+
+/*
+ * clr r0 ... mov r0,D with r0 dead afterwards, only plain moves between:
+ * clr D at the place of the second (a long argument whose high word is zero:
+ * clr -(sp), not through r0).  p is the clr.
+ */
+static int clrmov(struct node *c)
+{
+	struct node *q;
+
+	if (c->op != CLR || c->subop == BYTE || c->code == 0 || strcmp(c->code, "r0") != 0)
+		return 0;
+	for (q = c->forw; q != 0 && q->code != 0 && q->op == MOV && q->subop != BYTE; q = q->forw) {
+		if (strncmp(q->code, "r0,", 3) == 0) {
+			if (strstr(q->code + 3, "r0") != 0 || !r0dead(q->forw))
+				return 0;
+			q->op = CLR;
+			q->code = copy(1, q->code + 3);
+			c->back->forw = c->forw;
+			c->forw->back = c->back;
+			nchange++;
+			return 1;
+		}
+		if (strstr(q->code, "r0") != 0)
+			return 0;
+	}
+	return 0;
+}
+
+/*
+ * A word is made in r0 by each way into a label, and the label moves r0 on
+ * ("c ? 1 : 2" as a call argument):  mov S,r0 ... L: mov r0,D.  When r0 is
+ * dead afterwards (the call comes before any other use of it), each way can
+ * move to D itself and the move at the label goes, as dmr-cc generates it.
+ */
+static int movjoin(struct node *p)
+{
+	struct node *l, *q, *pred[8];
+	char *d, *c, buf[80];
+	int n, i;
+
+	if (p->op != MOV || p->subop == BYTE || p->code == 0 ||
+	    strncmp(p->code, "r0,", 3) != 0 || strstr(p->code + 3, "r0") != 0)
+		return 0;
+	d = p->code + 3;
+	l = p->back;
+	if (l->op != LABEL)
+		return 0;
+	if (!r0dead(p->forw))
+		return 0;
+	n = 0;
+	q = l->back;
+	if (q->op != JBR && q->op != JMP) {
+		if (q->op == LABEL)
+			return 0;
+		pred[n++] = q;
+	}
+	for (q = first.forw; q != 0; q = q->forw) {
+		if (q->ref != l)
+			continue;
+		if (q->op != JBR || n >= 8 || q->back == 0)
+			return 0;
+		pred[n++] = q->back;
+	}
+	if (n == 0 || n - (l->back->op != JBR && l->back->op != JMP) != l->refc)
+		return 0;
+	for (i = 0; i < n; i++) {
+		q = pred[i];
+		if (q->op != MOV || q->subop == BYTE || q->code == 0 ||
+		    (c = strrchr(q->code, ',')) == 0 || strcmp(c + 1, "r0") != 0 ||
+		    c - q->code > 60)
+			return 0;
+	}
+	for (i = 0; i < n; i++) {
+		q = pred[i];
+		c = strrchr(q->code, ',');
+		memcpy(buf, q->code, c - q->code);
+		buf[c - q->code] = 0;
+		q->code = copy(3, buf, ",", d);
+	}
+	p->back->forw = p->forw;
+	p->forw->back = p->back;
+	nchange++;
+	return 1;
+}
+
 void setcc(char *ap);
 int16_t natural(char *ap);
 
@@ -907,13 +1066,18 @@ int16_t rmove(void)
 	case MOV:
 		if (p->subop==BYTE)
 			goto dble;
+		if (movjoin(p)) {
+			p = p->back;
+			continue;
+		}
 		dualop(p);
 		/*
 		 * mov rN,rN moves nothing; it is a test of rN.  If the codes are
 		 * those of rN already, it is not even that.
 		 */
 		if (flt == 0 && isreg(regs[RT1]) >= 0 && equstr(regs[RT1], regs[RT2]) &&
-		    (p->forw->op != CBR || equstr(regs[RT2], ccloc))) {
+		    (p->forw->op != CBR || equstr(regs[RT2], ccloc) ||
+		    joinscc(p->back, regs[RT2]))) {
 			p->forw->back = p->back;
 			p->back->forw = p->forw;
 			redunm++;
@@ -1002,6 +1166,10 @@ int16_t rmove(void)
 		flt = NREG;
 
 	case CLR:
+		if (p->op == CLR && clrmov(p)) {
+			p = p->back;
+			continue;
+		}
 	case COM:
 	case INC:
 	case DEC:
@@ -1027,7 +1195,7 @@ int16_t rmove(void)
 		singop(p);
 		repladdr(p, 0, flt);
 		source(regs[RT1]);
-		if (equstr(regs[RT1], ccloc)) {
+		if (equstr(regs[RT1], ccloc) || joinscc(p->back, regs[RT1])) {
 			p->back->forw = p->forw;
 			p->forw->back = p->back;
 			p = p->back;

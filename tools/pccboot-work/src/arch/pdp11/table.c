@@ -445,6 +445,19 @@ struct optab table[] = {
 		0,	RLEFT|RESCC,
 		"inc	AL\n", },
 
+/* in place through a pointer at a fixed address: inc *_p (-xdmr) */
+{ PLUS,		FOREFF|FORCC,
+	SSTARX,		TWORD|TPOINT,
+	SONE,		TANY,
+		0,	RLEFT|RESCC,
+		"inc	AL\n", },
+
+{ PLUS,		FOREFF|FORCC,
+	SSTARX,			TWORD|TPOINT,
+	SAREG|SNAME|SOREG|SCON,	TWORD|TPOINT,
+		0,	RLEFT|RESCC,
+		"add	AR,AL\n", },
+
 /* add one for char to reg, special handling */
 { PLUS,		FOREFF|INAREG|FORCC,
 	SAREG,	TCHAR|TUCHAR,
@@ -474,7 +487,7 @@ struct optab table[] = {
 
 /* An addend in a register of its own: add to it, whatever the other is */
 { PLUS,		INAREG|FORCC,
-	SAREG|SNAME|SOREG,	TWORD|TPOINT,
+	SAREG|SNAME|SOREG|SCON,	TWORD|TPOINT,
 	SAREG,			TWORD|TPOINT,
 		0,	RRIGHT|RESCC,
 		"add	AL,AR\n", },
@@ -536,6 +549,12 @@ struct optab table[] = {
 { MINUS,	FOREFF|INAREG|FORCC,
 	SAREG|SNAME|SOREG,	TWORD|TPOINT,
 	SONE,			TANY,
+		0,	RLEFT|RESCC,
+		"dec	AL\n", },
+
+{ MINUS,	FOREFF|FORCC,
+	SSTARX,		TWORD|TPOINT,
+	SONE,		TANY,
 		0,	RLEFT|RESCC,
 		"dec	AL\n", },
 
@@ -725,7 +744,7 @@ struct optab table[] = {
 	SSTARX,			TWORD|TPOINT,
 	SNAME|SOREG|SCON,	TWORD|TPOINT,
 		0,	RESCC,
-		"mov	AR,AL\n", },
+		"ZV", },
 
 { ASSIGN,	FOREFF|INAREG|FORCC,
 	SAREG,		TCHAR|TUCHAR,
@@ -962,6 +981,12 @@ struct optab table[] = {
 		"tst	AL\n", },
 
 { OPLOG,	FORCC,
+	SSTARX,	TWORD|TPOINT,
+	SZERO,	TANY,
+		0, 	RESCC,
+		"tst	AL\n", },
+
+{ OPLOG,	FORCC,
 	SAREG|SOREG|SNAME|SCON,	TCHAR|TUCHAR,
 	SZERO,	TANY,
 		0, 	RESCC,
@@ -1089,6 +1114,13 @@ struct optab table[] = {
 { GOTO, 	FOREFF,
 	SAREG,	TANY,
 	SANY,	TANY,
+		0,	RNOP,
+		"jmp	*AL\n", },
+
+/* a jump through a table of labels:  jmp *L(r1) */
+{ GOTO, 	FOREFF,
+	SNAME|SOREG,	TANY,
+	SANY,		TANY,
 		0,	RNOP,
 		"jmp	*AL\n", },
 

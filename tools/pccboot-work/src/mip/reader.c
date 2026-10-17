@@ -702,6 +702,16 @@ findlabelrefs(struct p2env *p2e)
 	DLIST_FOREACH(ip, &p2e->ipole, qelem)
 		if (ip->type == IP_NODE)
 			walkf(ip->ip_node, marklabel, 0);
+	/* labels that a table or a computed goto reaches */
+	if (p2e->epp->ip_labels != NULL) {
+		int *l, i;
+
+		for (l = p2e->epp->ip_labels; *l; l++) {
+			i = *l;
+			if (i >= lblrefbase && i - lblrefbase < lblrefn)
+				lblrefd[i - lblrefbase] = 1;
+		}
+	}
 }
 #endif
 

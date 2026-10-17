@@ -1089,7 +1089,7 @@ doprefix:	C_DO {
 		}
 		;
 ifprefix:	C_IF '(' e ')' {
-			P1ND *c = eve($3);
+			P1ND *c = cfold(eve($3));
 			int k = constcond(c);
 
 			xcbranch(c, $$ = getlab());
@@ -2583,6 +2583,13 @@ savlab(int lab)
 	l->lab = lab < 0 ? -lab : lab;
 	l->next = labp;
 	labp = l;
+}
+
+/* a label that a table or a computed goto reaches: pass 2 must keep it */
+void
+swlabel(int lab)
+{
+	savlab(lab);
 }
 
 int *

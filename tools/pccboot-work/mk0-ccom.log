@@ -37,11 +37,11 @@ gcc  -g -O2  -Wall -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wsign-comp
 gcc  -g -O2  -Wall -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wsign-compare -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -D_ISOC99_SOURCE -Dos_linux -Dmach_amd64 -I. -I. -I../.. -I../../mip -I../../arch/amd64 -I../../os/linux -I../../common -c -o params.o ./params.c
 gcc  -g -O2  -Wall -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wsign-compare -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -D_ISOC99_SOURCE -Dos_linux -Dmach_amd64 -I. -I. -I../.. -I../../mip -I../../arch/amd64 -I../../os/linux -I../../common -c -o pftn.o ./pftn.c
 gcc  -g -O2  -Wall -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wsign-compare -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -D_ISOC99_SOURCE -Dos_linux -Dmach_amd64 -I. -I. -I../.. -I../../mip -I../../arch/amd64 -I../../os/linux -I../../common -c -o reader.o ../../mip/reader.c
-../../mip/reader.c:714:1: warning: no previous prototype for ‘p2_mark’ [-Wmissing-prototypes]
-  714 | p2_mark(void)
+../../mip/reader.c:724:1: warning: no previous prototype for ‘p2_mark’ [-Wmissing-prototypes]
+  724 | p2_mark(void)
       | ^~~~~~~
-../../mip/reader.c:720:1: warning: no previous prototype for ‘p2_discard’ [-Wmissing-prototypes]
-  720 | p2_discard(struct interpass *mark)
+../../mip/reader.c:730:1: warning: no previous prototype for ‘p2_discard’ [-Wmissing-prototypes]
+  730 | p2_discard(struct interpass *mark)
       | ^~~~~~~~~~
 gcc  -g -O2  -Wall -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wsign-compare -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -D_ISOC99_SOURCE -Dos_linux -Dmach_amd64 -I. -I. -I../.. -I../../mip -I../../arch/amd64 -I../../os/linux -I../../common -c -o softfloat.o ../../common/softfloat.c
 gcc  -g -O2  -Wall -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wsign-compare -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -D_ISOC99_SOURCE -Dos_linux -Dmach_amd64 -I. -I. -I../.. -I../../mip -I../../arch/amd64 -I../../os/linux -I../../common -c -o regs.o ../../mip/regs.c

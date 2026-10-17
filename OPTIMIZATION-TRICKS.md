@@ -431,8 +431,8 @@ with the selector as an `"r"` input (the allocator puts it in a register: this i
 32V's cc writes, so the VAX c2 port recognises it and renumbers the table label.  Out of range
 falls through, so a switch with a default gets a `branch(default)` after the table; without one
 the fall-through is the end of the switch (pass 1 emits the dispatch after the body).  Case
-labels are recorded with `swlabel` so nothing prunes them.  `advance()` in grep and ed
-(19 cases) went from 449 to 396 bytes.  Test: `pcctests/casesel.c` (negative minimum, byte and
+labels are recorded with `swlabel` so nothing prunes them.  `advance()` in grep (19 cases) went from
+52 bytes over `cc -O` (model, `tools/vaxfunsize.py`) to level with it.  Test: `pcctests/casesel.c` (negative minimum, byte and
 unsigned selectors, with and without default).
 
 ## 18. Entry-mask register saving

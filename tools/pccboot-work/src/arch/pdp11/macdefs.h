@@ -56,6 +56,8 @@
 #define SZLONG		32
 #define SZSHORT		16
 #define SZLONGLONG	64
+/* sizeof is unsigned, as in V7 C and the standard: (long)(n * sizeof x) does not sign-extend */
+#define SIZET	UNSIGNED
 #define SZPOINT(t)	16
 
 /*

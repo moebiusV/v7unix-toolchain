@@ -197,7 +197,7 @@ extern int vax_helpers;
 #define SAVEREGS_BY_MASK	/* callee-saved registers in use go in the entry mask, not copies */
 #define REGVARS		6	/* 'register' variables per function: r11 down to r6 */
 #define REGVAR0		R11	/* first one; the next go downwards */
-#define AUTOINC_MEM	/* x++ of an int or pointer in memory is (x += 1) - 1 */
+#define AUTOINC_MEM	/* x++ of an integer in memory is (x += 1) - 1 */
 #define AUTOINC		/* p++ and --p of a register pointer: (rN)+ and -(rN) */
 #define AUTOINC_SIZE(s)	((s) == SZCHAR || (s) == SZSHORT || (s) == SZINT || \
 			(s) == SZLONG || (s) == SZFLOAT || (s) == SZDOUBLE)
