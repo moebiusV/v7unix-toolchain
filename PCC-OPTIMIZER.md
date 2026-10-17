@@ -95,3 +95,39 @@ corpus. The `orig/` tree holds byte-identical goldens, so the diff is mechanical
   or must it be written?
 - Link-time section GC depends on the V7 `ld` port; scope Phase 4 as its own
   project rather than folding it into this one.
+
+## Status of goal 2, measured 2026-10-17 (dead-code elimination in place of #ifdef)
+
+Method: `tools/dcetest` style cases compiled with `pcc -O -S` (which turns on
+`-xtemps -xdeljumps -xdce`), looking for what survives in the assembly.  Without `-O`
+none of the dead arms are removed.
+
+| construct | result |
+|---|---|
+| `if (0)`, `if (V7)` with `#define V7 1`, `if (BSD)` with `#define BSD 0`, enum constants, `sizeof(int) == 2`, `c ? a : b`, `0 && f()`, `while (0)`, `for (;0;)` | removed: no code, no reference to the symbols named in the dead arm (so no undefined symbol at link) |
+| a function with the dead arm vs the same function under `#ifdef` | identical instructions |
+| `static const int debug = 0; if (debug)` | **kept** (a `const` object is not folded) |
+| `switch (CONSTANT)` | **kept** (the dead `case` bodies stay) |
+| a string literal used only in the dead arm | **kept** in the data (strings are emitted while parsing) |
+| a `static` function or `static` variable that nothing live uses | **kept** (functions are emitted one by one, before it is known whether anyone calls them) |
+| dead stores (`x = 5; x = 6;`) | removed (`-xtemps -xdce`, by liveness) |
+
+What would make `if (V7)` produce the object `#ifdef V7` does:
+
+1. Fold the condition in pass 1 whatever the optimisation level, keeping the dead arm
+   parsed and type-checked (that is the point), unless a label inside it can be reached
+   by a `goto` or a `switch`.
+2. Fold `const` scalars that have a constant initializer (or define the dialect so that
+   `enum` or `#define` is the way to write a switch).
+3. Fold `switch` on a constant to the matching `case`.
+4. Emit string literals (and other literal data) only if the code that is kept refers to
+   them.
+5. Hold back `static` functions and `static` data until the end of the file and write
+   only those that the kept code reaches, directly or through other kept statics.  This
+   needs the functions of a file to be buffered; the `-xinline` machinery already keeps
+   function trees.
+6. A test that compiles a corpus both ways and compares the objects byte for byte.
+
+What it cannot replace: `#ifdef` around declarations, types, struct members or function
+signatures; the other arm of an `if` is still parsed, so it must be valid C for every
+configuration.
