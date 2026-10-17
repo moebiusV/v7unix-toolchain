@@ -87,7 +87,9 @@ output is no bigger than theirs.  The work goes in two steps.
 
 1. **Bring the old targets up to the original standard.**  On the PDP-11 pcc is
    measured against dmr's `cc`, and on the VAX (target `vax-unknown-unix32v`,
-   run on a real 32V under SIMH) against 32V's `cc -O`.  All of it is opt-in:
+   run on a real 32V under SIMH) against 32V's `cc -O`, which is Steve Johnson's
+   original PCC (the ancestor of the pcc used here) with the VAX `c2` peephole
+   optimizer.  All of it is opt-in:
    `-xdmr` (implied by `-O` on the PDP-11), plus `-xtemps -xdeljumps -xdce
    -xinline`.  Everything else in pcc is unchanged.  The tricks that lived in the
    old peephole optimizers (`c2`) are being moved into pcc's own machinery:
