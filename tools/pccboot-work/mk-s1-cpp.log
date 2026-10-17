@@ -1,0 +1,6 @@
+/home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/pccw  -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -I. -I../.. -I. -I../../mip -I../../arch/amd64 -I../../common -DNVMPGS=4 -Dos_linux -Dmach_amd64 -c -o compat.o ../../common/compat.c
+/home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/pccw  -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -I. -I../.. -I. -I../../mip -I../../arch/amd64 -I../../common -DNVMPGS=4 -Dos_linux -Dmach_amd64 -c -o cpp.o ./cpp.c
+/home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/pccw  -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -I. -I../.. -I. -I../../mip -I../../arch/amd64 -I../../common -DNVMPGS=4 -Dos_linux -Dmach_amd64 -c -o cpc.o ./cpc.c
+/home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/pccw  -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -I. -I../.. -I. -I../../mip -I../../arch/amd64 -I../../common -DNVMPGS=4 -Dos_linux -Dmach_amd64 -c -o token.o ./token.c
+/home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/pccw  -D_DEFAULT_SOURCE -DGCC_COMPAT -DPCC_DEBUG -I. -I../.. -I. -I../../mip -I../../arch/amd64 -I../../common -DNVMPGS=4 -Dos_linux -Dmach_amd64 -c -o tempfile.o ./tempfile.c
+/home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/pccw  compat.o cpp.o cpc.o token.o tempfile.o -o cpp -lm 
