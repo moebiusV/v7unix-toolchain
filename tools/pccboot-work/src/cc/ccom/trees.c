@@ -2203,6 +2203,20 @@ fixbranch(P1ND *p, int label)
 	}
 }
 
+/* is r an update of the variable v: v + e, v - e, v & e, v << e ... */
+static int
+updates(P1ND *v, P1ND *r)
+{
+	switch (r->n_op) {
+	case PLUS: case MINUS: case AND: case OR: case ER: case LS: case RS:
+	case MUL:
+		r = r->n_left;
+		return r->n_op == NAME && r->n_sp == v->n_sp &&
+		    glval(r) == glval(v);
+	}
+	return 0;
+}
+
 /*
  * Write out logical expressions as branches.
  */
@@ -2265,6 +2279,25 @@ calc:		if (_true < 0) {
 			_false = -1;
 		}
 
+		/*
+		 * (-xdmr) A variable updated in the condition, ++n > 1 or
+		 * (c += 3) < 10: do the update as a statement and compare the
+		 * variable, inc n; cmp n,$1, not through a register.  (A plain
+		 * assignment is better compared from the register it came in, and a
+		 * comparison with 0 uses the codes of the update itself.)
+		 */
+		if (xdmr && (q = p->n_left)->n_op == ASSIGN &&
+		    !(p->n_right->n_op == ICON && glval(p->n_right) == 0) &&
+		    q->n_left->n_op == NAME && !ISVOL(q->n_left->n_qual) &&
+		    q->n_left->n_sp != NULL && q->n_left->n_sp->sclass != REGISTER &&
+		    q->n_type == q->n_left->n_type &&
+		    updates(q->n_left, q->n_right)) {
+			P1ND *lhs = p1tcopy(q->n_left);
+
+			rmcops(q);
+			ecode(q);
+			p->n_left = lhs;
+		}
 		rmcops(p->n_left);
 		rmcops(p->n_right);
 		fixbranch(p, _true);
