@@ -1244,6 +1244,168 @@ fwdauto(struct interpass *ipole)
 	}
 }
 
+/*
+ * Longs that are updated in place with something that is not a constant,
+ * p += c - lseek(...), stay in memory, as dmr-cc has them (-xdmr).  A long in
+ * a register pair that the allocator has to spill is loaded, updated and stored
+ * around every use; in memory it is  add r1,-10(r5); add r0,-12(r5); adc ...
+ * A parameter is used where it is, not copied.
+ */
+static int lm_reg, lm_off;
+static int lm_idx;			/* index of the statement being walked */
+static int lm_seen[64], lm_first[64], lm_last[64], lm_nseen;
+static int lm_calls[512], lm_ncalls;
+
+static int
+lm_hascall(NODE *p)
+{
+	/* long multiply, divide and remainder are calls of library routines */
+	if (callop(p->n_op) || ((p->n_op == MUL || p->n_op == DIV || p->n_op == MOD) &&
+	    (p->n_type == LONG || p->n_type == ULONG)))
+		return 1;
+	switch (optype(p->n_op)) {
+	case UTYPE: return lm_hascall(p->n_left);
+	case BITYPE: return lm_hascall(p->n_left) || lm_hascall(p->n_right);
+	}
+	return 0;
+}
+
+/* first and last statement that mention each long temporary */
+static void
+lm_count(NODE *p, void *arg)
+{
+	int i;
+
+	if (p->n_op != TEMP || (p->n_type != LONG && p->n_type != ULONG))
+		return;
+	for (i = 0; i < lm_nseen; i++)
+		if (lm_seen[i] == regno(p))
+			break;
+	if (i == lm_nseen) {
+		if (lm_nseen >= 64)
+			return;
+		lm_seen[lm_nseen] = regno(p);
+		lm_first[lm_nseen++] = lm_idx;
+	}
+	lm_last[i] = lm_idx;
+}
+
+/* is the long temporary live across a call? */
+static int
+lm_across(int reg)
+{
+	int i, c;
+
+	for (i = 0; i < lm_nseen; i++)
+		if (lm_seen[i] == reg)
+			break;
+	if (i == lm_nseen)
+		return 0;
+	for (c = 0; c < lm_ncalls; c++)
+		if (lm_calls[c] > lm_first[i] && lm_calls[c] < lm_last[i])
+			return 1;
+	return 0;
+}
+
+static void
+lm_replace(NODE *p, void *arg)
+{
+	if (p->n_op == TEMP && regno(p) == lm_reg)
+		storemod(p, lm_off, FPREG);
+}
+
+static void
+lm_find(NODE *p, void *arg)
+{
+	int *tab = arg;		/* tab[0] = count, then register numbers */
+	NODE *r;
+	int i;
+
+	if (p->n_op != ASSIGN || p->n_left->n_op != TEMP ||
+	    (p->n_left->n_type != LONG && p->n_left->n_type != ULONG))
+		return;
+	r = p->n_right;
+	if ((r->n_op != PLUS && r->n_op != MINUS) || r->n_left->n_op != TEMP ||
+	    regno(r->n_left) != regno(p->n_left) || r->n_right->n_op == ICON)
+		return;
+	for (i = 1; i <= tab[0]; i++)
+		if (tab[i] == regno(p->n_left))
+			return;
+	if (tab[0] < 30)
+		tab[++tab[0]] = regno(p->n_left);
+}
+
+static void
+longmem(struct interpass *ipole)
+{
+	struct interpass *ip, *nip;
+	int tab[32], i;
+	NODE *a, *b, *x;
+
+	tab[0] = 0;
+	DLIST_FOREACH(ip, ipole, qelem)
+		if (ip->type == IP_NODE)
+			walkf(ip->ip_node, lm_find, tab);
+	if (tab[0] == 0)
+		return;
+	/*
+	 * A long that lives across a call can have the one callee-saved pair.
+	 * When two do, one is spilled, and a spilled long is loaded, updated and
+	 * stored around each use.  Then the ones that are updated go to memory.
+	 */
+	lm_nseen = lm_ncalls = lm_idx = 0;
+	DLIST_FOREACH(ip, ipole, qelem) {
+		if (ip->type != IP_NODE)
+			continue;
+		lm_idx++;
+		walkf(ip->ip_node, lm_count, 0);
+		if (lm_hascall(ip->ip_node) && lm_ncalls < 512)
+			lm_calls[lm_ncalls++] = lm_idx;
+	}
+	{
+		int nacross = 0;
+
+		for (i = 0; i < lm_nseen; i++)
+			if (lm_across(lm_seen[i]))
+				nacross++;
+		if (nacross < 2)
+			return;
+	}
+	for (i = 1; i <= tab[0]; i++) {
+		if (!lm_across(tab[i]))
+			continue;
+		lm_reg = tab[i];
+		lm_off = 0;
+		/* a parameter copied into the temporary at entry: use its slot */
+		DLIST_FOREACH(ip, ipole, qelem) {
+			if (ip->type != IP_NODE)
+				continue;
+			a = ip->ip_node;
+			if (a->n_op == ASSIGN && a->n_left->n_op == TEMP &&
+			    regno(a->n_left) == lm_reg &&
+			    (b = a->n_right)->n_op == UMUL &&
+			    (x = b->n_left)->n_op == PLUS &&
+			    x->n_left->n_op == REG && regno(x->n_left) == FPREG &&
+			    x->n_right->n_op == ICON && getlval(x->n_right) > 0) {
+				lm_off = getlval(x->n_right);
+				break;
+			}
+		}
+		if (lm_off == 0)
+			lm_off = freetemp(2);	/* two words */
+		else {
+			/* the copy goes: it would copy the slot onto itself */
+			nip = ip;
+			ip = DLIST_PREV(ip, qelem);
+			tfree(nip->ip_node);
+			DLIST_REMOVE(nip, qelem);
+		}
+		DLIST_FOREACH(ip, ipole, qelem)
+			if (ip->type == IP_NODE)
+				walkf(ip->ip_node, lm_replace, 0);
+	}
+}
+
 void
 myreader(struct interpass *ipole)
 {
@@ -1255,6 +1417,8 @@ myreader(struct interpass *ipole)
 		printip(ipole);
 	}
 #endif
+	if (xdmr)
+		longmem(ipole);
 	DLIST_FOREACH(ip, ipole, qelem) {
 		if (ip->type != IP_NODE)
 			continue;
