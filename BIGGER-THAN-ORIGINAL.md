@@ -1,137 +1,89 @@
 # Files where pcc `-O` is bigger than the original compiler, and why
 
 Measured 2026-10-17 with `tools/pccdiff.sh -v -k DIR` (PDP-11, against dmr's `cc`;
-text+data bytes after V7 `as`).  Totals are below the originals; this is about the
-files that are not.  "Fixable" says whether the cause can be removed without making
-the compiler wrong, and where the change would go.
+text+data bytes after V7 `as`) and `tools/vaxdiff.py` (VAX, against 32V's `cc -O`).
+Totals are below the originals; this is about the files that are not.  The goal set
+for this work: the only files larger than the original are larger because their code
+is more correct.  "Fixable" says whether the cause can be removed without making the
+compiler wrong, and where the change would go.
 
-PDP-11 libc: 25 of 89 files were bigger when this was first written and 17 are now (2 to
-36 bytes, 114 bytes in all; libc as a whole is 334 bytes under dmr's, 17022 against 17356,
-after the changes below).  The first count was 25 of 89 files bigger, by 2 to 62 bytes (252 bytes in all, more than
-made up by about 400 bytes saved in the other 64 files: libc is 152 bytes smaller overall).  Commands: 10 of 51, by 2 to 454 bytes.
+## PDP-11
 
-## The causes, most files first
+libc: 16918 bytes against dmr's 17356 (-2.5%); 6 of 89 files are bigger (it was 25).
+commands: 86566 against 90178 (-4.0%); 2 of 51 files are bigger (it was 10).
 
-**A. Deferred addressing is missing for a pointer held in memory.  PARTLY FIXED.**
-dmr stores through a pointer that lives in a global or the frame with one
-instruction, `movb r3,*10+__iob; inc 10+__iob`; pcc made a copy of the pointer in a
-register first (`t = p; p = p + 1; *t = c`).  pass 1 produces those three statements for
-`*p++`; `postincfold()` in `mip/optim2.c` (-xdmr, targets with `MEM_DEFERRED`: pdp11,
-vax) now puts the use first, through the pointer itself, and the increment after it.
-Only for a global or a frame variable: through a register the deferred form `*(rN)` is
-`@0(rN)`, an index word, which is as long as loading the pointer (found when getpass.c
-grew 2 bytes).  libc 17138 -> 17132, commands 88268 -> 88202.  Still different from
-dmr: a pointer reached through another pointer in a register (`*iop->_ptr++`, where
-dmr's `*(r4)` is no shorter either), and the `movb r3,r3` that remains where the
-value of the assignment is used (putchar's return value).
-
-**B. A value computed only for its effect is still converted.**  `putc(c, f)` is
-`cond ? *p++ = c : _flsbuf(c, f)`; used as a statement its value is dropped, but
-pcc still emits `movb r3,r3` (sign extension of the assignment's value) before the
-store.  2 bytes per `putc`.  *Files:* puts, putchar, putw, cpp.c.  *Fixable:* yes.
-Evaluate the arms of a `?:` whose value is unused for effect only; an IR rewrite in
-`clocal` or a `FOREFF` rule.
-
-**C. Comparing two bytes in memory.  FIXED** in `clocal` (PDP-11, VAX; the x86
-backends got compare narrowing too, which they never had).  dmr: `cmpb (r4),(r3)+`.  pcc loads both
-into registers and compares them: `movb (r4),r1; movb (r3)+,r0; cmp r1,r0` (+4).
-*Files:* strcmp (+4), strncmp (+4), index (+4), rindex (+4), getenv (+2).
-*Fixable:* yes, a template for `cmpb` with two byte operands that are memory or
-autoincrement (`arch/pdp11/table.c`).
-
-**D. The address of a local goes through a register.  FIXED** (`SARGSUB` now also
-matches frame pointer plus constant).  `f(&x)`: dmr
-`mov r5,-(sp); add $6,(sp)`; pcc `mov r5,r0; add $6,r0; mov r0,-(sp)` (+2).
-*Files:* printf (+2), sprintf (+4), ctime, and several in cmd/.  *Fixable:* yes, a
-template for `ADDROF` of an automatic straight to the stack.
-
-**E. Unsigned divide by a variable.  EXPLAINED, 4 bytes recovered.**  qsort
-divides an unsigned by a variable (`n / (2*es)`).  dmr emits `clr r0; div (sp)+,r0`,
-4 bytes, which is wrong for a divisor of 32768 or more (the `div` takes a signed divisor) and
-for a divisor of 1 with a large dividend: shown by running dmr-cc's own output, see
-`tools/dmrbugs/udiv-variable.c` and `tools/dmrtest.sh` (87 failing-case bits under
-dmr-cc, 0 under pcc); pcc calls `udiv`, a routine it writes into the file, which is right for
-every divisor.  The routine is 30 bytes (36 until the quotient of a divisor over 32767
-became `cmp r0,r1; mov $1,r0; sbc r0`, since `mov` leaves the carry alone), paid once per
-file that divides by a variable.  That is all of qsort's remaining +14: pcc is smaller than
-dmr everywhere else in that file.  In the two corpora only qsort and sh/print.c carry a
-helper, so a shared runtime copy would save about 60 bytes and need the driver to link
-a support library; not done.  Test: `pcctests/udiv16.c` covers every branch of the
-helper (divisor 0/1, 2, 32767, 32768, 40000; dividend 0, equal, smaller, 65535).
-
-**F. 32-bit arithmetic.  FIXED for the common case.**  fseek (+62) and ctime (+46)
-update longs.  dmr keeps every long in memory and updates it there
-(`add r0,-12(r5); add r1,-10(r5); adc -12(r5)`); pcc kept them in register pairs, and
-when the allocator spilled one it loaded the pair, updated it and stored it back around
-every use, because a spilled temporary is rewritten as load / operate / store.  Now,
-when two longs are live across calls (long multiply and divide are calls), the ones
-updated with `x += e` / `x -= e` stay in memory, where the existing in-place templates
-apply, and a long parameter updated that way is used in its own slot with no copy
-(`longmem()` in `arch/pdp11/local2.c`).  The rule is that narrow on purpose: every long
-in memory made libc 38 bytes smaller and the commands 316 bytes bigger, and a single
-long that lives across calls fits the callee-saved pair and costs 2 bytes more per use
-in memory (ld.c, ftell).  fseek +62 -> +10, ctime +46 -> gone, libc 17132 -> 17022.
-What remains in fseek is the `sxt` against `clr` sign extension of an int into a long.
-
-**G. Operand order in address arithmetic.  FIXED** with a table rule: a sum may be left
-in the register of its right operand (`add AL,AR`), so `p + (n << 1)` is `mov r2,r0;
-asl r0; add r4,r0` and `p` is no longer copied into the result register first.  My first
-attempt, swapping the operands in a pass, produced wrong code: the shared `setleft()`
-puts pointers first again at emit time, after the instruction was chosen for the other
-order, so the add went into the variable instead of the sum.  That rule, unlike most of
-this work, is not conditional on `-xdmr`: a table rule has nothing to test, and a
-special shape would hide the register from the allocator.
-
-**K. Small structures.  FIXED** (-xdmr).  A structure of 2 or 4 bytes assigned as a
-statement was the general counted block move (`mov $1,r2; 1: mov (r0)+,(r1)+; sob
-r2,1b`); it is now one or two movs (malloc's `*t++ = *s++` on a union of one word).
-
-**H. Register and frame choices (not yet examined file by file).**  crypt (+6),
-mon (+6), ld.c (+48, 71 more `mov`s), c21.c (+124, 45 more `cmp`s): pcc copies
-parameters into registers (`mov 12(r5),r2`) where dmr uses them in place, and
-reserves frame slots for spills.  Probably the allocator's choices rather than a
-single missing rule.  *Fixable:* unknown until looked at.
-
-**I. Differences that are not size.**  Jump placement (`jbr L3` against dmr's
-repeated `jmp cret`), the order of `cmp` operands with the branch reversed, static
-data in `.bss` against `.data`, and symbol-name truncation to 7 characters in dmr's
-output are the same number of bytes.
-
-**J. A variable updated in a condition (found in malloc).**  `if (++temp > 1)`:
-dmr `inc L1; cmp $1,L1`; pcc loaded, incremented, stored and compared through a
-register.  **FIXED** in pass 1 (`andorbr`, `-xdmr`): the update becomes a statement
-and the variable is compared.  Not done for a register variable, a plain
-assignment or a compare with 0, where the old form is smaller.
-
-## Per file, PDP-11 libc
-
-| file | bytes over | main cause |
+| file | bytes over | cause |
 |---|---|---|
-| fseek | +62 | F |
-| ctime | +46 | F, D |
-| malloc | +40 | G |
-| qsort | +20 | E, G |
-| puts | +8 | A, B |
-| crypt, mon, flsbuf, scanf | +6 | H, A, E |
-| sprintf, getlogin, index, rindex, strcmp, strncmp, putchar, putw, getpw, filbuf | +4 | C or A/B/D |
-| getenv, endopen, fgets, getchar, getw, printf | +2 | C or A |
+| `libc/gen/qsort.c` | +14 | **correctness**: the unsigned-divide helper (below); without its 34 bytes the file is 20 smaller than dmr's |
+| `cmd/sh/print.c` | +58 | **correctness**: `udiv` and `urem`, 74 bytes; without them 16 smaller |
+| `libc/gen/malloc.c` | +12 | allocator choices (B); partly **correctness**: `(nw + BLOCK/WORD) / (BLOCK/WORD)` is unsigned (sizeof is), pcc shifts, dmr emits a signed `sxt; div` |
+| `libc/gen/mon.c` | +6 | a parameter used twice is copied into a register (A) |
+| `libc/stdio/fseek.c` | +6 | the same, and a 32-bit value spilled to frame slots where dmr pushes and pops (A, B) |
+| `cmd/sh/main.c` | +4 | parameters copied into registers (A) |
+| `libc/stdio/flsbuf.c` | +4 | an address-taken `char` temporary is stored from a register after template selection: `mov 4(r5),r0; movb r0,r0; movb r0,-10(r5)` against dmr's `movb 4(r5),-12(r5)` (C) |
+| `libc/stdio/sprintf.c` | +2 | a parameter copied into a register (A) |
 
-(`getlogin`, `endopen`, `filbuf`, `flsbuf`, `getpw`, `scanf` were read quickly; their
-exact split between the causes above has not been counted.)
+### The causes
+
+**Unsigned divide by a variable (qsort, sh/print).  EXPLAINED, not a defect of ours.**
+dmr emits `clr r0; div b,r0`, 4 bytes, which is wrong for a divisor of 32768 or more
+(the `div` takes a signed divisor) and for a divisor of 1 with a large dividend: shown
+by running dmr's own output (`tools/dmrbugs/udiv-variable.c`, `tools/dmrtest.sh`:
+87 failing-case bits under dmr-cc, 0 under pcc).  pcc calls `udiv` / `urem`, routines
+it writes into each file that uses them: `udiv` is 17 words, `urem` 20, and they are right
+for every divisor (`pcctests/udiv16.c` covers divisor 0/1, 2, 32767, 32768, 40000 and
+dividends 0, equal, smaller, 65535).  A shared copy in a runtime library would save about
+60 bytes over the two corpora and needs the driver to link a support library; not done.
+The same applies to `uldiv` and `ulrem`.
+
+**A. A parameter used twice is copied into a register.**  The register costs a 2-word
+`mov 4(r5),r2` and saves a word per use (an operand `4(r5)` has an index word), so at two
+uses it is a draw in bytes and the register pressure causes spills.  `parmprop()` in
+`arch/pdp11/local2.c` already uses a parameter in place when it has one use.  Using it in
+place at two uses as well was tried and made libc 14 bytes and commands 6 bytes bigger,
+so it was dropped.  *Fixable:* only by a better spill decision in the allocator.
+
+**B. Allocator spill choices.**  malloc and fseek keep a temporary in a frame slot where
+dmr keeps nothing live; `mov _alloct,r0; mov (r0),r0` is two loads where dmr reused the
+register.  *Fixable:* in `mip/regs.c`, not by a table rule.
+
+**C. A temporary whose address is taken.**  `c1 = c; write(fd, &c1, 1)`: the
+temporary is a stack slot, but its stores are chosen as register stores and the
+slot is filled in afterwards.  *Fixable:* decide the home of address-taken temporaries
+before template selection (`cstknode()` in `trees.c` creates them).
+
+## What was fixed on the way, with the file that showed it
+
+| change | where | files where the pattern showed up |
+|---|---|---|
+| compare two bytes in memory (`cmpb`) | `clocal` | strcmp, strncmp, index, rindex, getenv |
+| `&local` straight to the stack | `SARGSUB` shape | printf, sprintf, ctime, cmd/ |
+| `?:` value dropped for a statement | `unusedval()` in pass 1 | puts, putchar, putw, cpp |
+| deferred store through a pointer in memory | `postincfold`, `SSTARX` | stdio, malloc |
+| `x op= e` in a condition | `andorbr()` | malloc |
+| 32-bit arithmetic in place | `longrw`, `longmem`, `longcall` | fseek, ctime, sh/print, adb, ld |
+| small struct assignment | `smallstasg` | malloc |
+| PLUS leaves its result in the right operand's register | table rule | qsort, malloc |
+| jump-table switch | `mygenswitch` | 792 bytes over the commands |
+| `c ? a : b` as a condition | `andorbr()` `QUEST` | adb/input, sh |
+| register result folded; `OR` operand order | `retfold` | getw |
+| codes at a join; `?:` arms into the argument slot; `clr r0` argument | c2 | fgets, getc users, endopen, filbuf, getlogin, sh |
+| char from a word in memory | `narrowload` | commands |
+| `sizeof` unsigned | `arch/pdp11/macdefs.h` | getlogin (and a miscompile, see OPTIMIZATION-TRICKS.md) |
 
 ## VAX (32V `cc -O`)
 
-6 of 38 command sources are bigger: deroff +184, cron +52, dd +44, chmod +32, dcheck
-+12, args +12.  Instruction counts against `cc -O` over these files:
-`addl3` +18 and `incl` −15 (a `x++` whose old value is not needed still goes through
-`addl3 $1,x,r0` in a few places), `movb` +14 against `cvtlb` −14 (same size), `subl2`
-−22 (frame set-up written differently), `movl` +19 (copies c2 cannot yet drop).
-*Fixable:* the `addl3` against `incl` and the `movl` copies, in the same IR passes
-(copy propagation, below); the rest are equal in bytes.
+libc gen+stdio: 19056 against 21976 (-13.3%).  56 command sources: 109980 against 118444
+(-7.1%).  11 of the 56 command files are bigger: `dump` +240, `deroff` +148, `grep` +116,
+`ed` +60, `cron` +52, `dd` +40, `chmod` +32, `dcheck` +24, `dumpdir` +24, `col` +20, `args` +12.
 
-## What would fix most of it
-
-In order of bytes and files per piece of work: A (deferred modes), C (`cmpb`
-memory to memory), D (`&auto` to the stack), B (dead conversion), G (operand
-order), then E as a libc packaging decision, F as a larger project, H by looking.
-A, B, C, D and G together should remove most of the 252 bytes.
+Only `ed` is understood in detail: `__urem` costs 41 bytes, and 32V's cc divides unsigned
+values as signed (shown by running it, `tools/dmrbugs/udiv-variable-vax.c`, 15 failing-case
+bits under 32V's cc, 0 under pcc), so that is **correctness**.  For the rest,
+`tools/vaxfunsize.py` (a model of VAX instruction lengths, per function, with dmr names
+truncated to 7 characters) points at the functions: `dump` `mark` +88 and `add` +87;
+`grep` `main` +133 and `advance` +52; `col` `emit` +42; `chmod` `where` +36; `deroff`
+`eqn` +58.  Known causes so far: 32V builds a decision tree for a sparse `switch` where we
+compare in a chain; we use `extzv` for `>> 4`; `addl3 $1,x,r0` where 32V has `incl`;
+`movl` copies c2 cannot yet drop (2640 redundant moves over 130 files are still removed by
+c2 rather than before it).  Not yet fixed; each needs its function read.
