@@ -1084,9 +1084,9 @@ object is read by a load the compiler cannot tell from any other.  An instructio
 parse is a barrier.  It was run under AddressSanitizer over the whole libc output (a one-byte
 overrun in the operand splitter turned up).
 
-libc (89 files): 47756 bytes with no flags, 33740 with `-xtemps -xdeljumps -xinline -xdce`, 28780
-with `-xdmr`; on the 76 files `clang -Os` can also compile, 18844 against clang's 15739 with its unwind
-tables off (+20%): the optimizer closes part of the gap to a modern compiler, not all of it.
+libc (89 files): 42500 bytes with no flags, 27908 with `-xtemps -xdeljumps -xinline -xdce`, 24332
+with `-xdmr`; on the 76 files `clang -Os` can also compile, 16560 against clang's 15739 with its unwind
+tables off (+5%): close to a modern compiler, not under it.
 
 **Port.** The same pass shape (parse, def/use, liveness, patterns) is what a RISC-V or ARM32
 backend would want; the patterns are per target.

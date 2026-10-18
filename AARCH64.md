@@ -142,14 +142,18 @@ Text plus data of the V7 `libc` (89 files), assembled with clang's integrated as
 
 | flags | bytes |
 |---|---|
-| none | 47756 |
-| `-xtemps -xdeljumps -xinline -xdce` | 33740 |
-| ... with prologue pairs and `stp ...!` | 32308 |
-| ... with `-xdmr` (text optimizer) | 28780 |
+| none | 42500 |
+| `-xtemps -xdeljumps -xinline -xdce` | 27908 |
+| ... with `-xdmr` (text optimizer) | 24332 |
+
+(Before `.align` was fixed these were 47756, 32308 and 28756: the generic code prints `.align 8` for
+an 8-byte object, which x86 reads as bytes and AArch64 as 2^8, so every floating constant was padded
+to 256 bytes and every function to 16.  `HASP2ALIGN` in `macdefs.h` now makes it `.align 3`.  It was the
+largest single reason pcc looked big next to clang.)
 
 Against `clang -Os` pcc is larger.  On the 76 libc files clang can compile, `-xdmr` gives
-18844 bytes against 15739 for clang (+20%); on the 9 command sources both can compile, 12068
-against 11125 (+8%).  (`tools/a64size.sh`, `A64REF=1`; pass `A64REFFLAGS="-fno-asynchronous-unwind-tables
+16560 bytes against 15739 for clang (+5%); on the 9 command sources both can compile, 11440
+against 11125 (+3%).  (`tools/a64size.sh`, `A64REF=1`; pass `A64REFFLAGS="-fno-asynchronous-unwind-tables
 -fno-unwind-tables"` or clang's `.eh_frame`, which `size` counts and pcc has no equivalent of, makes
 clang look 35% bigger: an earlier version of this document compared against that number and
 wrongly claimed pcc was 11% smaller.)  What `-xdmr` shows is the gain over pcc's own output.
