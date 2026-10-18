@@ -17,7 +17,7 @@ def pdp11(kind, corp):
     d = {}
     p = os.path.join(OUT, 'pdp11-%s-%s.txt' % (kind, corp))
     for l in open(p, errors='replace'):
-        m = re.match(r'OK\s+dmr\s+(\d+)\s+c2-only\s+(\d+) \([+-]\d+\)\s+-O\s+(\d+)', l)
+        m = re.match(r'(?:OK|BIGGER)\s+dmr\s+(\d+)\s+c2-only\s+(\d+) \([+-]\d+\)\s+-O\s+(\d+)', l)
         if m:
             d[l.split()[-1]] = tuple(int(x) for x in m.groups())
     return d

@@ -15,12 +15,14 @@ line of the message, grouped.
 Needs: the ccoms from tools/corpus-build.sh (stock = PortableCC master, ours = this branch), the
 corpora under ~/claude/corpora, and musl headers installed in ~/claude/corpora/sysroot/<arch>.
 """
-import os, re, sys, glob, json, subprocess, tempfile, argparse, collections
+import os, re, sys, glob, json, shutil, subprocess, tempfile, argparse, collections
 import concurrent.futures as cf
 
 ROOT = os.environ.get('CORPORA', os.path.expanduser('~/claude/corpora'))
 
+CCOM_TIMEOUT = 90      # seconds; a compiler that has not finished by then is hung (see the GNU case-range test)
 BUILDS = os.path.join(ROOT, 'builds')
+GCCX = os.path.join(ROOT, 'gcc-cross', 'prefix')      # tools/corpus-gcc-cross.sh
 # pcc targets that clang can also compile for.  asm: how to assemble pcc's output; clang: the reference compiler.
 # ssa: pcc's -O includes -xssa on Linux targets but not on the BSD ones (os/bsd/ccconfig.h: PCC_NO_SSA).
 # Position-independent code is turned off everywhere so the references match pcc's absolute code.
@@ -43,8 +45,10 @@ ARCH = {
     'riscv64': _t('riscv64-linux-gnu', ['-D__riscv', '-D__riscv_xlen=64', '-D__LP64__', '-D_LP64'], ['-fno-pic'], musl='riscv64', ssa=False),
     # the old targets: no clang or gcc, so only stock against ours.  Sizes come from the target's own
     # assembler (V7 as, 32V as as as32v) run on the host; -O output also goes through the target's c2.
-    'pdp11': dict(musl='i386', cpp=['-Dpdp11', '-D__pdp11__'], ssa=False, gcc=None, clang=None, asm=None, c2='c2pdp11'),
-    'vax': dict(musl='i386', cpp=['-Dvax', '-D__vax__'], ssa=False, gcc=None, clang=None, asm=None, c2='c2vax'),
+    'pdp11': dict(musl='i386', cpp=['-Dpdp11', '-D__pdp11__'], ssa=False, clang=None, asm=None, c2='c2pdp11',
+                  gcc=[GCCX + '/bin/pdp11-aout-gcc'], gccsize=GCCX + '/bin/pdp11-aout-size'),
+    'vax': dict(musl='i386', cpp=['-Dvax', '-D__vax__'], ssa=False, clang=None, asm=None, c2='c2vax',
+                gcc=[GCCX + '/bin/vax-netbsdelf-gcc'], gccsize=GCCX + '/bin/vax-netbsdelf-size'),
     'sparc64': _t('sparcv9-linux-gnu', ['-D__sparc__', '-D__sparc64__', '-D__LP64__', '-D_LP64'], ['-fno-pic'], musl='sparc64', ssa=False),
 }
 
@@ -89,8 +93,8 @@ def run(cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, errors='replace', **kw)
 
 
-def size_of(obj):
-    r = run(['size', obj])
+def size_of(obj, tool='size'):
+    r = run([tool, obj])
     try:
         a = r.stdout.strip().split('\n')[1].split()
         return int(a[0]) + int(a[1])
@@ -187,6 +191,21 @@ def gnu_to_v7(path):
     open(path, 'w').write('\n'.join(out))
 
 
+def shorten_symbols(path):
+    """32V's as keeps 8 characters of a name, so long C99 identifiers collide; map each to a unique short
+    one.  Pure renaming: the instructions and their order do not change."""
+    t = open(path, errors='replace').read()
+    names = {}
+
+    def rep(m):
+        n = m.group(0)
+        if n not in names:
+            names[n] = '_q%x' % len(names)
+        return names[n]
+    t = re.sub(r'(?<![\w.$])_[A-Za-z0-9_$.]{8,}(?![\w.$])', rep, t)
+    open(path, 'w').write(t)
+
+
 def ccomflags(arch, ours):
     f = '-xtemps -xdeljumps -xinline -xdce'      # what -O passes to ccom in both
     if ARCH[arch]['ssa']:
@@ -220,17 +239,22 @@ def one(job):
             res['fail']['all'] = ('cpp', r.stderr.strip().split('\n')[0][:160])
             return res
         i = os.path.join(w, 'i.c')
-        open(i, 'w').write(r.stdout)
+        text = r.stdout
+        if arch == 'pdp11' and not c.get('sys'):
+            # musl's struct timespec pads with `int :8*(sizeof(time_t)-sizeof(long))`, 32 bits once long long
+            # is 64 bits, which a 16-bit int cannot hold; the padding is layout for another machine
+            text = re.sub(r'int :8\*\(sizeof\(time_t\)-sizeof\(long\)\)\*\(1234[!=]=4321\);', '', text)
+        open(i, 'w').write(text)
         refs = []
+        common = ['-std=gnu99', '-w', '-fno-asynchronous-unwind-tables', '-fno-unwind-tables']
         if a['clang']:
-            common = ['-std=gnu99', '-w', '-fno-asynchronous-unwind-tables', '-fno-unwind-tables']
             refs = [('clang-O0', a['clang'] + common + ['-O0']), ('clang-Os', a['clang'] + common + ['-Os'])]
-            if a['gcc']:
-                refs += [('gcc-O0', a['gcc'] + common + ['-O0']), ('gcc-Os', a['gcc'] + common + ['-Os'])]
+        if a['gcc'] and shutil.which(a['gcc'][0]):
+            refs += [('gcc-O0', a['gcc'] + common + ['-O0']), ('gcc-Os', a['gcc'] + common + ['-Os'])]
         for key, cmd in refs:
             o = os.path.join(w, key + '.o')
             if run(cmd + ['-c', '-x', 'c', '-o', o, i]).returncode == 0:
-                res['size'][key] = size_of(o)
+                res['size'][key] = size_of(o, a.get('gccsize', 'size') if key.startswith('gcc') else 'size')
         for key, kind, fl in (('stock-O0', 'stock', ''), ('stock-O', 'stock', ccomflags(arch, False)),
                               ('ours-O0', 'ours', ''), ('ours-O', 'ours', ccomflags(arch, True))):
             ccom = os.path.join(BUILDS, kind, arch, 'ccom')
@@ -239,7 +263,7 @@ def one(job):
                 continue
             s = os.path.join(w, key + '.s')
             try:
-                p = run([ccom] + fl.split() + [i, s], timeout=600)
+                p = run([ccom] + fl.split() + [i, s], timeout=CCOM_TIMEOUT)
             except subprocess.TimeoutExpired:
                 res['fail'][key] = ('ccom', 'timeout')
                 continue
@@ -254,6 +278,7 @@ def one(job):
             if a['asm'] is None:
                 if arch == 'vax':
                     gnu_to_v7(s)
+                    shorten_symbols(s)
                 if fl and a['c2']:
                     # optimized output goes through the target's peephole c2, the same program for both compilers
                     s2 = os.path.join(w, key + '.c2.s')
@@ -301,10 +326,28 @@ def main():
                 continue
             for f in files:
                 jobs.append((corp, arch, f))
-    results = []
-    with cf.ThreadPoolExecutor(max_workers=a.j) as ex:
-        for r in ex.map(one, jobs):
-            results.append(r)
+    # results are appended to results.jsonl as they finish; a rerun with the same --out skips what is there
+    jl = os.path.join(a.out, 'results.jsonl')
+    done = {}
+    if os.path.exists(jl):
+        for l in open(jl):
+            try:
+                r = json.loads(l)
+                done[(r['corp'], r['arch'], r['src'])] = r
+            except Exception:
+                pass
+    todo = [j for j in jobs if (j[0], j[1], j[2].replace(ROOT + '/', '')) not in done]
+    sys.stderr.write('%d jobs, %d already done\n' % (len(jobs), len(jobs) - len(todo)))
+    with cf.ThreadPoolExecutor(max_workers=a.j) as ex, open(jl, 'a') as out:
+        futs = [ex.submit(one, j) for j in todo]
+        for n, f in enumerate(cf.as_completed(futs)):
+            r = f.result()
+            out.write(json.dumps(r) + '\n')
+            out.flush()
+            done[(r['corp'], r['arch'], r['src'])] = r
+            if n % 200 == 0:
+                sys.stderr.write('%d / %d\n' % (n, len(todo)))
+    results = [done[(j[0], j[1], j[2].replace(ROOT + '/', ''))] for j in jobs]
     json.dump(results, open(os.path.join(a.out, 'results.json'), 'w'), indent=1)
     report(results, a.out)
 
@@ -325,14 +368,16 @@ def report(results, out):
 
     def row(name, arch, rs, keys):
         st, ou, cl, gc = keys
-        hasref = ARCH[arch]['clang'] is not None
-        ok = [r for r in rs if all(k in r['size'] for k in ((st, ou, cl) if hasref else (st, ou)))]
+        if ARCH[arch]['clang'] is None:          # the old targets: gcc is the only outside reference
+            cl, gc = gc, None
+        need = (st, ou, cl) if any(cl in r['size'] for r in rs) else (st, ou)
+        ok = [r for r in rs if all(k in r['size'] for k in need)]
         sm = collections.Counter()
         for r in ok:
             for k in keys:
                 if k in r['size']:
                     sm[k] += r['size'][k]
-        okg = [r for r in ok if gc in r['size']]
+        okg = [r for r in ok if gc and gc in r['size']]
         gs = sum(r['size'][gc] for r in okg)
         gp = sum(r['size'][ou] for r in okg)
         n = lambda k: sum(1 for r in rs if k in r['size'])
