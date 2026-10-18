@@ -274,7 +274,9 @@ def one(job):
                 continue
             if p.returncode or not os.path.exists(s):
                 m = [x for x in (p.stderr or p.stdout).strip().split('\n') if x.strip()]
-                msg = m[0] if m else 'exit %d' % p.returncode
+                # the first line that is not a warning is the reason; warnings come first when there are many
+                e = [x for x in m if 'warning' not in x]
+                msg = e[0] if e else (m[0] if m else 'exit %d' % p.returncode)
                 msg = re.sub(r'^<stdin>, line \d+: ', '', msg)
                 msg = re.sub(r'0x[0-9a-f]+', '0x', msg)
                 res['fail'][key] = ('ccom', msg[:200] + (' (signal %d)' % -p.returncode if p.returncode < 0 else ''))
@@ -407,7 +409,7 @@ def report(results, out):
             if not bad:
                 continue
             lines.append('### %s / %s / %s: %d files failed' % (corp, arch, key, len(bad)))
-            g = collections.Counter(r['fail'].get(key) or r['fail']['all'] for r in bad)
+            g = collections.Counter(tuple(r['fail'].get(key) or r['fail']['all']) for r in bad)
             for (st, msg), k in g.most_common(8):
                 lines.append('* %d x %s: %s' % (k, st, msg))
             lines.append('')
