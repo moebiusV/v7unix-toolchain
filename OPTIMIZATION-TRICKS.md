@@ -31,8 +31,8 @@ sizeof being unsigned on the PDP-11 (a correctness fix), and the shared bug fixe
 | Target | Corpus | original cc | ours | |
 |---|---|---|---|---|
 | PDP-11 | libc, 89 files | dmr 17356 | 16838 | -3.0% |
-| PDP-11 | `cmd/`, 52 files that compile | dmr 98102 | 94170 | -4.0% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 18336 | -16.6% |
+| PDP-11 | `cmd/`, 52 files that compile | dmr 98102 | 94174 | -4.0% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 18308 | -16.7% |
 | VAX (32V) | 56 command sources | `cc -O` 118444 | 106204 | -10.3% |
 | i386 | libc gen+stdio (91 files) | n/a | 21369 (27839 with no flags) | -23% |
 | amd64 | libc gen+stdio (91 files) | n/a | 24747 (39919 with no flags) | -38% |
@@ -51,19 +51,16 @@ original compiler's only because its code is more correct.  That is met.
   `cmd/sh/print.c` (+54); both are the unsigned-divide helpers (`udiv`, `urem`), which
   dmr-cc replaces by a `div` that is wrong for a divisor of 32768 or more
   (`tools/dmrbugs/udiv-variable.c`).
-* VAX: 2 of the 147 files are larger than `cc -O`'s, `libc/gen/mktemp.c` (+92, the
-  `__urem` helper; 32V's cc divides unsigned values as signed,
-  `tools/dmrbugs/udiv-variable-vax.c`) and `libc/stdio/doscan.c` (+4, not explained by
-  correctness: in the `getc` idiom the old pointer is loaded into the register that held the
-  `FILE *`, which is then loaded again; see the end of this file).
+* VAX: 1 of the 147 files is larger than `cc -O`'s, `libc/gen/mktemp.c` (+92, the `__urem` helper;
+  32V's cc divides unsigned values as signed, `tools/dmrbugs/udiv-variable-vax.c`).
 
 The files pcc rejects are listed, with the old forms that cause it, in
 `OLD-K&R-FORMS.md`: 28 of the 80 V7 command sources and 18 of 605 32V sources.  The
 dialect was not changed.
 
-Correctness gates, all passing: 300 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
-four flag sets), 225 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
-flag sets, one with c2 and one with `-xssa`), 215 i386 and 205 amd64 runs, pcc
+Correctness gates, all passing: 332 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
+four flag sets), 249 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
+flag sets, one with c2 and one with `-xssa`), 254 i386 and 240 amd64 runs, pcc
 compiling itself with identical stage 1 and 2 (`tools/pccboot.sh`; note it builds
 the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built by
 `pcc -O` and run inside real V7 next to V7's own cc builds (`tools/v7progs.py`).
@@ -133,6 +130,9 @@ A test returns 1 when it passes and `2*bad+1000` when it fails; it used to retur
 | 56 | PDP-11: a long made from a word is pushed as `mov x,-(sp); sxt -(sp)` | c1 | - | done (`SSXT`) | n/a | 16-bit targets |
 | 57 | A double result straight to its destination (`pairfold`) | - | c2 | done (vax c2) | n/a | no |
 | 58 | A `casel` reads only its selector; the backward pass runs again | - | - | done (vax c2) | n/a | no |
+| 59 | PDP-11: long long as a memory object operated on by helpers | - | - | done (pdp11) | native | other 16-bit targets |
+| 60 | VAX: long long helpers written into the file; quad constants in memory | - | - | done (vax) | native | other targets without a libgcc |
+| 61 | VAX c2: a load that overwrites the pointer it was loaded through | - | - | done (vax c2) | n/a | no |
 
 "done" means implemented and covered by tests that run on the real system (PDP-11
 under SIMH with V7, VAX under SIMH with 32V) or natively (x86).
@@ -974,6 +974,76 @@ the main loop.  The main loop makes copies of copies: three loads of the same st
 `movl 4(ap),r2; movl r2,r1`, which `fwdaddr` can use only if it runs again.  It does now, until nothing changes.
 `getc` through a spilled `FILE *`: `movl 4(ap),r2; movl r2,r1; addl3 $1,4(r1),4(r2)` is `movl 4(ap),r2; incl 4(r2)`.
 
+## 59. PDP-11: long long is a 64-bit object in memory
+
+The PDP-11 has no 64-bit operations and no registers to hold one, and pcc's backend used to map `long long`
+to `long` (`sizeof` was 4; a comment said "remove as soon as 64-bit is added").  It is now eight bytes
+(`SZLONGLONG`), four words with the most significant first, as a long is two words with the high one first.
+Every operation on it is a call to a helper that takes the addresses of its operands:
+
+```
+a + b          (_lladd(&t, &a, &b), &t)          t a temporary on the stack
+a < b          _llcmp(&a, &b) < 0                (_llucm for unsigned)
+(int)a         (int)_lltol(&a)                   (long)
+(long long)i   (_llfls(&t, (long)i), &t)         (_llflu for unsigned sources)
+```
+
+`lowerll()` (`arch/pdp11/lowerll.c`, called from `ecomp()` after `optim()`) walks each expression tree after
+pass 1 has typed and converted it as for any integer type, and rewrites every node whose value is a long long
+into an expression whose value is the *address* of the result, and every consumer of one (a comparison, a
+conversion to int, a condition, a call argument, a `?:`) into a call or a test of one.  Pass 2 never sees a
+long long computation, only pointers, ints and calls.  Operators handled: `+ - * / %`, `& | ^`, `<< >>`
+(arithmetic for signed, logical for unsigned), unary `- ~ !`, all comparisons (the unsigned ones included),
+`&& || ?:` and `if`/`while` conditions, `=` and every compound assignment, `++` and `--` in both forms,
+conversions among every integer type, arrays, struct members, pointers to long long, and constants.
+
+* **Passing and returning.**  An argument is its four words, pushed so that the memory image on the stack is
+  the object (read from a copy made before the call).  A result comes back as the address of a static buffer,
+  `_llret`, in `r0`, as V7 returns a struct; the caller copies it out at once.  `cgram.y` calls `llreturn()`
+  for a `return` in a long long function.
+* **Constants** are words in the text of the file (`__Lc0`, ...), referred to by address; a static
+  initializer writes four words (`ninval()`).
+* **The helpers** are C (`arch/pdp11/ll.c`, using no long long), compiled by this compiler,
+  turned into `llhelpers.h` by `arch/pdp11/genll.py`, and written into each file that calls them, as routines local
+  to the file, like `udiv`: a program that never uses a long long pays nothing, and one that does pays for the
+  helpers it uses and the helpers those call (`llh_deps`).  Division is 64 rounds of shift and subtract.
+  `make` has no rule for `llhelpers.h`: run `genll.py` after changing `ll.c` or the code generator.
+* **Unsigned long `>>`** (any program, not only long long) is a call to `_llulr` now: `ashc` shifts
+  arithmetically, so the old code shifted ones into the top of an unsigned value (see the defects chapter).
+
+**Not supported** (each is a clean diagnostic, not a crash): conversion between a long long and
+`float`/`double`, `switch` on a long long.  Division by zero returns all ones and the dividend as remainder
+(no trap).  Bit-fields of long long are accepted by the declaration and not tested.
+Tests: `pcctests/llfull.c` (variables, arrays, structs, parameters, results, conversions, every operator),
+`llops.c`, `llcmp.c`, `llconst.c`; `ll.c` was also checked against a 64-bit host over 13 edge values and all
+operators (every shift count 0..69).
+
+## 60. VAX: long long helpers, and what running them found
+
+The VAX backend does add, subtract, and, or, xor, compare and shift left and arithmetic right inline, as pairs of
+longwords (`addl2`/`adwc`, `ashq`), and called `__muldi3`, `__divdi3`, `__moddi3`, `__udivdi3`, `__umoddi3` and
+`__lshrdi3` for the rest, none of which 32V's libc has: a program that multiplied two long longs did not link.
+`ejobcode()` (`arch/vax/code.c`) now writes the ones a file calls, as routines local to the file, like `__udiv`
+(`__muldi3` from `emul` with the sign corrections, the divisions as 64 rounds of shift and subtract with `ashq`
+and `sbwc`, `__lshrdi3` from `ashq` and a mask).  Test: `pcctests/llops.c` on real 32V.
+
+Using them found four defects that were already there (checked against the pushed commit; see the defects
+chapter): 32V's assembler gives a quad immediate a zero high longword (so `-100000LL` was a large positive
+number); `addl2`/`adwc` claimed to leave the condition codes of the whole quad, so a compare of a computed quad
+was dropped (`x + 1 != 0` was always true); a static long long was written with `.quad`, which 32V's `as` has
+not got; and the low half of a quad constant was printed as the whole constant.  Constants outside 0..2^31
+are now memory operands (a pool written out at the end of the file, `qpool`), static data is `.long lo,hi`,
+and a quad add/subtract no longer says it set the codes.  Tests: `llconst.c`, `llcmp.c`, `llfull.c`.
+
+## 61. VAX c2: a pointer overwritten by what it points to
+
+`*iop->_ptr++` through a `FILE *` that lives in its stack slot compiled to
+`movl 4(ap),r0; movl 4(r0),r0; movl 4(ap),r2; incl 4(r2)`: the old pointer went into the register that held the
+`FILE *`, which was then loaded again.  `renameload()` (`cc2/cc2.vax.c`) rewrites
+`movl S,rA; movl d(rA),rA; movl S,rB` (`S` a plain memory operand, no side effect, no register) to
+`movl S,rB; movl d(rB),rA; movl S,rB`; the third is then a redundant load and goes.  That finished `doscan`
+(+16 to 0 over this and 58), so the only VAX file larger than `cc -O` is `mktemp`.
+
 ## How to port a trick to another backend
 
 1. **Measure first.** `tools/x86size.sh` (i386/amd64), `tools/vaxdiff.py` (VAX under
@@ -1140,6 +1210,47 @@ latent: nothing the original compilers produced reached them.
   cc, 0 under pcc).  pcc's `__udiv` and `__urem` are right for every value and cost a
   few dozen bytes per file that divides (`ed` pays 41).
 
+**Found while adding long long, and already in the pushed commit (`c07dcdb4`)** — each reproduced on a
+build of that commit with the test named, and fixed since.  These are miscompiles of ordinary programs, not of
+long long: the helpers and the 64-bit tests use constructs the earlier tests never did.
+
+PDP-11 (`arch/pdp11/table.c`, `local.c`, `local2.c`):
+
+* **A long loaded through a pointer into a register pair that holds the pointer** was
+  `mov 4(r0),r0; mov 6(r0),r1`, which reads the second word through the register the first just overwrote.
+  Two templates (the `UMUL` and the `ASSIGN` of a long from an `OREG`) printed the words in a fixed order; a
+  comment on the first said "XXX - avoid OREG index register to be overwritten".  `ZY` and `Zy` print the word
+  that does not overwrite the base first.  Old compiler: `return a->lo` as a long, with `-O`, loaded garbage
+  (`pcctests/longload.c`: did not halt).
+* **A branch on the result of a long `&`, `|` or `^`** used the condition codes of the last of the two
+  instructions (`bic AR,AL; bic UR,UL`), which describe only the low word: the templates said they set them
+  (`RESCC`, `FORCC`).  `if ((x & 0x80000000L) == 0)` branched on `clr r1`.  The codes claim is gone; the compare
+  is done on both words (`pcctests/longlogic.c`: 1244).  Costs 2 bytes at each of two places in `access.c` of the commands
+  (an extra `tst r1`), where the old output was right only because the high word of the mask was zero.
+* **`a = b = c = 0` for long variables**: the template that clears a long in memory claimed its result was in a
+  register (`INBREG`), so the outer assignment stored an uninitialised `r0:r1` (`pcctests/longchain.c`: 1180).
+* **`unsigned long >> n` shifted the sign in**: `RS` becomes `LS` by a negative count for every type but
+  `unsigned` and `unsigned char`, and `ashc` is arithmetic (`pcctests/ulshr.c`).  Now a call to a helper that
+  clears the top bits.
+* **`-x` for an unsigned long** was "Cannot generate code" (the negate template listed `TLONG` only).
+* **A long left shift printed the wrong register pair** (found earlier in the session, `monitor()`).
+
+VAX (`arch/vax/table.c`, `local2.c`, `local.c`):
+
+* **A comparison of a computed long long was dropped**: the quad `PLUS` and `MINUS` templates accepted a `FORCC`
+  cookie without setting the codes, so `x + y != 0` was compiled without the compare (`pcctests/llcmp.c`:
+  2276 on the old compiler).
+* **A quad immediate had a zero high longword on 32V**: `movq $-100000,...` is read by 32V's `as` as a
+  longword, zero-extended.  `-100000LL` as an argument was 4294867296.  A long long constant outside 0..2^31 is
+  now a memory operand.
+* **The low half of a quad constant operand was printed as the whole constant** (`cmpl r0,$0x11facd96d7c`).
+* **A static long long was written with `.quad`**, which 32V's `as` does not have: any file with a
+  `long long` initializer failed to assemble.  `.long lo,hi` now (`pcctests/llconst.c`: BUILDFAIL).
+* **No long long multiply, divide, remainder or logical shift right**: undefined symbols at link time.
+
+x86 (i386, amd64): the new tests pass on both; `-xssa` makes the generated code for the whole of
+`x86tests/llfull.c` crash (each statement alone is fine); `-xssa` stays off, the test is skipped under it.
+
 **In upstream pcc** (PortableCC/pcc, the PDP-11 and VAX backends and the shared
 code they rely on):
 
@@ -1241,6 +1352,20 @@ is the user's: a root fix beats a workaround, and a net win beats copying dmr-cc
     movb r0,(r11)+` never collapsed.  Moved before the fetch elimination (43).  It still did not collapse:
     liveness read the byte write into `r0` as a read of `r0` (42).  The root was in the liveness, not in the rule.
 
+16. **The result of the PDP-11 long shift copied by the template** (`ZS`: shift in `r0:r1`, then `mov` to the
+    pair the allocator chose, no `NRES(R01)`).  Tried while chasing a missing copy; `libc/sys/stat.c` +4
+    bytes because the allocator could no longer see that the result was in `r0:r1`.  The original form
+    (`NRES(R01)`, the template prints `r0`) is back.
+17. **Unsigned long `>>` as a tree** (`(long)x >> n` and a mask, or the mask built from a shifted constant) in
+    `clocal()`.  With the mask applied after the shift the allocator lost the copy of a result that
+    `NRES(R01)` pins, in one shape of expression (`(b << 1) | (a >> 31)`); I did not find why.  A call to a helper
+    (`_llulr`) is correct in every shape and costs nothing in libc or the commands (16838, same).  This is a
+    workaround for an allocator fault I did not trace: the fault is still there for any other tree that
+    ends in a pinned-pair template under another instruction.
+18. **A long long held in registers** (the `LL0` register class that `macdefs.h` already names, four floating
+    registers): there are no registers to hold one, and the class is not wired to anything.  Memory
+    objects and helper calls instead (59).
+
 ## The scoreboard and the old K&R sources
 
 `tools/pccdiff.sh` compiles `sh/*.c` with `-Dvoid=Void_` (the sources use
@@ -1257,25 +1382,12 @@ would break for valid C99.
 The remaining small differences of an earlier round (`mon`, `fseek`, `malloc`, `flsbuf`) were all taken apart;
 see `BIGGER-THAN-ORIGINAL.md` and the ledger above.
 
-**VAX, two libc files:**
+**VAX:** `mktemp` (+92) only: `unsigned % 10` calls `__urem`, which 32V's cc replaces by a signed `divl3`.
+Correctness.
 
-* `mktemp` (+92): `unsigned % 10` calls `__urem`, which 32V's cc replaces by a signed `divl3`.
-  Correctness.
-* `doscan` (+4): not explained by correctness.  `*iop->_ptr++` through a `FILE *` parameter that lives in
-  its stack slot is `movl 4(r0),r0; movl 4(ap),r2; incl 4(r2)` here and `incl 4(r0); subl3 $1,4(r0),r0` in
-  32V's cc, which increments first and gets the old pointer back by subtracting one, so the `FILE *` stays in
-  `r0`.  Ours loads the old pointer into `r0` (destroying the `FILE *`) and loads the slot again: 11 bytes
-  against 32V's 8.  Putting the old pointer in another register (`movl 4(r0),r1; incl 4(r0)`) would be 7; that
-  is a choice of result register for a post-increment of a memory pointer, not tried yet.
-
-**To fix on the V7/32V side, once pcc is done:** the `long long` helpers.  Nothing in the original sources
-uses `long long`, so this matters only for new code compiled with pcc.  The VAX backend calls `__muldi3`,
-`__divdi3`, `__moddi3`, `__udivdi3`, `__umoddi3` and `__lshrdi3` for 64-bit multiply, divide, remainder and
-logical right shift (add, subtract, compare, and, or, xor, shift left and arithmetic shift right are inline);
-32V's libc has none of them, so a program that multiplies two `long long` values does not link.  They
-need writing for libc (in C, they are short) and the driver needs to link them.  On the PDP-11
-`sizeof(long long)` is 4, the same as `long`: 64-bit arithmetic is not available there (`macdefs.h` says 64
-bits; the type is mapped to `long`).  C99 requires 64.
+**long long:** done on both targets (59, 60).  What is not: `long long` <-> `float`/`double` conversion on the PDP-11,
+`switch` on a long long on the PDP-11 (both are diagnostics), and on the VAX nothing known.  The first is
+a matter of writing the helpers (the PDP-11 FPU converts at most a long).
 
 **x86:** `testl` after `decl`/`addl`, `leal` for `&a[i]`, the dead mask fold for every target (22 above).
 

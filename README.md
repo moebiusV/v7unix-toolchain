@@ -103,12 +103,14 @@ output is no bigger than theirs.  The work goes in two steps.
    rotation, `leal` for `&a[i]`.
 
 The result, in text+data bytes: PDP-11 libc 3.0% and commands 4.0% smaller than dmr's `cc`;
-VAX libc 16.6% and commands 10.3% smaller than 32V's `cc -O`.  The only files still larger than
+VAX libc 16.7% and commands 10.3% smaller than 32V's `cc -O`.  The only files still larger than
 the original's are larger for a reason of correctness (the originals divide unsigned values
 as signed and read some `long` constants wrongly; pcc does not) or are listed as open items.
+`long long` is a real 64-bit type on the PDP-11 (it was 32 bits) and has its helpers on the VAX, which
+32V's libc lacks.
 
-Every change is checked on the real system, not just by looking at assembly: 300
-bare-metal PDP-11 test runs, 225 VAX runs on a real 32V in several flag sets,
+Every change is checked on the real system, not just by looking at assembly: 332
+bare-metal PDP-11 test runs, 249 VAX runs on a real 32V in several flag sets,
 34 V7 commands built by pcc and run inside V7 beside the originals' builds, pcc
 compiling itself (identical stages), and the i386 and amd64 suites.  The tools
 are in `tools/`.

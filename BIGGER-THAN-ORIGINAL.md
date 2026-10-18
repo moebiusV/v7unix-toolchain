@@ -4,8 +4,7 @@ Measured 2026-10-17 with `tools/pccdiff.sh -v -k DIR` (PDP-11, against dmr's `cc
 text+data bytes after V7 `as`) and `tools/vaxdiff.py` (VAX, against 32V's `cc -O`).
 Totals are below the originals; this is about the files that are not.  The goal set
 for this work: the only files larger than the original are larger because their code
-is more correct.  The PDP-11 meets it.  The VAX meets it for every file but one, which
-is the open item (and `mktemp`, which is the correct code).  Optimization numbers per technique are in `OPTIMIZATION-TRICKS.md`;
+is more correct.  The PDP-11 meets it.  The VAX meets it for every file: the one that is larger, `mktemp`, is the correct code.  Optimization numbers per technique are in `OPTIMIZATION-TRICKS.md`;
 the files pcc cannot compile at all are in `OLD-K&R-FORMS.md`.
 
 ## PDP-11
@@ -71,13 +70,12 @@ They were understood by reading the assembly of the pieces dmr-cc produces:
 
 ## VAX (32V `cc -O`)
 
-libc gen+stdio: 18336 against 21976 (-16.6%); 2 of 91 files are bigger.  56 command sources:
+libc gen+stdio: 18308 against 21976 (-16.7%); 1 of 91 files is bigger.  56 command sources:
 106204 against 118444 (-10.3%); 0 of 56 are bigger (11 were at the start of this round).
 
 | file | bytes over | cause |
 |---|---|---|
 | `libc/gen/mktemp.c` | +92 | **correctness**: `unsigned % 10` calls `__urem` (the helper is appended to the file); 32V's cc divides unsigned values as signed (`tools/dmrbugs/udiv-variable-vax.c`: 15 failing-case bits under 32V's cc, 0 under pcc) |
-| `libc/stdio/doscan.c` | +4 | **open**: `*iop->_ptr++` through a `FILE *` parameter in its stack slot is `movl 4(r0),r0; movl 4(ap),r2; incl 4(r2)` (11 bytes) where 32V's cc has `incl 4(r0); subl3 $1,4(r0),r0` (8): ours loads the old pointer into the register that held the `FILE *`.  `movl 4(r0),r1; incl 4(r0)` would be 7; a choice of result register for a memory-pointer post-increment, not tried |
 
 `ed` also pays 41 bytes for `__urem` and that is correctness too; it is still smaller than `cc -O` in total.
 
@@ -94,7 +92,7 @@ What cleared the files that were bigger, in the order found with `tools/vaxfunsi
 | `movl X,r0; movl r0,Y` in a function that returns nothing | `setbuf` | `ret # noval` (45) |
 | a dead load of the old pointer for `*p++;` | `ungetc` | dead register writes in c2 (45) |
 | a modified `double` parameter copied to a frame slot; `op x,r0; movq r0,Y` | `modf` | parameter conversions looked through so the slot is reused (40); `pairfold` (57) |
-| three loads of one stack slot for `getc` through a spilled `FILE *`; `casel` reading every register | `doscan` | `casel` liveness and the second backward pass (58) |
+| three loads of one stack slot for `getc` through a spilled `FILE *`; `casel` reading every register; the old pointer overwriting the `FILE *` | `doscan` | `casel` liveness and the second backward pass (58); `renameload` (61) |
 | `*--p->ptr = c` as `subl3`, `movl` | `ungetc` | `decl M; movl M,r` (44) |
 | `movl r10,r0; movb r0,*p` | `puts` | `movb r10,*p` (44) |
 | functions aligned to 4 | every file | `.align 1` under `-xdmr` (46): 40 bytes in libc, 396 in the commands |
