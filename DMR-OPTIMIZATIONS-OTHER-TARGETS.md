@@ -91,7 +91,7 @@ programs (`tools/pcctests`) natively or in the Unicorn emulator
 | amd64 | done (`-xdmr`: testl/testq/testb, byte RMW; leaf frames were already omitted by `needframe`); tested natively; libc -2.3%, byte-RMW kernel 33% faster, others unchanged |
 | mips | builds; fails 13 of 25 test programs before any change (internal errors, "Cannot generate code", unaligned accesses) |
 | arm | builds; fails 22 of 25 (internal errors, literal-pool relocation out of range) |
-| aarch64 | **rewritten** (2026-10-18, see `AARCH64.md`): AAPCS64 LP64 backend modelled on amd64, 60 test programs pass on an emulated AArch64 in five flag sets; `-xdmr` is a text optimizer (post-index, `cbz`/`tbz`, `cset`, index folding), libc 11% under `clang -Os` |
+| aarch64 | **rewritten** (2026-10-18, see `AARCH64.md`): AAPCS64 LP64 backend modelled on amd64, 60 test programs pass on an emulated AArch64 in five flag sets; `-xdmr` is a text optimizer (post-index, `cbz`/`tbz`, `cset`, index folding), libc 28756 bytes, about 20% over `clang -Os` |
 | vax | builds and compiles the probe; cannot be assembled or run here (neither GNU as, clang nor zig targets it); output for `(*ip++)++` looks wrong |
 | m68k | builds; cannot compile `int f(void){ return 1; }` (no immediate shapes in `table.c`) |
 | nova | builds; probe fails |

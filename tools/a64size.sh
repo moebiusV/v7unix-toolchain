@@ -27,7 +27,7 @@ for f in "$@"; do
 	sz=$(size "$tmp/o" 2>/dev/null | awk 'NR==2{print $1+$2}')
 	tot=$((tot+${sz:-0})); n=$((n+1))
 	if [ "${A64REF:-}" = 1 ]; then
-		if clang --target=aarch64-linux-gnu -std=gnu89 -w -Os -c -x c -o "$tmp/r.o" "$tmp/i" >/dev/null 2>&1; then
+		if clang --target=aarch64-linux-gnu -std=gnu89 -w -Os ${A64REFFLAGS:-} -c -x c -o "$tmp/r.o" "$tmp/i" >/dev/null 2>&1; then
 			rs=$(size "$tmp/r.o" 2>/dev/null | awk 'NR==2{print $1+$2}')
 			reftot=$((reftot+${rs:-0})); mtot=$((mtot+${sz:-0}))
 			[ -n "${A64V:-}" ] && echo "$f ${sz:-0} ${rs:-0}"

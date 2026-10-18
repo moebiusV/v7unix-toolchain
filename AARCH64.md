@@ -147,9 +147,12 @@ Text plus data of the V7 `libc` (89 files), assembled with clang's integrated as
 | ... with prologue pairs and `stp ...!` | 32308 |
 | ... with `-xdmr` (text optimizer) | 28780 |
 
-On the 76 files clang itself can compile, `-xdmr` gives 18852 bytes against 21187 for
-`clang -Os` (-11%).  Commands (the 9 sources both can compile): 12084 against 12269 (-1.5%).
-(`tools/a64size.sh`, `A64REF=1` for the clang numbers.)
+Against `clang -Os` pcc is larger.  On the 76 libc files clang can compile, `-xdmr` gives
+18844 bytes against 15739 for clang (+20%); on the 9 command sources both can compile, 12068
+against 11125 (+8%).  (`tools/a64size.sh`, `A64REF=1`; pass `A64REFFLAGS="-fno-asynchronous-unwind-tables
+-fno-unwind-tables"` or clang's `.eh_frame`, which `size` counts and pcc has no equivalent of, makes
+clang look 35% bigger: an earlier version of this document compared against that number and
+wrongly claimed pcc was 11% smaller.)  What `-xdmr` shows is the gain over pcc's own output.
 
 ## Testing
 

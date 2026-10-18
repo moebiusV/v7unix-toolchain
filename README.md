@@ -107,8 +107,8 @@ output is no bigger than theirs.  The work goes in two steps.
    keystone, no hardware needed).  `-xdmr` there is a text optimizer that turns the
    dmr-cc ideas into AArch64: post-index addressing for `*p++`, `cbz`/`tbz` for tests
    against zero and bits, extended and scaled index operands, `cset`, paired register
-   saves.  The V7 libc comes to 28756 bytes, 11% under `clang -Os` on the files both can
-   compile.  Writing it turned up, with a random-program fuzzer
+   saves.  The V7 libc comes to 28756 bytes with `-xdmr` (32308 without); that is still about 20%
+   larger than `clang -Os` on the files both can compile.  Writing it turned up, with a random-program fuzzer
    (`tools/exprfuzz.py`, host gcc as the oracle), seven bugs in code every target shares.
 
 The result, in text+data bytes: PDP-11 libc 3.0% and commands 4.0% smaller than dmr's `cc`;

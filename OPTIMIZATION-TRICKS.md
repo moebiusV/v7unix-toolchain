@@ -1085,7 +1085,8 @@ parse is a barrier.  It was run under AddressSanitizer over the whole libc outpu
 overrun in the operand splitter turned up).
 
 libc (89 files): 47756 bytes with no flags, 33740 with `-xtemps -xdeljumps -xinline -xdce`, 28780
-with `-xdmr`; on the 76 files `clang -Os` can also compile, 18852 against clang's 21187 (-11%).
+with `-xdmr`; on the 76 files `clang -Os` can also compile, 18844 against clang's 15739 with its unwind
+tables off (+20%): the optimizer closes part of the gap to a modern compiler, not all of it.
 
 **Port.** The same pass shape (parse, def/use, liveness, patterns) is what a RISC-V or ARM32
 backend would want; the patterns are per target.
