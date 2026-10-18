@@ -14,9 +14,9 @@ The driver resolves each pass in this order:
    `V7_CRT0`) — full paths to each tool.  Use these to point at a build tree
    (where the tools keep their original names and live in different dirs).
 2. **`-B <dir>`** — V7's flag; appends `c0`/`c1`/`c2`/`cpp` to the dir.
-3. **Compiled-in defaults** — the *installed*, v7-prefixed names:
+3. **Compiled-in defaults** — the *installed*, -v7-suffixed names:
    `/usr/local/bin/v7c0`, `/usr/local/bin/v7c1`, `/usr/local/bin/v7c2`,
-   `/usr/local/bin/v7cpp`, `/usr/local/bin/v7as`, `/usr/local/bin/v7ld`.
+   `/usr/local/bin/cppv7`, `/usr/local/bin/asv7`, `/usr/local/bin/ldv7`.
 
 Target runtime files (startup object, libc) go in
 **`/usr/local/lib/pdp11-v7/`** under their original names — `crt0.o`,
@@ -30,15 +30,15 @@ So a build-tree run looks like:
     V7_C2=../../c2/c2 V7_AS=../../as/as V7_LD=../../ld/ld \
         ./cc -c foo.c
 
-while an installed toolchain just runs `v7cc -c foo.c` (the defaults already
-point at the v7-prefixed names `make install` produced).
+while an installed toolchain just runs `ccv7 -c foo.c` (the defaults already
+point at the -v7-suffixed names `make install` produced).
 
 Host-port changes
 -----------------
 
 * The pass paths were V7's short 20-byte buffers (`pass0[20] = "/lib/c0"`);
   widened to 512 so a modern `-B`/`V7_*` path fits.
-* `/bin/as` and `/bin/ld` are no longer hardcoded — they are `v7as`/`v7ld`
+* `/bin/as` and `/bin/ld` are no longer hardcoded — they are `asv7`/`ldv7`
   (overridable), and the assembler is exec'd with its full path as argv[0] so
   `as` can find its pass-2 sibling `as2`.
 * `fork()`/`wait()` operands widened from the PDP-11's 16-bit `int` to a host
@@ -49,5 +49,5 @@ Not yet wired
 
 Linking is the remaining gap: the driver passes `crt0.o` and `-lc` to the
 linker, but the PDP-11 `crt0.o` and `libc.a` are not built here yet.  Compile
-(`-c`) and assemble (`-S`) work end-to-end; full `v7cc foo.c` → `a.out` needs
+(`-c`) and assemble (`-S`) work end-to-end; full `ccv7 foo.c` → `a.out` needs
 those target runtime files.

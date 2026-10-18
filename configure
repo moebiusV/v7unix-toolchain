@@ -613,6 +613,8 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
+HAVE_M32_FALSE
+HAVE_M32_TRUE
 v7unix_includedir
 v7unix_libdir
 v7unix_libexecdir
@@ -1491,6 +1493,50 @@ fi
   as_fn_set_status $ac_retval
 
 } # ac_fn_c_try_compile
+
+# ac_fn_c_try_run LINENO
+# ----------------------
+# Try to run conftest.$ac_ext, and return whether this succeeded. Assumes that
+# executables *can* be run.
+ac_fn_c_try_run ()
+{
+  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+  if { { ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:${as_lineno-$LINENO}: $ac_try_echo\""
+printf "%s\n" "$ac_try_echo"; } >&5
+  (eval "$ac_link") 2>&5
+  ac_status=$?
+  printf "%s\n" "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; } && { ac_try='./conftest$ac_exeext'
+  { { case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval ac_try_echo="\"\$as_me:${as_lineno-$LINENO}: $ac_try_echo\""
+printf "%s\n" "$ac_try_echo"; } >&5
+  (eval "$ac_try") 2>&5
+  ac_status=$?
+  printf "%s\n" "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; }
+then :
+  ac_retval=0
+else case e in #(
+  e) printf "%s\n" "$as_me: program exited with status $ac_status" >&5
+       printf "%s\n" "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+       ac_retval=$ac_status ;;
+esac
+fi
+  rm -rf conftest.dSYM conftest_ipa8_conftest.oo
+  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+  as_fn_set_status $ac_retval
+
+} # ac_fn_c_try_run
 ac_configure_args_raw=
 for ac_arg
 do
@@ -4633,7 +4679,7 @@ fi
 
 # --- install locations ----------------------------------------------------
 # Every host binary (cc, cpp, c0, c1, c2, as, as2, ld) installs under
-# ${libexecdir}/v7unix; the v7-prefixed symlinks (v7cc/v7as/v7ld) go in
+# ${libexecdir}/v7unix; the -v7-suffixed symlinks (ccv7/asv7/ldv7) go in
 # ${bindir}; the PDP-11 target runtime (crt0.o, libc.a) under ${libdir}/v7unix;
 # future target headers under ${includedir}/v7unix.  Custom *dir variables (so
 # automake installs to the v7unix subdir): a distro that wants Debian/Arch's
@@ -4687,7 +4733,51 @@ printf "%s\n" "#define V7_INCLUDEDIR \"$ac_v7_dir\"" >>confdefs.h
   exec_prefix=$ac_saved_exec_prefix
 
 
-ac_config_files="$ac_config_files Makefile modern/usr/src/cmd/Makefile modern/usr/src/cmd/c/Makefile modern/usr/src/cmd/as/Makefile modern/usr/src/cmd/cpp/Makefile modern/usr/src/cmd/make/Makefile modern/usr/src/cmd/yacc/Makefile modern/usr/src/cmd/sh/Makefile lib/Makefile man/Makefile"
+# as32v keeps pointers in ints and must be a 32-bit build: needs a compiler that can do -m32
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC can build and run 32-bit programs (for as32v)" >&5
+printf %s "checking whether $CC can build and run 32-bit programs (for as32v)... " >&6; }
+save_CFLAGS=$CFLAGS; save_LDFLAGS=$LDFLAGS
+CFLAGS="$CFLAGS -m32"; LDFLAGS="$LDFLAGS -m32"
+if test "$cross_compiling" = yes
+then :
+  have_m32=no
+else case e in #(
+  e) cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main (void)
+{
+return sizeof(int) != sizeof(char *);
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_run "$LINENO"
+then :
+  have_m32=yes
+else case e in #(
+  e) have_m32=no ;;
+esac
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext ;;
+esac
+fi
+
+CFLAGS=$save_CFLAGS; LDFLAGS=$save_LDFLAGS
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $have_m32" >&5
+printf "%s\n" "$have_m32" >&6; }
+ if test "$have_m32" = yes; then
+  HAVE_M32_TRUE=
+  HAVE_M32_FALSE='#'
+else
+  HAVE_M32_TRUE='#'
+  HAVE_M32_FALSE=
+fi
+
+
+ac_config_files="$ac_config_files Makefile modern/usr/src/cmd/Makefile modern/usr/src/cmd/c/Makefile modern/usr/src/cmd/as/Makefile modern/usr/src/cmd/cpp/Makefile modern/usr/src/cmd/make/Makefile modern/usr/src/cmd/yacc/Makefile modern/usr/src/cmd/as32v/Makefile modern/usr/src/cmd/sh/Makefile lib/Makefile man/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -4832,6 +4922,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${am__fastdepCC_TRUE}" && test -z "${am__fastdepCC_FALSE}"; then
   as_fn_error $? "conditional \"am__fastdepCC\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${HAVE_M32_TRUE}" && test -z "${HAVE_M32_FALSE}"; then
+  as_fn_error $? "conditional \"HAVE_M32\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 
@@ -5433,6 +5527,7 @@ do
     "modern/usr/src/cmd/cpp/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/cpp/Makefile" ;;
     "modern/usr/src/cmd/make/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/make/Makefile" ;;
     "modern/usr/src/cmd/yacc/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/yacc/Makefile" ;;
+    "modern/usr/src/cmd/as32v/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/as32v/Makefile" ;;
     "modern/usr/src/cmd/sh/Makefile") CONFIG_FILES="$CONFIG_FILES modern/usr/src/cmd/sh/Makefile" ;;
     "lib/Makefile") CONFIG_FILES="$CONFIG_FILES lib/Makefile" ;;
     "man/Makefile") CONFIG_FILES="$CONFIG_FILES man/Makefile" ;;

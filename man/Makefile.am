@@ -8,14 +8,15 @@
 # on MANPATH — a drop-in is shipped in dist/ and documented in
 # README.distributions.
 #
-# The v7-prefixed command names (v7cc, v7as, v7ld) also get a manpage in the
+# The -v7-suffixed command names (ccv7, asv7, ldv7) also get a manpage in the
 # normal man1/ spot — a .so include stub into the v7unix section — so `man
-# v7cc` works with no MANPATH configuration.
+# ccv7` works with no MANPATH configuration.
 
 v7unixman1dir = $(mandir)/v7unix/man1
 dist_v7unixman1_DATA = \
 	cc.1 \
 	as.1 \
+	as32v.1 \
 	ld.1 \
 	lex.1 \
 	yacc.1 \
@@ -24,11 +25,13 @@ dist_v7unixman1_DATA = \
 
 install-data-hook:
 	mkdir -p $(DESTDIR)$(mandir)/man1
-	printf '.so v7unix/man1/cc.1\n' > $(DESTDIR)$(mandir)/man1/v7cc.1
-	printf '.so v7unix/man1/as.1\n'  > $(DESTDIR)$(mandir)/man1/v7as.1
-	printf '.so v7unix/man1/ld.1\n'  > $(DESTDIR)$(mandir)/man1/v7ld.1
+	printf '.so v7unix/man1/cc.1\n' > $(DESTDIR)$(mandir)/man1/ccv7.1
+	printf '.so v7unix/man1/as.1\n'  > $(DESTDIR)$(mandir)/man1/asv7.1
+	printf '.so v7unix/man1/ld.1\n'  > $(DESTDIR)$(mandir)/man1/ldv7.1
+	printf '.so v7unix/man1/as32v.1\n' > $(DESTDIR)$(mandir)/man1/as32v.1
 
 uninstall-hook:
-	rm -f $(DESTDIR)$(mandir)/man1/v7cc.1 \
-	      $(DESTDIR)$(mandir)/man1/v7as.1 \
-	      $(DESTDIR)$(mandir)/man1/v7ld.1
+	rm -f $(DESTDIR)$(mandir)/man1/ccv7.1 \
+	      $(DESTDIR)$(mandir)/man1/asv7.1 \
+	      $(DESTDIR)$(mandir)/man1/ldv7.1 \
+	      $(DESTDIR)$(mandir)/man1/as32v.1

@@ -84,3 +84,9 @@ aclocal.m4
 
 # synthetic V7 root for the conformance check (tools/v7check.sh), built on demand
 /froot/
+
+# as32v generated files
+modern/usr/src/cmd/as32v/as32v
+modern/usr/src/cmd/as32v/as0.c
+modern/usr/src/cmd/as32v/as.yh
+modern/usr/src/cmd/as32v/y.tab.*

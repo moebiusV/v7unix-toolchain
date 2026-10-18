@@ -55,7 +55,7 @@ AS_IF([test "x$PYTHON3" = "xno"],
 
 # --- install locations ----------------------------------------------------
 # Every host binary (cc, cpp, c0, c1, c2, as, as2, ld) installs under
-# ${libexecdir}/v7unix; the v7-prefixed symlinks (v7cc/v7as/v7ld) go in
+# ${libexecdir}/v7unix; the -v7-suffixed symlinks (ccv7/asv7/ldv7) go in
 # ${bindir}; the PDP-11 target runtime (crt0.o, libc.a) under ${libdir}/v7unix;
 # future target headers under ${includedir}/v7unix.  Custom *dir variables (so
 # automake installs to the v7unix subdir): a distro that wants Debian/Arch's
@@ -73,6 +73,16 @@ V7_DEFINE_DIR([v7unix_libexecdir], [V7_LIBEXECDIR], [dir holding the v7unix host
 V7_DEFINE_DIR([v7unix_libdir], [V7_LIBDIR], [dir holding the v7unix PDP-11 target runtime])
 V7_DEFINE_DIR([v7unix_includedir], [V7_INCLUDEDIR], [dir holding the v7unix target headers])
 
+# as32v keeps pointers in ints and must be a 32-bit build: needs a compiler that can do -m32
+AC_MSG_CHECKING([whether $CC can build and run 32-bit programs (for as32v)])
+save_CFLAGS=$CFLAGS; save_LDFLAGS=$LDFLAGS
+CFLAGS="$CFLAGS -m32"; LDFLAGS="$LDFLAGS -m32"
+AC_RUN_IFELSE([AC_LANG_PROGRAM([[]], [[return sizeof(int) != sizeof(char *);]])],
+  [have_m32=yes], [have_m32=no], [have_m32=no])
+CFLAGS=$save_CFLAGS; LDFLAGS=$save_LDFLAGS
+AC_MSG_RESULT([$have_m32])
+AM_CONDITIONAL([HAVE_M32], [test "$have_m32" = yes])
+
 AC_CONFIG_FILES([
   Makefile
   modern/usr/src/cmd/Makefile
@@ -81,6 +91,7 @@ AC_CONFIG_FILES([
   modern/usr/src/cmd/cpp/Makefile
   modern/usr/src/cmd/make/Makefile
   modern/usr/src/cmd/yacc/Makefile
+  modern/usr/src/cmd/as32v/Makefile
   modern/usr/src/cmd/sh/Makefile
   lib/Makefile
   man/Makefile

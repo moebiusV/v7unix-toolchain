@@ -2,7 +2,9 @@
 """
 vaxdiff -- code size of the VAX pcc against 32V's own cc, measured under 32V.
 
-    vaxdiff.py --ccom CCOM [-f "ccom flags"] [-I inc] file.c[.gz] ...
+    vaxdiff.py --ccom CCOM [-f "ccom flags"] [-I inc] [--gnu] file.c[.gz] ...
+
+--gnu: the ccom writes GNU syntax (stock pcc); it is rewritten to the V7 spelling first.
 
 For every source: the guest compiles it with its own cc (and cc -O, which runs
 the VAX c2), and assembles the assembly the VAX ccom wrote (alone, and after
@@ -23,6 +25,7 @@ def main():
     flags = ''
     inc = os.environ.get('VAX32V_INC')
     keep = None
+    gnu = False
     while args and args[0].startswith('-') and args[0] != '-':
         if args[0] == '--ccom':
             ccom = args[1]; args = args[2:]
@@ -30,6 +33,8 @@ def main():
             flags = args[1]; args = args[2:]
         elif args[0] == '-I':
             inc = args[1]; args = args[2:]
+        elif args[0] == '--gnu':
+            gnu = True; args = args[1:]
         elif args[0] == '--keep':
             keep = args[1]; args = args[2:]
         else:
@@ -68,7 +73,15 @@ def main():
             skipped.append((name, 'ccom'))
             continue
         files['f%d.c' % n] = data
-        files['p%d.s' % n] = open(local + '.s', 'rb').read()
+        asm = open(local + '.s', 'rb').read()
+        if gnu:
+            # stock pcc writes GNU syntax; 32V's as wants the V7 spelling of the same instructions
+            t = asm.decode('latin-1')
+            t = re.sub(r'^\s*\.(type|size|ident|file|section|p2align)\b.*\n', '', t, flags=re.M)
+            t = t.replace('%', '')
+            asm = t.encode('latin-1')
+            open(local + '.s', 'wb').write(asm)
+        files['p%d.s' % n] = asm
         c2 = os.environ.get('VAXC2')
         if c2:
             # our own c2 (cc2/cc2.vax.c) on the host instead of the guest's

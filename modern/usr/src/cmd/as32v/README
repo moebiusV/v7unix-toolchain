@@ -1,0 +1,25 @@
+as32v -- the 32V VAX assembler on a modern host
+================================================
+
+32V's `as' (usr/src/cmd/as: as0.y, as1.c, as2.c, as3.c, as.h, instrs) built as a host program, so
+VAX assembly (from the VAX pcc, or any other source) can be assembled and measured without booting
+32V.  It reads the same syntax and writes the same a.out (magic 0410) as the original.
+
+Installed beside the V7 assembler: `libexec/v7unix/as32v`, and `as32v` in the bin directory.
+
+Changes from the 32V sources (as0.y, as3.c and instrs are unchanged):
+
+  * the program keeps pointers in ints (yacc values, symbol-table links), so it is a 32-bit build
+    (-m32); `yyfix.sed` gives each `->` on a yacc value the struct it always meant (V7 yacc's
+    values are ints, which old C allowed to be dereferenced);
+  * as.h: `instab[]` is `extern` (the table is defined in as3.c);
+  * as1.c: the symbol table is one calloc'd block (the host's sbrk and malloc must not mix);
+    `mktemp` on a string literal is replaced by pid-based names; the stdio buffers shared through
+    _sibuf/_sobuf (a PDP-11 memory saving) are dropped;
+  * as2.c: members of the overlaid struct tshdr are accessed through it, not through symtab;
+  * a.out.h is 32V's, because the host has no VAX a.out.
+
+Use: as32v [-o out.o] [-d] [-L] [-V] [-W] file.s ...   (as in 32V's as(1))
+
+The yacc input is run through the V7 yacc of this tree (`modern/usr/src/cmd/yacc`).
+`make check` assembles tests/addl.s and checks the header and the code bytes.

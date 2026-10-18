@@ -1,6 +1,7 @@
-bin/v7cc
-bin/v7as
-bin/v7ld
+bin/ccv7
+bin/asv7
+bin/as32v
+bin/ldv7
 libexec/v7unix/cc
 libexec/v7unix/cpp
 libexec/v7unix/c0
@@ -21,6 +22,7 @@ man/v7unix/man1/lex.1.gz
 man/v7unix/man1/yacc.1.gz
 man/v7unix/man1/make.1.gz
 man/v7unix/man1/adb.1.gz
-man/man1/v7cc.1.gz
-man/man1/v7as.1.gz
-man/man1/v7ld.1.gz
+man/man1/ccv7.1.gz
+man/man1/asv7.1.gz
+man/man1/as32v.1.gz
+man/man1/ldv7.1.gz

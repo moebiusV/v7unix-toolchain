@@ -343,7 +343,7 @@ rm_SOURCES = rm.c
 cmp_SOURCES = cmp.c
 ar_SOURCES = ar.c
 ld_CFLAGS = -std=c99 -O2
-SUBDIRS = c as cpp make yacc sh
+SUBDIRS = c as cpp make yacc as32v sh
 EXTRA_DIST = README tests
 all: all-recursive
 

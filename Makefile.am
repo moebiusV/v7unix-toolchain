@@ -26,20 +26,23 @@ EXTRA_DIST = \
 	README.distributions \
 	TODO
 
-# v7-prefixed convenience symlinks in $(bindir) → the libexec/v7unix binaries.
+# -v7-suffixed convenience symlinks in $(bindir) → the libexec/v7unix binaries.
 # (All the real binaries live in $(libexecdir)/v7unix under their original V7
-# names; the v7- prefix is just the user-facing entry point.)
+# names; the -v7 suffix is just the user-facing entry point.)
 install-exec-hook:
 	mkdir -p $(DESTDIR)$(bindir)
 	cd $(DESTDIR)$(bindir) && \
-		$(LN_S) -f $(libexecdir)/v7unix/cc v7cc && \
-		$(LN_S) -f $(libexecdir)/v7unix/as v7as && \
-		$(LN_S) -f $(libexecdir)/v7unix/ld v7ld
+		$(LN_S) -f $(libexecdir)/v7unix/cc ccv7 && \
+		$(LN_S) -f $(libexecdir)/v7unix/as asv7 && \
+		$(LN_S) -f $(libexecdir)/v7unix/ld ldv7 && \
+		if test -x $(DESTDIR)$(libexecdir)/v7unix/as32v; then \
+		  $(LN_S) -f $(libexecdir)/v7unix/as32v as32v; fi
 
 uninstall-hook:
-	rm -f $(DESTDIR)$(bindir)/v7cc \
-	      $(DESTDIR)$(bindir)/v7as \
-	      $(DESTDIR)$(bindir)/v7ld
+	rm -f $(DESTDIR)$(bindir)/ccv7 \
+	      $(DESTDIR)$(bindir)/asv7 \
+	      $(DESTDIR)$(bindir)/ldv7 \
+	      $(DESTDIR)$(bindir)/as32v
 
 # --- froot: the minimal self-hosting V7 cross-compilation root --------------
 # froot/ is a synthetic V7 root (bin/ lib/ usr/include usr/src) holding the

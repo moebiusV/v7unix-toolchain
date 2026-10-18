@@ -51,16 +51,16 @@ the standard `./configure` flags):
 
     $(libexecdir)/v7unix/   the 8 host binaries (cc, cpp, c0, c1, c2, as, as2,
                             ld) under their original V7 names
-    $(bindir)/              v7cc, v7as, v7ld (symlinks to the above)
+    $(bindir)/              ccv7, asv7, ldv7 (symlinks to the above)
     $(libdir)/v7unix/       the PDP-11 target runtime (crt0.o, libc.a)
     $(mandir)/v7unix/man1/  the V7 manual pages (cc.1, as.1, ld.1, lex.1,
                             yacc.1, make.1, adb.1)
-    $(mandir)/man1/         v7cc.1, v7as.1, v7ld.1 (.so stubs into v7unix)
+    $(mandir)/man1/         ccv7.1, asv7.1, ldv7.1 (.so stubs into v7unix)
 
 The default prefix is `/usr/local` (the BSD convention); Linux distros pass
 `--prefix=/usr`.  Cross-compile a PDP-11 program with:
 
-    v7cc hello.c -o hello
+    ccv7 hello.c -o hello
 
 ## The self-hosting root (froot1, froot2)
 

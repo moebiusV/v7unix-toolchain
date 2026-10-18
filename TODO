@@ -2,7 +2,7 @@ TODO
 
 Done
   * Packaging (0.1.0): GNU autotools (configure.ac + Makefile.am), install
-    layout (host binaries under $(libexecdir)/v7unix, v7cc/v7as/v7ld symlinks
+    layout (host binaries under $(libexecdir)/v7unix, ccv7/asv7/ldv7 symlinks
     in $(bindir), target runtime in $(libdir)/v7unix, manpages in a v7unix
     section), and the dist/ template tree + README.distributions for 10
     distributions.

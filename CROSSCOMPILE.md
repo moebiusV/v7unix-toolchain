@@ -10,7 +10,7 @@ so that historical build scripts invoking binaries by absolute path (`/bin/cc`,
 
 All host binaries are installed in `$(libexecdir)/v7unix/` under their original
 names (`cc`, `cpp`, `c0`, `c1`, `c2`, `as`, `as2`, `ld`), with `v7`-prefixed
-symlinks (`v7cc`, `v7as`, `v7ld`) in `$(bindir)` as a convenience. That install
+symlinks (`ccv7`, `asv7`, `ldv7`) in `$(bindir)` as a convenience. That install
 shape makes the original names addressable, which is what turns a plain PATH
 prefix into an immersive build environment:
 
@@ -18,7 +18,7 @@ prefix into an immersive build environment:
 
 This gives two usage styles from one layout:
 
-- **Explicit** - `v7cc`, `v7as`, `v7ld` from `$(bindir)` for one-off PDP-11
+- **Explicit** - `ccv7`, `asv7`, `ldv7` from `$(bindir)` for one-off PDP-11
   builds while working on normal modern projects.
 - **Immersive** - prepend the libexec dir so bare `cc`/`as`/`ld` resolve to the
   cross tools, letting vintage invocations run unmodified.

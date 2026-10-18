@@ -29,14 +29,15 @@ make %{?_smp_mflags}
 
 %files
 %{_libexecdir}/v7unix/
-%{_bindir}/v7cc
-%{_bindir}/v7as
-%{_bindir}/v7ld
+%{_bindir}/ccv7
+%{_bindir}/asv7
+%{_bindir}/ldv7
 %{_libdir}/v7unix/
 %{_mandir}/v7unix/man1/
-%{_mandir}/man1/v7cc.1
-%{_mandir}/man1/v7as.1
-%{_mandir}/man1/v7ld.1
+%{_mandir}/man1/ccv7.1
+%{_mandir}/man1/asv7.1
+%{_mandir}/man1/as32v.1
+%{_mandir}/man1/ldv7.1
 
 %changelog
 * Thu Aug 28 2026 maintainer <email> - 0.1.0-1
