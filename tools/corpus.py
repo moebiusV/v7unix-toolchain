@@ -90,7 +90,12 @@ CORPORA = {
 
 
 def run(cmd, **kw):
-    return subprocess.run(cmd, capture_output=True, text=True, errors='replace', **kw)
+    """run a command with a time limit; a command that does not finish is reported as exit 124"""
+    kw.setdefault('timeout', 300)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, errors='replace', **kw)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, 124, '', 'timeout')
 
 
 def size_of(obj, tool='size'):
@@ -285,7 +290,7 @@ def one(job):
                     c2 = os.path.join(BUILDS, a['c2'])
                     if arch == 'pdp11':
                         c2 = TOOL + '/modern/usr/src/cmd/c/c2'
-                    q = run([c2, s, s2])
+                    q = run([c2, s, s2], timeout=CCOM_TIMEOUT)
                     if q.returncode or not os.path.exists(s2):
                         res['fail'][key] = ('c2', (q.stderr or q.stdout).strip().split('\n')[0][:200] or 'c2 failed')
                         continue
