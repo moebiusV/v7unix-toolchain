@@ -32,8 +32,8 @@ sizeof being unsigned on the PDP-11 (a correctness fix), and the shared bug fixe
 |---|---|---|---|---|
 | PDP-11 | libc, 89 files | dmr 17356 | 16838 | -3.0% |
 | PDP-11 | `cmd/`, 52 files that compile | dmr 98102 | 94170 | -4.0% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 18388 | -16.3% |
-| VAX (32V) | 56 command sources | `cc -O` 118444 | 106272 | -10.3% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 18336 | -16.6% |
+| VAX (32V) | 56 command sources | `cc -O` 118444 | 106204 | -10.3% |
 | i386 | libc gen+stdio (91 files) | n/a | 21369 (27839 with no flags) | -23% |
 | amd64 | libc gen+stdio (91 files) | n/a | 24747 (39919 with no flags) | -38% |
 
@@ -51,19 +51,19 @@ original compiler's only because its code is more correct.  That is met.
   `cmd/sh/print.c` (+54); both are the unsigned-divide helpers (`udiv`, `urem`), which
   dmr-cc replaces by a `div` that is wrong for a divisor of 32768 or more
   (`tools/dmrbugs/udiv-variable.c`).
-* VAX: 3 of the 147 files are larger than `cc -O`'s, `libc/gen/mktemp.c` (+92, the
+* VAX: 2 of the 147 files are larger than `cc -O`'s, `libc/gen/mktemp.c` (+92, the
   `__urem` helper; 32V's cc divides unsigned values as signed,
-  `tools/dmrbugs/udiv-variable-vax.c`), `libc/gen/modf.c` (+12) and
-  `libc/stdio/doscan.c` (+16).  The last two are **not** explained by correctness;
-  they are the open items (see the end of this file).
+  `tools/dmrbugs/udiv-variable-vax.c`) and `libc/stdio/doscan.c` (+4, not explained by
+  correctness: in the `getc` idiom the old pointer is loaded into the register that held the
+  `FILE *`, which is then loaded again; see the end of this file).
 
 The files pcc rejects are listed, with the old forms that cause it, in
 `OLD-K&R-FORMS.md`: 28 of the 80 V7 command sources and 18 of 605 32V sources.  The
 dialect was not changed.
 
-Correctness gates, all passing: 296 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
-four flag sets), 222 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
-flag sets, one with c2 and one with `-xssa`), 210 i386 and 200 amd64 runs, pcc
+Correctness gates, all passing: 300 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
+four flag sets), 225 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
+flag sets, one with c2 and one with `-xssa`), 215 i386 and 205 amd64 runs, pcc
 compiling itself with identical stage 1 and 2 (`tools/pccboot.sh`; note it builds
 the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built by
 `pcc -O` and run inside real V7 next to V7's own cc builds (`tools/v7progs.py`).
@@ -131,6 +131,8 @@ A test returns 1 when it passes and `2*bad+1000` when it fails; it used to retur
 | 54 | PDP-11: `*(p += k) - k` with `p` in the frame is a use through `p`, then `add` in place | c1 | - | done (`SSTARINC`) | n/a | m68k |
 | 55 | PDP-11: conversions among the one-word types change only the type | c1 | - | done (`nopconv`) | n/a | 16-bit targets |
 | 56 | PDP-11: a long made from a word is pushed as `mov x,-(sp); sxt -(sp)` | c1 | - | done (`SSXT`) | n/a | 16-bit targets |
+| 57 | A double result straight to its destination (`pairfold`) | - | c2 | done (vax c2) | n/a | no |
+| 58 | A `casel` reads only its selector; the backward pass runs again | - | - | done (vax c2) | n/a | no |
 
 "done" means implemented and covered by tests that run on the real system (PDP-11
 under SIMH with V7, VAX under SIMH with 32V) or natively (x86).
@@ -745,16 +747,20 @@ nothing reads has its load deleted (`cfree(p, n, size)` loaded two words for not
 movl 4(ap),r1; movl 8(ap),r0; pushl r0; pushl $1; pushl r1     ->     pushl 8(ap); pushl $1; pushl 4(ap)
 ```
 
-Two supporting changes.  The entry load arrives in pass 2 as the tree `UMUL(PLUS(REG ap, ICON))`;
-`argoreg()` makes it the `OREG` (a register-plus-offset operand) it would become anyway, which is what
-`parmprop` and the allocator's `temparg` look for.  `temparg` (`mip/regs.c`: a spilled parameter keeps its
+Two supporting changes.  The entry load arrives in pass 2 as the tree `UMUL(PLUS(REG ap, ICON))`, and for
+a `double` or a `char` parameter under a conversion (the caller passes a `double`, or an `int`, and the
+function takes it back as its declared type); `argoreg()` drops a conversion that only retypes the slot
+(the same type, or an integer narrowed from a longer one: the first bytes of a little-endian slot are the
+low ones) and makes the load the `OREG` (a register-plus-offset operand) it would become anyway, which is
+what `parmprop` and the allocator's `temparg` look for.  `temparg` (`mip/regs.c`: a spilled parameter keeps its
 own slot instead of a second copy in the frame) stopped at the first label after the prologue; on the VAX
 the arguments are loaded after a second label, so it never found them.  `ARGSAFTERLABEL` in the VAX
-`macdefs.h` lets it skip the label.  That second change did not help `modf`, whose double parameter is still
-copied to a frame slot (why was not traced), so it is not claimed as a win.
+`macdefs.h` lets it skip the label.  `temparg` is what lets a spilled parameter keep its own slot: `modf`'s `double arg`, modified all
+through the function, is now updated in `4(ap)` as 32V's cc does, where it was copied to `-12(fp)` first.
 
-Result: VAX libc 18724 to 18576, commands 107612 to 107240 (-148, -372).  Test: `pcctests/parmslot.c`
-(parameters used 0, 1, 2 and many times, modified, passed on, a double, a char).  The PDP-11 version (39) uses a
+Result: VAX libc 18724 to 18576, commands 107612 to 107240 (-148, -372).  Tests: `pcctests/parmslot.c`
+(parameters used 0, 1, 2 and many times, modified, passed on, a double, a char) and `dblslot.c` (a double
+parameter updated in place; char, short and unsigned char parameters read narrow).  The PDP-11 version (39) uses a
 cost model because a PDP-11 operand with an index word costs a whole word.
 
 ## 41. A table jump is a jump the flow graph must know about
@@ -945,6 +951,28 @@ on the wrong pair.  The template prints `r0` now.  `monscale.c` returns the `pro
 computes and compares it with a reference.  It had passed for weeks because of the test convention bug
 described under "Bugs found by compiling real programs": a failing first assertion returned `bad == 1`, which
 is also the pass value.
+
+## 57. c2: a double result goes straight to its destination
+
+pcc moves a `double` with `movq` (the same eight bits as `movd`).  `muld3 a,b,r0; movq r0,Y` has a reader of
+a different type than the writer, so the fetch elimination, which wants the same type, left both instructions
+and a trip through `r0:r1`.  `pairfold()` accepts a quad move as the reader of a double that a three-operand
+instruction, a move, a negate or a conversion has just computed, if nothing reads the other half of the pair,
+`r1`: `mnegd 4(ap),r0; movq r0,4(ap)` is `mnegd 4(ap),4(ap)`.  Two-operand forms read their destination and
+are not folded.  Test: `pcctests/dblslot.c`.
+
+## 58. c2: a `casel` does not read every register; the backward pass runs again
+
+Liveness took a `casel` (the dense switch) to read all of `r0`-`r5`: the selector is one of them and where
+the jump goes is a table, so it said everything.  The table follows the `casel` as one jump node per case, each
+with its label, so the targets' liveness is already in the walk; a `casel` now reads its selector and the
+registers live at its cases and its fall-through.  Any loop that contains a switch (`doscan` has one)
+had `r1` and the rest live around the whole loop.
+
+The backward pass (`bmove`/`bflow`: fetch elimination, results straight to destinations, `fwdaddr`) ran once, before
+the main loop.  The main loop makes copies of copies: three loads of the same stack slot become
+`movl 4(ap),r2; movl r2,r1`, which `fwdaddr` can use only if it runs again.  It does now, until nothing changes.
+`getc` through a spilled `FILE *`: `movl 4(ap),r2; movl r2,r1; addl3 $1,4(r1),4(r2)` is `movl 4(ap),r2; incl 4(r2)`.
 
 ## How to port a trick to another backend
 
@@ -1229,16 +1257,16 @@ would break for valid C99.
 The remaining small differences of an earlier round (`mon`, `fseek`, `malloc`, `flsbuf`) were all taken apart;
 see `BIGGER-THAN-ORIGINAL.md` and the ledger above.
 
-**VAX, three libc files:**
+**VAX, two libc files:**
 
 * `mktemp` (+92): `unsigned % 10` calls `__urem`, which 32V's cc replaces by a signed `divl3`.
   Correctness.
-* `doscan` (+16) and `modf` (+12): not explained by correctness.  In `doscan` the file's `getc(iop)` uses
-  produce `movl 4(ap),r2; movl r2,r1; addl3 $1,4(r1),4(r2)` where 32V's cc has `incl 4(r0)`: the pointer
-  parameter is spilled and the same slot is loaded twice in one expression (common to the allocator's
-  short-lived spill path, ledger 13).  In `modf` a `double` parameter that is modified is copied to a frame slot
-  (`movd 4(ap),r0; movq r0,-12(fp)`) where 32V's cc updates `4(ap)` in place.  The second needs the allocator to
-  give a spilled parameter its own slot for the short-lived case as well as `temparg`'s long-lived one.
+* `doscan` (+4): not explained by correctness.  `*iop->_ptr++` through a `FILE *` parameter that lives in
+  its stack slot is `movl 4(r0),r0; movl 4(ap),r2; incl 4(r2)` here and `incl 4(r0); subl3 $1,4(r0),r0` in
+  32V's cc, which increments first and gets the old pointer back by subtracting one, so the `FILE *` stays in
+  `r0`.  Ours loads the old pointer into `r0` (destroying the `FILE *`) and loads the slot again: 11 bytes
+  against 32V's 8.  Putting the old pointer in another register (`movl 4(r0),r1; incl 4(r0)`) would be 7; that
+  is a choice of result register for a post-increment of a memory pointer, not tried yet.
 
 **To fix on the V7/32V side, once pcc is done:** the `long long` helpers.  Nothing in the original sources
 uses `long long`, so this matters only for new code compiled with pcc.  The VAX backend calls `__muldi3`,
