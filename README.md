@@ -101,6 +101,15 @@ output is no bigger than theirs.  The work goes in two steps.
    the same IR passes and templates: `testl` instead of `cmpl $0`, byte
    read-modify-write, `sym(,%reg,4)` indexing, frameless leaf functions, loop
    rotation, `leal` for `&a[i]`.
+3. **aarch64.**  The old aarch64 backend was a 32-bit ARM backend with its registers
+   renamed and did not work; it was replaced by an AAPCS64 LP64 backend modelled on
+   amd64 ([`AARCH64.md`](AARCH64.md)), checked on an emulated AArch64 (unicorn and
+   keystone, no hardware needed).  `-xdmr` there is a text optimizer that turns the
+   dmr-cc ideas into AArch64: post-index addressing for `*p++`, `cbz`/`tbz` for tests
+   against zero and bits, extended and scaled index operands, `cset`, paired register
+   saves.  The V7 libc comes to 28756 bytes, 11% under `clang -Os` on the files both can
+   compile.  Writing it turned up, with a random-program fuzzer
+   (`tools/exprfuzz.py`, host gcc as the oracle), seven bugs in code every target shares.
 
 The result, in text+data bytes: PDP-11 libc 3.0% and commands 4.0% smaller than dmr's `cc`;
 VAX libc 16.7% and commands 10.3% smaller than 32V's `cc -O`.  The only files still larger than
@@ -124,6 +133,8 @@ Where to read more:
 * [`OLD-K&R-FORMS.md`](OLD-K&R-FORMS.md) -- the old C forms in the V7 and 32V sources
   that pcc rejects (28 of 80 V7 commands, 18 of 605 32V sources): what they are, where they
   are used, what accepting them would take, and what it would break for C99.
+* [`AARCH64.md`](AARCH64.md) -- the aarch64 backend: conventions, the text optimizer,
+  the emulator harness, the fuzzer, and what running it found.
 * [`DMR-OPTIMIZATIONS-OTHER-TARGETS.md`](DMR-OPTIMIZATIONS-OTHER-TARGETS.md) --
   the first survey of which tricks carry over to VAX and x86.
 * [`PCC-OPTIMIZER.md`](PCC-OPTIMIZER.md) -- the original plan (older than the

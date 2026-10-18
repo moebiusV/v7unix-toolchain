@@ -91,7 +91,7 @@ programs (`tools/pcctests`) natively or in the Unicorn emulator
 | amd64 | done (`-xdmr`: testl/testq/testb, byte RMW; leaf frames were already omitted by `needframe`); tested natively; libc -2.3%, byte-RMW kernel 33% faster, others unchanged |
 | mips | builds; fails 13 of 25 test programs before any change (internal errors, "Cannot generate code", unaligned accesses) |
 | arm | builds; fails 22 of 25 (internal errors, literal-pool relocation out of range) |
-| aarch64 | builds; fails 23 of 25; found wrong code in the simplest case: a store to a global uses `x0` as scratch while `x0` holds a live variable |
+| aarch64 | **rewritten** (2026-10-18, see `AARCH64.md`): AAPCS64 LP64 backend modelled on amd64, 60 test programs pass on an emulated AArch64 in five flag sets; `-xdmr` is a text optimizer (post-index, `cbz`/`tbz`, `cset`, index folding), libc 11% under `clang -Os` |
 | vax | builds and compiles the probe; cannot be assembled or run here (neither GNU as, clang nor zig targets it); output for `(*ip++)++` looks wrong |
 | m68k | builds; cannot compile `int f(void){ return 1; }` (no immediate shapes in `table.c`) |
 | nova | builds; probe fails |
@@ -101,5 +101,8 @@ programs (`tools/pcctests`) natively or in the Unicorn emulator
 For the broken ones the dmr ideas are not the bottleneck: each needs the
 backend made to work first.  The one idea that would transfer to all the
 RISC backends without touching their instruction selection is omitting the
-frame (saved return address and frame pointer) in leaf functions; mips, arm
-and aarch64 all save and restore both unconditionally.
+frame (saved return address and frame pointer) in leaf functions; mips and
+arm save and restore both unconditionally (the new aarch64 backend omits the
+frame, and `AARCH64.md` has the other ideas that carried over: autoincrement
+as post-index addressing, compare with zero and bit tests as `cbz`/`tbz`,
+indexed and extended operands, a condition as a value, paired register saves).

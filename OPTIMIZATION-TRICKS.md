@@ -133,6 +133,11 @@ A test returns 1 when it passes and `2*bad+1000` when it fails; it used to retur
 | 59 | PDP-11: long long as a memory object operated on by helpers | - | - | done (pdp11) | native | other 16-bit targets |
 | 60 | VAX: long long helpers written into the file; quad constants in memory | - | - | done (vax) | native | other targets without a libgcc |
 | 61 | VAX c2: a load that overwrites the pointer it was loaded through | - | - | done (vax c2) | n/a | no |
+| 62 | aarch64: `mov xc,xb; add xb,xb,#k; ldr Rt,[xc]` is a post-index access (autoincrement) | c1 `(r)+` | - | done (aarch64 `-xdmr`, `peep.h`) | n/a | arm (post-index) |
+| 63 | aarch64: a compare with zero as a branch (`cbz`/`cbnz`), the sign and a single bit as `tbz`/`tbnz`, `and`+compare as `tst` | c1 `tst`/`bit` | `bitl`, `jbs` | done (aarch64) | `test` | riscv `beqz`, arm `cbz` |
+| 64 | aarch64: the extension and the shift in the operand (`add x,x,w,sxtw`, `[x,x,lsl #2]`) | c1 `sym(r)` | `sym[r]` | done (aarch64) | `sym(,%r,4)` | arm |
+| 65 | aarch64: a condition as a value (`cset`) | - | - | done (aarch64, peephole) | `setcc` | arm `cset`/`it` |
+| 66 | aarch64: frame record set up by a pre-indexed `stp`, torn down by a post-indexed `ldp`; saved registers in pairs; leaf functions have no frame | c1 `csv`/`cret` | entry mask | done (aarch64) | `leave` | riscv, arm |
 
 "done" means implemented and covered by tests that run on the real system (PDP-11
 under SIMH with V7, VAX under SIMH with 32V) or natively (x86).
@@ -1044,6 +1049,47 @@ and a quad add/subtract no longer says it set the codes.  Tests: `llconst.c`, `l
 `movl S,rB; movl d(rB),rA; movl S,rB`; the third is then a redundant load and goes.  That finished `doscan`
 (+16 to 0 over this and 58), so the only VAX file larger than `cc -O` is `mktemp`.
 
+## 62. aarch64: the text optimizer (`arch/aarch64/peep.h`)
+
+The new aarch64 backend (`AARCH64.md`) keeps the assembly of the file in memory under `-xdmr` and
+runs one pass over it when the job is over, as `x86peep.h` does for x86 but with a parse of every
+instruction, the registers it reads and writes, and liveness over each function's labels and
+branches.  It is the aarch64 home of several of the tricks above:
+
+* **Autoincrement (2).**  AArch64 has the mode: `ldr w0,[x1],#4` loads and then adds 4 to `x1`.
+  pcc's tree for `*p++` is a copy of `p`, an `add` and a use of the copy; the pass finds
+  `mov xc,xb; add xb,xb,#k; ...; ldr Rt,[xc]` (and the access *before* the `add`, and the access
+  after it at `#-k`) and makes it one instruction when nothing between uses `xb` or `xc` and `xc`
+  is dead afterwards.  `strcmp`'s loop went from 9 instructions to 5.
+* **Compare with zero, bit tests (6, 8).**  `cmp w0,#0; b.ne L` is `cbnz w0,L`; `cmp w0,#0; b.lt L`
+  is `tbnz w0,#31,L`; `and w1,w0,#8; cmp w1,#0; b.eq L` is `tbz w0,#3,L` (a mask of several bits:
+  `tst`).  Only when the condition codes are dead after the branch, which the liveness says.
+  A second compare of what is already compared (`cmp w0,#0; b.ne A; cmp w0,#0; b.ge B`) goes.
+* **Narrow values (7, 9).**  A value is right only in the bits of its type, so a `char` is extended
+  before it is compared or widened.  The pass keeps what each register is known to hold (a byte
+  from `ldrb` is already zero-extended; `ldrsb` is sign-extended) and drops an extension of what is
+  already extended, and a `sxtb` before a test against zero when the register is a loaded byte.
+* **Indexed addressing (3).**  `sxtw x0,w22; add x1,x23,x0` is `add x1,x23,w22,sxtw`;
+  `lsl x1,x1,#2; add x2,x0,x1; ldr w3,[x2]` is `ldr w3,[x0,x1,lsl #2]`; the same for `sub` and
+  `cmp` (the zero-extension `mov w0,w0` becomes `uxtw`).  The uses may be several instructions
+  after the producer as long as nothing writes the registers in between.
+* **A condition as a value.**  pass 1 makes `a < b` as a value into branches and two constants;
+  `b.lt L; movz w0,#1; b M; L: movz w0,#0; M:` is `cset w0,ge`.
+* **Frame (10).**  `stp x29,x30,[sp,#-N]!` and `mov x29,sp` instead of `sub sp,sp,#N; stp ...;
+  add x29,sp,#0`, the registers saved in pairs, and no frame for a leaf function that touches
+  neither the frame pointer nor a callee-saved register.
+
+What it does not do: loads are never removed, merged (`ldp`) or reordered, because a `volatile`
+object is read by a load the compiler cannot tell from any other.  An instruction it does not
+parse is a barrier.  It was run under AddressSanitizer over the whole libc output (a one-byte
+overrun in the operand splitter turned up).
+
+libc (89 files): 47756 bytes with no flags, 33740 with `-xtemps -xdeljumps -xinline -xdce`, 28780
+with `-xdmr`; on the 76 files `clang -Os` can also compile, 18852 against clang's 21187 (-11%).
+
+**Port.** The same pass shape (parse, def/use, liveness, patterns) is what a RISC-V or ARM32
+backend would want; the patterns are per target.
+
 ## How to port a trick to another backend
 
 1. **Measure first.** `tools/x86size.sh` (i386/amd64), `tools/vaxdiff.py` (VAX under
@@ -1100,6 +1146,30 @@ turned up compiler bugs that the unit tests had not:
   do `x = x op y` in place with a rule that wants a fixed register.
 * **32V under SIMH** (`tools/vax32v.py`): found that the saved 32V disk had a
   stale free list, which made everything we put on it unreliable.
+
+* **Differential fuzzing against the host compiler** (`tools/exprfuzz.py`, written for the aarch64
+  port, usable for any LP64 target).  It writes programs of well-defined C, checks with gcc under
+  UBSan that they are well defined, and compares gcc's checksum with the target's; `--narrow` finds
+  the first call that differs and `--reduce` shrinks the program.  It found, in code every target
+  shares or that amd64 and aarch64 share:
+  (a) `soft_cmp` ordered negative and zero floating constants by sign instead of magnitude, so
+  `0.0 > -1.0` was folded to 0 (`common/softfloat.c`; test `fpconstcmp`);
+  (b) removing `x << 0` returned the operand with its own type and lost the type the node had been
+  given, so `(int)((unsigned)p << 0) % n` was "Cannot generate code" (`optim.c` `zapshift`;
+  `shiftzero`);
+  (c) `(x << a) << b` was merged into one shift by `a+b` even when that reaches the width, and the
+  hardware shift took the count modulo 64 (`optim.c`; `shiftmerge`);
+  (d) `(unsigned)(a % b)` with signed operands was retyped to an unsigned `%` by the shortcut in
+  `clocal` that the PDP-11 had fixed in 2026 (amd64 and i386; `divretype`);
+  (e) `(long)(int)(u << c)` became `(long)u << c` (amd64; `shiftwiden`);
+  (f) a PDP-11 template for the no-op conversion `long` to `long` did not say that the result is the
+  operand's register (`table.c`; `shiftzero`);
+  (g) **dead code removal in `regs.c` deleted a live assignment**: when it deleted the only
+  statement of a basic block it took the block out of the list but left the edges that led to it, so
+  liveness lost everything that is live after that block, and a variable assigned in the loop before
+  it looked dead (`dceloop`).  Loop rotation made the shape common (the block after the loop is no
+  longer reached through a label), which is how it showed with `-xdmr`; `bbunlink()` now points the
+  edges at the block's successor.
 
 * **A test that could not fail** (found late in the PDP-11 work).  56 tests in `tools/pcctests`, `x86tests`
   and `a64tests` returned `bad ? bad : 1`: `bad` is a bit mask, and a failing *first* assertion sets only bit 1, so it returned
