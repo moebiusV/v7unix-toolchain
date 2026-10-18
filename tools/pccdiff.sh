@@ -109,8 +109,8 @@ for f in $files; do
 	if isfragment "$f"; then
 		skipped=$((skipped+1)); echo "$f" >>"$W/skips"; continue
 	fi
-	vflag=
-	if grep -qs 'struct[[:space:]][[:space:]]*void' "$f" "$d"/*.h; then vflag=-Dvoid=Void_; fi
+	vflag=-Dunix
+	if grep -qs 'struct[[:space:]][[:space:]]*void' "$f" "$d"/*.h; then vflag="-Dunix -Dvoid=Void_"; fi
 	# --- dmr side
 	if ! { "$CPP" -I"$d" -I"$INC" "$f" "$w/i" &&
 	       "$C0" "$w/i" "$w/t1" "$w/t2" &&

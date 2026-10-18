@@ -21,7 +21,7 @@ The two compilers:
 Where dmr-cc is a hand-written one-pass-per-stage compiler, 32V's cc gets most
 of its quality from `c2`; the compiler proper (pcc) is generic.
 
-## Status of this work (2026-10-18, later)
+## Status of this work (2026-10-17)
 
 All dmr/32V-inspired transformations are opt-in with `-xdmr` (`pcc -O` implies it on
 the PDP-11). Everything else is unchanged. Three things are not gated, on purpose:
@@ -30,10 +30,10 @@ sizeof being unsigned on the PDP-11 (a correctness fix), and the shared bug fixe
 
 | Target | Corpus | original cc | ours | |
 |---|---|---|---|---|
-| PDP-11 | libc, 89 files | dmr 17356 | 16914 | -2.5% |
-| PDP-11 | `cmd/`, 51 files | dmr 90178 | 86456 | -4.1% |
-| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 19040 | -13.4% |
-| VAX (32V) | 56 command sources | `cc -O` 118444 | 108472 | -8.4% |
+| PDP-11 | libc, 89 files | dmr 17356 | 16838 | -3.0% |
+| PDP-11 | `cmd/`, 52 files that compile | dmr 98102 | 94170 | -4.0% |
+| VAX (32V) | libc gen+stdio, 91 files | `cc -O` 21976 | 18388 | -16.3% |
+| VAX (32V) | 56 command sources | `cc -O` 118444 | 106272 | -10.3% |
 | i386 | libc gen+stdio (91 files) | n/a | 21369 (27839 with no flags) | -23% |
 | amd64 | libc gen+stdio (91 files) | n/a | 24747 (39919 with no flags) | -38% |
 
@@ -44,18 +44,32 @@ All numbers are text+data bytes, assembled with the target's own assembler
 The x86 "no flags" column is the upstream default; most of that difference is
 `-xtemps` and friends, not `-xdmr`, which is worth 1126 bytes of the 22508 on i386.
 
-PDP-11 files still bigger than dmr's: 5 of 89 in libc, 1 of 51 in `cmd/` (6 in all);
-every one is explained in `BIGGER-THAN-ORIGINAL.md`, and the two big ones
-(`qsort`, `sh/print`) are the correct unsigned-divide helpers. VAX: 5 of the 56
-command files are bigger than `cc -O` (`dumpdir` +28, `deroff` +24, `cron` +24,
-`chmod` +24, `args` +12); `tools/vaxfunsize.py` finds the functions.
+**The goal for the two historic targets** was set as: a file may be larger than the
+original compiler's only because its code is more correct.  That is met.
 
-Correctness gates, all passing: 232 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
-four flag sets), 174 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
-flag sets, one with c2 and one with `-xssa`), 135 i386 and 125 amd64 runs, pcc
+* PDP-11: 2 of the 141 files are larger than dmr-cc's, `libc/gen/qsort.c` (+12) and
+  `cmd/sh/print.c` (+54); both are the unsigned-divide helpers (`udiv`, `urem`), which
+  dmr-cc replaces by a `div` that is wrong for a divisor of 32768 or more
+  (`tools/dmrbugs/udiv-variable.c`).
+* VAX: 3 of the 147 files are larger than `cc -O`'s, `libc/gen/mktemp.c` (+92, the
+  `__urem` helper; 32V's cc divides unsigned values as signed,
+  `tools/dmrbugs/udiv-variable-vax.c`), `libc/gen/modf.c` (+12) and
+  `libc/stdio/doscan.c` (+16).  The last two are **not** explained by correctness;
+  they are the open items (see the end of this file).
+
+The files pcc rejects are listed, with the old forms that cause it, in
+`OLD-K&R-FORMS.md`: 28 of the 80 V7 command sources and 18 of 605 32V sources.  The
+dialect was not changed.
+
+Correctness gates, all passing: 296 bare-metal PDP-11 test runs (`tools/pcctest-all.sh`,
+four flag sets), 222 VAX runs on real 32V under SIMH (`tools/vaxtest-all.sh`, four
+flag sets, one with c2 and one with `-xssa`), 210 i386 and 200 amd64 runs, pcc
 compiling itself with identical stage 1 and 2 (`tools/pccboot.sh`; note it builds
 the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built by
 `pcc -O` and run inside real V7 next to V7's own cc builds (`tools/v7progs.py`).
+A test returns 1 when it passes and `2*bad+1000` when it fails; it used to return
+`bad`, so a failing first assertion (bad == 1) was reported as a pass (see
+"Bugs found by compiling real programs").
 
 ## The tricks at a glance
 
@@ -100,6 +114,23 @@ the committed `HEAD`, not the working tree), and 34 V7 commands, 72 tests, built
 | 37 | `x++;` as a statement leaves no copy of the old value | c1 | pcc | done (pass 1, all targets) | generic | generic |
 | 38 | Deferred operand through a pointer in the frame (`clrb *-16(r5)`) | c1 | pcc | done (pdp11) | n/a | m68k |
 | 39 | A parameter used from its slot when its uses are cheap | c1 | pcc | done (pdp11) | allocator | allocator |
+| 40 | VAX: a parameter used once or twice is read from its slot; unused ones are not loaded | - (never copies) | cc (never copies) | done (vax) | allocator | allocator |
+| 41 | A table jump (`casel`) is a jump the flow graph must see | - | - | done (`mip/optim2.c`; **was a latent miscompile**) | n/a | any target with a jump table in asm |
+| 42 | c2 liveness by width: a byte written into a register does not replace the rest | - | (c2 never looked across branches) | done (vax c2) | n/a | no |
+| 43 | A `tst` of a value a `mov`/`cvt`/`movz` just stored is redundant | c2 | c2 | done (vax c2) | n/a | no |
+| 44 | `movl X,r; movb r,Y` is `movb X,Y`; `sub $1,M,r; movl r,M` is `decl M; movl M,r` | c1 | pcc | done (vax c2) | n/a | no |
+| 45 | A function that returns nothing does not want r0 at its `ret`; dead register writes | c2 | (c2 look-ahead) | done (vax) | allocator | allocator |
+| 46 | Functions start on a word, not a longword | - | `.align 1` | done (vax, `-xdmr`) | no (speed) | no |
+| 47 | c2 says so when it fails | - | - | done | n/a | n/a |
+| 48 | Indexed operands of 8-byte objects, frame-relative indexing (`movaq`, `QADDR`) | - | pcc | done (vax) | `lea` | m68k |
+| 49 | Bit tests as `jbs`/`jbc`; mask as zero-extension (`BITTEST`, `maskzext`) | c1 | c2 + pcc | done (vax) | `test` | yes |
+| 50 | Narrow load pushed in one instruction (`SCVTARG`); a struct copy source as an address (`SSTRSRC`) | - | pcc | done (vax) | n/a | n/a |
+| 51 | `x & ~y` as `bic`; `~~x` removed; r1 live at a `ret` only after a quad return | - | c2 | done (vax) | `andn` | arm `bic` |
+| 52 | PDP-11 c2: `add $2,rN` before a use of `-2(rN)` is `(rN)+` | c1 | - | done (pdp11 c2) | n/a | no |
+| 53 | PDP-11 c2: a value spilled and reloaded at once is a push and a pop | c1 | - | done (pdp11 c2) | n/a | no |
+| 54 | PDP-11: `*(p += k) - k` with `p` in the frame is a use through `p`, then `add` in place | c1 | - | done (`SSTARINC`) | n/a | m68k |
+| 55 | PDP-11: conversions among the one-word types change only the type | c1 | - | done (`nopconv`) | n/a | 16-bit targets |
+| 56 | PDP-11: a long made from a word is pushed as `mov x,-(sp); sxt -(sp)` | c1 | - | done (`SSXT`) | n/a | 16-bit targets |
 
 "done" means implemented and covered by tests that run on the real system (PDP-11
 under SIMH with V7, VAX under SIMH with 32V) or natively (x86).
@@ -698,6 +729,223 @@ with all uses counted as one word (the char store case lost).  After the replace
 runs again, because a slot under a char conversion is only now visible.  The gain is small (a few
 bytes, `fputc`) and is mostly that the register stays free.
 
+## 40. VAX: a parameter used once or twice is read from its slot
+
+With `-xtemps`, pcc loads every parameter into a temporary at entry (`movl 4(ap),r1`) so the
+register allocator (the pass that decides which values live in which registers) may keep it in a
+register.  A register operand is one byte and `4(ap)` is two, so the copy, three bytes, pays for itself
+only from the third use.  32V's cc never copies a parameter at all.
+
+`parmprop()` in `arch/vax/local2.c` (run from `myreader`, under `-xdmr`) removes the entry load of a
+parameter that has at most two other occurrences, reads or writes, none of them the base of an address
+or a call argument that needs a register, and gives each occurrence the slot as an operand.  A parameter
+nothing reads has its load deleted (`cfree(p, n, size)` loaded two words for nothing).  `stty`:
+
+```
+movl 4(ap),r1; movl 8(ap),r0; pushl r0; pushl $1; pushl r1     ->     pushl 8(ap); pushl $1; pushl 4(ap)
+```
+
+Two supporting changes.  The entry load arrives in pass 2 as the tree `UMUL(PLUS(REG ap, ICON))`;
+`argoreg()` makes it the `OREG` (a register-plus-offset operand) it would become anyway, which is what
+`parmprop` and the allocator's `temparg` look for.  `temparg` (`mip/regs.c`: a spilled parameter keeps its
+own slot instead of a second copy in the frame) stopped at the first label after the prologue; on the VAX
+the arguments are loaded after a second label, so it never found them.  `ARGSAFTERLABEL` in the VAX
+`macdefs.h` lets it skip the label.  That second change did not help `modf`, whose double parameter is still
+copied to a frame slot (why was not traced), so it is not claimed as a win.
+
+Result: VAX libc 18724 to 18576, commands 107612 to 107240 (-148, -372).  Test: `pcctests/parmslot.c`
+(parameters used 0, 1, 2 and many times, modified, passed on, a double, a char).  The PDP-11 version (39) uses a
+cost model because a PDP-11 operand with an index word costs a whole word.
+
+## 41. A table jump is a jump the flow graph must know about
+
+A dense `switch` on the VAX is `casel sel,$min,$range` followed by a table of word offsets (17).  In pcc
+it is an `XASM` node (inline assembly) and a block of assembly text, so the flow graph (the map of which
+block can run after which, `mip/optim2.c`) saw one block running into the next and no edge to the case
+labels.  A variable that was live across the switch therefore looked dead at the `casel`, and the allocator
+gave its register to the selector:
+
+```
+neg(c)  { r = 0; switch (c) { case -3: r += 1; ... } return r; }
+	clrl r0			r = 0
+	movl 4(ap),r0		the selector, in r's register: r is gone
+	casel r0,$-3,$5
+```
+
+It had been hidden because the selector was usually copied to another register first; once a parameter was
+read from its slot (40) the copy was gone and `pcctests/casesel.c` failed.  `iscasel()` now ends a basic block
+at the instruction and gives it an edge to every label of the function, as a computed `goto` has.  Test:
+`pcctests/casellive.c` (a variable live across a dense switch, the selector a global and a parameter).
+Lesson, for any target: a jump that goes through a table the IR does not contain has to say where it can land.
+
+## 42. c2 knows how wide a register write is
+
+`movb (r10)+,r0` does not replace `r0`; it replaces its low byte.  c2's liveness (which registers hold a
+value that will still be read, `findlive()` in `cc2/cc2.vax.c`) was conservative about it: a byte or word
+written into a register counted as a read, so `r0` looked live around every byte loop and the fetch
+elimination could not turn
+
+```
+movb (r10)+,r0; movb r0,(r11)+; tstb r0; jneq L        into        movb (r10)+,(r11)+; jneq L
+```
+
+the form 32V's cc produces for `while (*s++ = *t++)`.  Liveness now keeps two masks per register in one
+integer, "the whole value is still needed" and "some of it is": `insrw()` reports what an instruction reads
+whole, reads as a byte or word, replaces whole and replaces in part, and only a whole write ends the whole
+value.  A byte or word `mov`, `tst` and `cmp` of a plain register are the narrow cases; every other
+instruction keeps the conservative reading.  Cleared `strcat`, `strcatn` and `strncat` and part of `doscan`; together with 43 it took 68 bytes from
+libc and 260 from the commands.  Test: `pcctests/c2peep.c`.
+
+## 43. A compare with zero after a move or conversion is redundant
+
+`mov r,x; tst r` and `cvtbl m,r; tstl r`: the first instruction already set the condition codes from the
+value (the signed result: negative, zero), and `tst` would set the same.  `tstaftermov()` deletes the `tst`
+of a register that a `mov` of the same width has just stored, and `cvtcc()` records the type of a `cvt` or
+`movz`'s *destination* as the type its codes belong to (a `cvtbl` leaves the codes of a long; a `cvtlb`, of a
+byte, so `cvtlb` then `tstl` is kept).  Both only before a signed or equality branch: `tst` clears the overflow
+and carry bits and a `mov` leaves carry alone, which the unsigned branches would see.  The same rule as for
+`incX` and `decX`.  The first has to run before the fetch elimination of 42, or two readers of the register
+hide the pattern.
+
+## 44. c2: two small peepholes
+
+* `movl X,rN; movb rN,Y` is `movb X,Y`: the byte store reads only the low byte of `rN`, and the low byte of
+  `X` is at `X`'s address on a little-endian machine.  Not for a constant (`$300` does not fit the byte
+  operand), an indexed source (the index scales by the size of the operand) or a source with a side effect
+  (`(r10)+` would step by 4).  `*iop->_ptr++ = c` in `putc`.
+* `subl3 $1,M,rD; movl rD,M` with `rD` still wanted afterwards is `decl M; movl M,rD` (and `addl3 $1`, `incl`):
+  two bytes less for a memory operand with a displacement.  `*--iop->_ptr = c` in `ungetc`.  When `rD` is not
+  wanted the existing fold (the result goes straight to its destination) does better, so the new rule yields
+  to it.  It reads `M` once more than the original, which matters only for a volatile location, and pcc
+  passes no `volatile` to c2 (nor does any other c2 rule).
+
+## 45. A function that returns nothing does not want r0 at its `ret`
+
+c2's liveness treats `r0` (and `r1` after a quad return, `c2_quadret`) as read by every `ret`: it is the
+return value.  For a function that returns nothing that is a waste, and it blocked the fold
+`movl 8(ap),r0; movl r0,8(r11)` to `movl 8(ap),8(r11)` in `setbuf`.  32V's c2 never looked across a branch, so
+it never had the problem (see "Defects in the originals").
+
+ccom knows whether the function returns a value: a `FORCE` node, an assignment to `r0` or to the pair `r0:r1`,
+or a struct return (`vax_retagg`, set in `bfcode`).  Without one it writes `ret	# noval` (both places that
+print a `ret`: `eoftn()` and the `J` code for a jump to the epilogue) and c2 reads the marker: nothing is live
+at that `ret`, and a `ret` with a value and one without are never cross-jumped into each other
+(`comjump`).  c2 prints the comment as an ordinary assembler comment.  With the exact liveness a second rule
+became safe: a `mov`, `cvt` or `movz` into a register that nothing reads afterwards, from a source with no
+side effect, is deleted (`deadwrite()`, `*iop->_ptr++;` as a statement loaded the old pointer into `r0` for
+nothing), unless the next instruction branches on the codes it set.
+
+A bug of mine that this surfaced: the first scan for a returned value looked for an assignment to `r0` or `r1`
+and missed the register pair that a double or a long long returns in (`XR0`), so `modf` got `ret # noval`.
+`pcctests/retvalue.c` returns a double, a long, a struct and an int, and an int function that uses `r0`
+freely and returns nothing.
+
+## 46. Functions start on a word, not a longword (VAX, `-xdmr`)
+
+pcc aligns a function to 4 bytes (`ALFTN`); 32V's cc used `.align 1`.  The entry mask that starts a VAX
+function is a word, and nothing else needs more.  `-xdmr` sets `ALFTN` to a word on the VAX: 40 bytes in libc,
+396 in the commands, in padding.  It trades the speed of an aligned entry for size, as the rest of `-xdmr`
+does; i386 and amd64 are not changed.
+
+## 47. c2 says so when it fails
+
+`ccom -xc2` runs c2 in a forked copy of itself; if the child failed it wrote the unoptimized assembly and said
+nothing.  Twice that made a c2 failure look like a code-size regression (the `+106` of an uninitialised
+`sscanf %n`, the first time).  `common/c2run.h` now prints `warning: c2 failed (exit N / signal N); the code is
+not optimized`.
+
+## 48. VAX: indexed operands of 8-byte objects, frame-relative indexing
+
+An index register on the VAX scales by the size of the *operand*: `movl base[r1]` steps 4, `movq base[r1]`
+steps 8.  pcc splits a `long long` (and a double treated as a pair) into two longs at displacements 0 and 4,
+and the halves would be indexed with a scale of 4: wrong.  An earlier version simply turned the indexed
+form off for them; the fix keeps it.  `quadaddr()` (`arch/vax/local2.c`) rewrites `*addr` of a quad element
+whose address is `base + scaled index` to `*(&*addr)` where the inner access is only an address
+(`n_qual == QADDR`) computed by `movaq base[index],rX`, whose scale is 8, and the halves are `(rX)` and
+`4(rX)`.  `quadindex()`/`indexform()` (`order.c`) recognise base-plus-index forms, now also `fp-k`
+(a local array) and a symbol, and exempt the `QADDR` access from the check that a `UMUL` is already an
+address.  The address register is 32 bits, as the whole VAX is.  Tests: `pcctests/frameindex.c`, `indexed.c`.
+
+## 49. VAX: bit tests and masks
+
+`if (x & 0200)` is `bitb $128,x; jeql` and c2 makes it `jbc`/`jbs`.  `bittest()` rewrites
+`EQ`/`NE` of `(x & mask)` against zero so the compare takes `x` and the mask directly and marks the node
+(`n_qual = BITTEST`); the compare rules choose the operands, including a byte through a pointer, and `ZQ` prints
+`bit` for `cmp`.  A byte that was widened is tested as it lies when the mask is inside it.  `maskzext()`:
+`(int)c & 0377` is `movzbl x,r` (a mask that keeps exactly a byte or a word is a zero-extending load, as
+in `getc`'s `*p++ & 0377`).  The first version mutated the tree before it knew the operand fitted and died with
+`cannot generate code` on `((p->c |= 0100) & 0100)`; the operand is checked first now.
+
+## 50. VAX: a narrow load pushed in one instruction, a struct copy source as an address
+
+* `SCVTARG`: a `char` or `short` in memory passed as an argument is `cvtbl m,-(sp)`, not a load into a register
+  and a push.  A template cannot say it, because the memory operand is a `UMUL` whose child the matcher turns
+  into an `OREG` only for the node it matched (tried first, in the ledger below), so it is a special shape
+  accepted for `NAME` and `OREG` operands; c2 fuses what remains.
+* `SSTRSRC`: the source of a struct assignment that is `&name` or `&frame-object` is used as the operand
+  of the copy itself, without first putting its address in a register.  Test: `pcctests/structcopy.c`.
+
+## 51. VAX: `x & ~y`, double complement, r1 at a `ret`
+
+`x & ~y` is `bicl3 y,x,r` (bit clear takes the complement itself).  `newmode` showed a complement of a
+complement, `mcoml r0,r0; mcoml r0,r0`, where the operand of the `~` was already one; the look-through of
+`COMPL` in `optim2()` and `wordint()` (the test for a type that is one word, so a conversion around it does
+not hide the pattern) takes the pair away.  Test: `pcctests/bicmix.c`.  c2: `repladdr()` must not turn an `inc` pattern into a
+use of the copy, and the `cvt`/`movz` fusion (a `cvtbl` followed by a `movzbl` of the same value) is allowed
+across the cases it used to refuse.  `c2_quadret`: `r1` is live at a `ret` only if some function in the file
+returns a quad or a double; ccom sets it in `bfcode`.  Without it `r1` was live at every `ret`, which kept
+the fetch eliminations from firing on any value that went through `r1`.  Test: `pcctests/quadret.c`.
+
+## 52. PDP-11 c2: autoincrement from `add $2,rN`
+
+pcc makes pointers in registers that are not `register` variables, and only `register` variables got
+`(rN)+`.  c2's `autoinc()` (`cc2/cc2.pdp11.c`): `add $2,rN` (`inc rN` for a byte) just before the one
+instruction that uses `-2(rN)` makes that use `(rN)+`; `sub $2,rN` before a use of `(rN)` makes it `-(rN)`.  The
+PDP-11 steps as the operand is evaluated, so nothing else changes, and both forms set the codes the same way.
+`nregref()` counts the uses of a register in an instruction's operands, so the rewrite is made only when the
+register is used once.
+
+## 53. PDP-11 c2: a spilled value waits on the stack
+
+```
+mov r0,-16(r5); mov r1,-14(r5); <loads>; sub -16(r5),r0; sub -14(r5),r1
+	becomes   mov r1,-(sp); mov r0,-(sp); <loads>; sub (sp)+,r0; sub (sp)+,r1
+```
+
+dmr-cc pushes a long that has to wait for another to be computed; pcc stores it in frame slots.  `spillpush()`
+does the dmr form when the slots are used only here and nothing between touches the stack or leaves the
+straight line (`funcextent()`, `slotrefs()`).  An uninitialised `sscanf %n` in it crashed ccom on `c20.c`; the
+failure was hidden by c2 falling back (47).  `fseek`.
+
+## 54. PDP-11: `*(p += k) - k`, the use of a pointer kept in the frame
+
+`p++` on a pointer that the allocator keeps in the frame is `UMUL(MINUS(ASSIGN(v, PLUS(v,k)), k))` by the time
+pass 2 sees it: add, then use the old value.  `SSTARINC` (`stinc()`) matches it for a frame variable `v` and the
+rules make the access through `v` first and `add $k,v` in place after (`ZM` loads, `ZO` stores or copies), as
+dmr-cc does.  It covers a pointer that the allocator spills as a long-lived temporary (`malloc`, `realloc`);
+a pointer spilled by the short-lived mechanism is not covered (ledger 13, 14).
+
+## 55. PDP-11: conversions among the one-word types change only the type
+
+`int`, `unsigned`, `short` and pointers are one word, so `(int)p` or `(unsigned)i` of a plain operand changes
+nothing but its type.  As a node it is a template that moves its operand into a register to convert it
+(`mov r1,r0; mov r0,*_buf`); `nopconv()` retypes the operand and drops the node.  `mon`.
+
+## 56. PDP-11: a long made from a word is pushed as `mov x,-(sp); sxt -(sp)`
+
+`((long)bufsiz << 15) / o` holds a register pair for the widened operand while the other operand is built.
+dmr-cc widens straight onto the stack.  A `SSXT` shape (`widened()` in `arch/pdp11/local2.c`) matches a
+`SCONV` of a word that is a register, a name or a frame slot, and the helper-call templates (`lmul`, `ldiv`,
+`lrem`, `uldiv`, `ulrem`) push it with `mov x,-(sp)` and `sxt -(sp)` (`clr` for an unsigned source).  Test:
+`pcctests/longwiden.c`.  The same file in `mon` uncovered a miscompile of an older template:
+
+The long left shift is `ashc AR,A1` on the pinned pair `r0:r1` (`NLEFT(R01), NRES(R01)`), but `A1` printed
+the register the allocator coloured for the *result*, which can be `r2:r3` after a copy; the shift then ran
+on the wrong pair.  The template prints `r0` now.  `monscale.c` returns the `profil` scale that `monitor()`
+computes and compares it with a reference.  It had passed for weeks because of the test convention bug
+described under "Bugs found by compiling real programs": a failing first assertion returned `bad == 1`, which
+is also the pass value.
+
 ## How to port a trick to another backend
 
 1. **Measure first.** `tools/x86size.sh` (i386/amd64), `tools/vaxdiff.py` (VAX under
@@ -755,12 +1003,24 @@ turned up compiler bugs that the unit tests had not:
 * **32V under SIMH** (`tools/vax32v.py`): found that the saved 32V disk had a
   stale free list, which made everything we put on it unreliable.
 
+* **A test that could not fail** (found late in the PDP-11 work).  56 tests in `tools/pcctests`, `x86tests`
+  and `a64tests` returned `bad ? bad : 1`: `bad` is a bit mask, and a failing *first* assertion sets only bit 1, so it returned
+  `1`, the value that means pass.  `monscale.c` (the `profil` scale `monitor()` computes) had been "passing"
+  on a miscompile.  Tests now return `2*bad+1000` on failure, which is never 1 (56 test files in
+  `pcctests`, `x86tests` and `a64tests`).  Two failures that had been invisible appeared at once: `monscale`
+  (the `ashc` template below) and `longcall` (an expectation of 427 for a value the comment next to it computes
+  as 420).
+* **A miscompile in an upstream PDP-11 template** (`ashc AR,A1`, long left shift): see "Defects ... upstream"
+  and 56.
+* **A latent miscompile of the VAX `casel`**: see 41.
+* **pcc's own c2 failures looked like size regressions**: see 47.
+
 ## c2 inside ccom, and what running it found
 
 `ccom -xc2` buffers its assembly and runs c2 (`cc2/cc2.<mach>.c`, built into ccom
 as `c2.o` with `main` renamed `c2main`) on it, in a forked copy of itself with the
 text passed through temporary files; if anything fails the unoptimized text is
-written instead.  The driver passes `-xc2` on the PDP-11 and 32V targets instead
+written instead (and, since 47, a warning).  The driver passes `-xc2` on the PDP-11 and 32V targets instead
 of exec'ing `cc2` (`PCC_EXTERNAL_C2=1` brings the separate program back).  The
 output is byte-identical to the two-program path (checked on all libc and command
 sources of both targets).
@@ -791,9 +1051,8 @@ Making the VAX tests run c2 for the first time found three faults in the c2 sour
 Also on the VAX, `fwdaddr()` in c2 forwards `movl rA,rB` into a following
 address use (`(rB)`, `d(rB)`, `[rB]`), which makes stdio's `getc` four
 instructions instead of five, and `x = (char)((int)x & c)` is done in the narrow
-type so c2 sees `bicb2 $-128,(r)`.  The remaining 6 command sources that are
-larger than `cc -O` (deroff +184, cron +52, dd +44, chmod +32, ...) are byte
-stores through `cvtbl`/`movb` pairs where 32V used `cvtlb`.
+type so c2 sees `bicb2 $-128,(r)`.  No VAX command source is larger than `cc -O` any more; the three libc files
+that are are listed under "What is still open".
 
 ## Defects in the originals and in upstream pcc
 
@@ -831,6 +1090,18 @@ latent: nothing the original compilers produced reached them.
   (87 under dmr-cc, 0 under pcc).  pcc's `udiv` and `urem` are right for every divisor
   and cost a few bytes per file that uses them (see BIGGER-THAN-ORIGINAL.md); that
   is the intended trade, since size is not worth a wrong answer.
+
+* A `long` made from an `unsigned` is sign-extended: `(long)(unsigned)65535` is `-1L`, because dmr-cc
+  emits `sxt` for the high word whatever the source's signedness.  `tools/dmrbugs/unsigned-to-long.c`
+  (2 of 2 cases wrong under dmr-cc, right under pcc).  pcc emits `clr`.
+* A `long` constant with bit 15 of its value set has a high word that is one too small: `40000L` is
+  `-25536L` (high word -1), `99999L` and `100000L` have high word 0 instead of 1, and `65536L`, `70000L`,
+  `131072L` and `1000000L` are right.  `tools/dmrbugs/long-constant.c` compares each against the same number
+  built by additions (12 of 15 under dmr-cc, 15 under pcc).  Any V7 program whose constants fall in that
+  range was compiled wrongly.
+* `getlogin` and `malloc` use `sizeof` in ways that differ in signedness between dmr-cc's compile and ours;
+  that is the `sizeof` fix under "upstream pcc" and not a dmr defect, but it is why those two files were not
+  byte-identical.
 
 **In 32V's cc** (Johnson's PCC with the 32V tables, run with `tools/vax32v.py --guestcc`):
 
@@ -876,36 +1147,113 @@ code they rely on):
   libc, and 32V's, do not have, so such programs fail to link.
 * `-xssa` on the PDP-11 miscompiles V7's `getnum` (not traced to its cause; SSA
   stays off).
+* The PDP-11 `LS` template for a `long` printed `ashc AR,A1`, the register the allocator chose for the
+  result, although the value sits in the pinned pair `r0:r1` (`NLEFT(R01), NRES(R01)`).  When the result was
+  coloured `r2:r3`, the instruction shifted whatever was in that pair and the result was wrong.  libc's
+  `monitor()` computes `((long)bufsiz << 15) / o`; its `profil` scale came out 0.  The template prints `r0`.
+* `temparg()` in `mip/regs.c` (a spilled parameter keeps its own slot) assumed the argument loads follow the
+  first label after the prologue; on the VAX they follow a second one, so it never found them.
+* `ccom -xc2` swallowed a c2 failure (47).
 * The VAX backend's floating-constant symbol was never initialised (a
   `#define sap sss` compatibility macro hid it), so the compiler looped forever
   on a program with a `double` constant under `-xdeljumps`.
 
+## Tried and dropped
+
+Optimizations that were written, measured, and not kept, and the reason.  The rule that decided each one
+is the user's: a root fix beats a workaround, and a net win beats copying dmr-cc.
+
+1. **A fold of `t = E; X = t` on temporaries in the register allocator (`dce()` in `mip/regs.c`).**  Never
+   fired: PDP-11 register variables are `REG` nodes, not temporaries.  Replaced by `retfold()` in
+   `optim2.c` on `REG` nodes (kept, 32).
+2. **`OR` leaves its result in the right operand's register, as a table rule.**  First attempt made `x | 040`
+   into `mov $40,r1; bis r0,r1` (commands +6), because `chcheck()` ranked an operand that is already in the
+   result register (cost 3) like one that must be loaded.  A special shape "a register, not a constant"
+   (`SNOCON`) cannot work (special shapes return only `SRDIR`: `Cannot generate code`).  An interim IR
+   operand swap (`orswap`) was a workaround and was removed.  The root fix, `findops()` ranks an operand in
+   place one cheaper, made the table rule work: i386 -13, amd64 -24, pdp11 commands -38, vax 0.
+3. **`parmprop`: every two-use parameter in place.**  libc +14, commands +6; the per-use cost model (39) is
+   neutral to -2.  "Always in place when `r2`, `r3`, `r4` are all register variables" (dmr-cc's rule, which
+   never copies a parameter): costs 28 bytes in 6 files and saves 8 in 3 (net +20).  Dropped; the net win was chosen over
+   dmr-cc's rule.
+4. **A `POSTSPILL` hook (rerun `narrowload` after the allocator rewrites a spilled temporary).**  Never
+   reached for `flsbuf`'s parameter, whose uses are short-lived reloads (`treerewrite`), not `leafrewrite`.
+   Removed.
+5. **VAX `AUTOINC_MEM`: `x++` in memory as `(x += 1) - 1`.**  Added to hide a dead copy of the old value;
+   removed once `ecomp()`'s statement fold looked past the `COMOP(0, ...)` placeholder (libc 19056 to 19040).
+   Also tried: pointers excluded; pointers through another pointer only.  Both were workarounds for the
+   duplicated lvalue and were replaced by `hoistbase()` (36).
+6. **Hoisting the whole lvalue address of `x op= e` / `x++`.**  PDP-11 `gb->n++` became
+   `mov $4,r0; add _gb,r0; inc (r0)` (commands +88).  Replaced by hoisting only the pointer; the offset stays
+   in the addressing mode.
+7. **A VAX template for a narrow `UMUL` widened onto the stack (`cvtbl *p,-(sp)`).**  Templates cannot make the
+   `UMUL` child an `OREG`: `shswitch` calls `offstar` on the matched node only.  `SCVTARG` (50) is kept for
+   `NAME` and `OREG`; c2 does the rest.
+8. **VAX narrowing `(char)x & mask` in `clocal` with a retyped constant.**  The `bitb` rules want a word
+   constant (`Cannot generate code`).  Replaced by `BITTEST`, a tagged compare node (49), as on the PDP-11.
+9. **VAX c2: `repladdr` guard alone for `addl3 $1,X,r; movl r,X`.**  Commands +16 when the fusion cannot
+   happen because `ret` was assumed to keep `r1` live.  Replaced by exact liveness (`c2_quadret`, 51; 45).
+10. **VAX: turning indexed addressing off for `long long`.**  The user rejected a disable as a fix; replaced
+    by `movaq` (scale 8) and halves (48).
+11. **`longmem`: every long in memory.**  libc -38, commands +316.  The narrow rule is kept.
+12. **Expectations I got wrong in tests** (not compiler changes): `*p++ + *p++` (undefined; dmr-cc, pcc and
+    `pcc -O` all differ), `long long` multiply on 32V (no helper), 16-bit-only constants in VAX tests.
+13. **`SPILL_TO_OPERAND` (PDP-11, `mip/regs.c` `RewriteProgram`): treat a spilled short-lived temporary like a
+    long-lived one, as a memory operand, instead of `treerewrite`'s load, operate, store.**  It was meant to make
+    `realloc`'s `*t++ = *s++` and the long temporaries of `fseek` the in-place code dmr-cc writes.  The compiler
+    then rejected files (16 suite failures, libc 83 files compiled instead of 89).  The cause was first guessed
+    to be that a register cannot be synthesised after the fact; that was wrong.  What the crash was: the
+    sharing of spill slots indexes its arrays by temporary number, and a short-lived temporary (`REGW` outside
+    `nblock`, ids above `tempmax`) is outside the arrays.  Later the mechanism's purpose was reached another way
+    (`SSTARINC` for the long-lived case, 54; `spillpush`, 53); the short-lived case remains.
+14. **`SSTARINC` covers a pointer the allocator spills as a long-lived temporary** (the case it can see); the
+    short-lived case is the part that item 13 would have covered.
+15. **The `tst`-after-`mov` rule in c2's main loop only.**  It deleted the `tst` but the fetch elimination, which runs
+    once before the loop, had already looked at the sequence with the `tst` in it, so `movb (r10)+,r0;
+    movb r0,(r11)+` never collapsed.  Moved before the fetch elimination (43).  It still did not collapse:
+    liveness read the byte write into `r0` as a read of `r0` (42).  The root was in the liveness, not in the rule.
+
 ## The scoreboard and the old K&R sources
 
 `tools/pccdiff.sh` compiles `sh/*.c` with `-Dvoid=Void_` (the sources use
-`struct void`), skips the files that are only `#include`d, and reports each
-rejected source under the kind of its first error.  The C dialect pcc accepts was
-deliberately **not** changed: 29 of the command sources are rejected because they
-use members of another struct's namespace (20), implicit externs (6) or old
-declaration forms (3).
+`struct void`) and everything with `-Dunix` (V7's `cc` defined it), skips the files that are only
+`#include`d, and reports each rejected source under the kind of its first error.  The C dialect pcc
+accepts was deliberately **not** changed: of the 80 V7 command sources, 28 are rejected (20 use members of
+another struct's namespace, 5 old declaration forms, 3 implicit externs), and 18 of the 605 32V sources.
+`OLD-K&R-FORMS.md` describes each form, where the sources use it, what accepting it would take and what it
+would break for valid C99.
 
 ## What is still open
 
-* **PDP-11, the last bytes** (details in `BIGGER-THAN-ORIGINAL.md`): `mon`, `fseek`, `malloc` and
-  `flsbuf` are not understood in detail; an address-taken char temporary is stored through a
-  register after template selection (`flsbuf`); dmr's `clr -(sp)` for a zero long word is done
-  by a c2 peephole, not a template.
-* **VAX:** 5 of the 56 command files are still bigger than `cc -O` (`dumpdir` +28, `deroff`
-  +24, `cron` +24, `chmod` +24, `args` +12), 11 were bigger at the start of this round.  What
-  cleared the rest was, in order: the `op=` address kept once (36), `casel` (17), `incl` for
-  `y++;` (37), `getc`'s increment.  Next: read `dumpdir` `readtap`/`getfile`, `cron` `init`
-  (`getc` into an `int` goes through `cvtbl; movzbl`), `deroff` `eqn`/`regline`, `args` `main`.
-  The c2 counters (`tools/c2stats.sh vax`) say 2640 redundant moves remain for c2 over 130
-  files: the next IR pass is a block-local copy forwarder over `TEMP`s.
-* x86: `testl` after `decl`/`addl`, `leal` for `&a[i]`, the dead mask fold for every
-  target (22 above), `jumpsw`-like layout not worth doing.
-* DCE (`-xdce`, pass 1 dead-arm discard and constant folding exist; constant `switch`,
-  static function and data removal, lazy string emission and the `#ifdef`-equivalence
-  corpus test are deferred until dmr parity is finished).
-* Ship the VAX `c2` with the NetBSD VAX dialect (it parses the 32V assembler
-  dialect only).
+**PDP-11:** nothing that correctness allows.  `qsort` (+12) and `sh/print` (+54) carry `udiv`/`urem`.
+The remaining small differences of an earlier round (`mon`, `fseek`, `malloc`, `flsbuf`) were all taken apart;
+see `BIGGER-THAN-ORIGINAL.md` and the ledger above.
+
+**VAX, three libc files:**
+
+* `mktemp` (+92): `unsigned % 10` calls `__urem`, which 32V's cc replaces by a signed `divl3`.
+  Correctness.
+* `doscan` (+16) and `modf` (+12): not explained by correctness.  In `doscan` the file's `getc(iop)` uses
+  produce `movl 4(ap),r2; movl r2,r1; addl3 $1,4(r1),4(r2)` where 32V's cc has `incl 4(r0)`: the pointer
+  parameter is spilled and the same slot is loaded twice in one expression (common to the allocator's
+  short-lived spill path, ledger 13).  In `modf` a `double` parameter that is modified is copied to a frame slot
+  (`movd 4(ap),r0; movq r0,-12(fp)`) where 32V's cc updates `4(ap)` in place.  The second needs the allocator to
+  give a spilled parameter its own slot for the short-lived case as well as `temparg`'s long-lived one.
+
+**To fix on the V7/32V side, once pcc is done:** the `long long` helpers.  Nothing in the original sources
+uses `long long`, so this matters only for new code compiled with pcc.  The VAX backend calls `__muldi3`,
+`__divdi3`, `__moddi3`, `__udivdi3`, `__umoddi3` and `__lshrdi3` for 64-bit multiply, divide, remainder and
+logical right shift (add, subtract, compare, and, or, xor, shift left and arithmetic shift right are inline);
+32V's libc has none of them, so a program that multiplies two `long long` values does not link.  They
+need writing for libc (in C, they are short) and the driver needs to link them.  On the PDP-11
+`sizeof(long long)` is 4, the same as `long`: 64-bit arithmetic is not available there (`macdefs.h` says 64
+bits; the type is mapped to `long`).  C99 requires 64.
+
+**x86:** `testl` after `decl`/`addl`, `leal` for `&a[i]`, the dead mask fold for every target (22 above).
+
+**DCE** (`-xdce`: pass 1 dead-arm discard and constant folding exist; constant `switch`, static function and
+data removal, lazy string emission and the `#ifdef`-equivalence corpus test are deferred).
+
+**The old forms:** a decision whether to accept any of them (`OLD-K&R-FORMS.md`).
+
+**Ship** the VAX `c2` with the NetBSD VAX dialect (it parses the 32V assembler dialect only).

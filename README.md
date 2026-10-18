@@ -102,8 +102,13 @@ output is no bigger than theirs.  The work goes in two steps.
    read-modify-write, `sym(,%reg,4)` indexing, frameless leaf functions, loop
    rotation, `leal` for `&a[i]`.
 
-Every change is checked on the real system, not just by looking at assembly: 132
-bare-metal PDP-11 programs, the VAX tests on a real 32V in several flag sets,
+The result, in text+data bytes: PDP-11 libc 3.0% and commands 4.0% smaller than dmr's `cc`;
+VAX libc 16.3% and commands 10.3% smaller than 32V's `cc -O`.  The only files still larger than
+the original's are larger for a reason of correctness (the originals divide unsigned values
+as signed and read some `long` constants wrongly; pcc does not) or are listed as open items.
+
+Every change is checked on the real system, not just by looking at assembly: 296
+bare-metal PDP-11 test runs, 222 VAX runs on a real 32V in several flag sets,
 34 V7 commands built by pcc and run inside V7 beside the originals' builds, pcc
 compiling itself (identical stages), and the i386 and amd64 suites.  The tools
 are in `tools/`.
@@ -112,6 +117,11 @@ Where to read more:
 
 * [`OPTIMIZATION-TRICKS.md`](OPTIMIZATION-TRICKS.md) -- each trick, how it was
   ported, the size tables, the bugs found in the originals and in upstream pcc.
+* [`BIGGER-THAN-ORIGINAL.md`](BIGGER-THAN-ORIGINAL.md) -- the files that are still
+  larger than the original compiler's and why, and what cleared the rest.
+* [`OLD-K&R-FORMS.md`](OLD-K&R-FORMS.md) -- the old C forms in the V7 and 32V sources
+  that pcc rejects (28 of 80 V7 commands, 18 of 605 32V sources): what they are, where they
+  are used, what accepting them would take, and what it would break for C99.
 * [`DMR-OPTIMIZATIONS-OTHER-TARGETS.md`](DMR-OPTIMIZATIONS-OTHER-TARGETS.md) --
   the first survey of which tricks carry over to VAX and x86.
 * [`PCC-OPTIMIZER.md`](PCC-OPTIMIZER.md) -- the original plan (older than the

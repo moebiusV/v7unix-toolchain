@@ -1,27 +1,24 @@
 # Files where pcc `-O` is bigger than the original compiler, and why
 
-Measured 2026-10-18 with `tools/pccdiff.sh -v -k DIR` (PDP-11, against dmr's `cc`;
+Measured 2026-10-17 with `tools/pccdiff.sh -v -k DIR` (PDP-11, against dmr's `cc`;
 text+data bytes after V7 `as`) and `tools/vaxdiff.py` (VAX, against 32V's `cc -O`).
 Totals are below the originals; this is about the files that are not.  The goal set
 for this work: the only files larger than the original are larger because their code
-is more correct.  "Fixable" says whether the cause can be removed without making the
-compiler wrong, and where the change would go.
+is more correct.  The PDP-11 meets it.  The VAX meets it for every file but two, which
+are the open items.  Optimization numbers per technique are in `OPTIMIZATION-TRICKS.md`;
+the files pcc cannot compile at all are in `OLD-K&R-FORMS.md`.
 
 ## PDP-11
 
-libc: 16914 bytes against dmr's 17356 (-2.5%); 5 of 89 files are bigger (it was 25).
-commands: 86456 against 90178 (-4.1%); 1 of 51 files is bigger (it was 10).
+libc: 16838 bytes against dmr's 17356 (-3.0%); 1 of 89 files is bigger (it was 25).
+commands: 94170 against 98102 (-4.0%) for the 52 sources that compile; 1 of 52 is bigger (it was 10).
 
 | file | bytes over | cause |
 |---|---|---|
-| `libc/gen/qsort.c` | +14 | **correctness**: the unsigned-divide helper (below); without its 34 bytes the file is 20 smaller than dmr's |
-| `cmd/sh/print.c` | +58 | **correctness**: `udiv` and `urem`, 74 bytes; without them 16 smaller |
-| `libc/gen/malloc.c` | +12 | allocator choices (B); partly **correctness**: `(nw + BLOCK/WORD) / (BLOCK/WORD)` is unsigned (sizeof is), pcc shifts, dmr emits a signed `sxt; div` |
-| `libc/gen/mon.c` | +6 | not understood in detail: parameters copied to registers and a few extra `mov`s (A) |
-| `libc/stdio/fseek.c` | +6 | a 32-bit value spilled to frame slots where dmr pushes and pops; not understood further (A, B) |
-| `libc/stdio/flsbuf.c` | +4 | an address-taken `char` temporary is stored from a register after template selection: `mov 4(r5),r0; movb r0,r0; movb r0,-10(r5)` against dmr's `movb 4(r5),-12(r5)` (C) |
+| `libc/gen/qsort.c` | +12 | **correctness**: the unsigned-divide helper (below); without its 34 bytes the file is 20 smaller than dmr's |
+| `cmd/sh/print.c` | +54 | **correctness**: `udiv` and `urem`, 74 bytes; without them 16 smaller |
 
-### The causes
+### The cause
 
 **Unsigned divide by a variable (qsort, sh/print).  EXPLAINED, not a defect of ours.**
 dmr emits `clr r0; div b,r0`, 4 bytes, which is wrong for a divisor of 32768 or more
@@ -34,19 +31,17 @@ dividends 0, equal, smaller, 65535).  A shared copy in a runtime library would s
 60 bytes over the two corpora and needs the driver to link a support library; not done.
 The same applies to `uldiv` and `ulrem`.
 
-**A. Parameters copied into registers.**  `parmprop()` now decides by the cost of the uses
-(OPTIMIZATION-TRICKS.md 39), which settled `fputc` and others but not `mon` or `fseek`; I wrote
-here earlier that those were two-use parameters, and that was a guess the cost model did not
-bear out.  *Not understood yet.*
+### The files that were bigger and are not now
 
-**B. Allocator spill choices.**  malloc and fseek keep a temporary in a frame slot where
-dmr keeps nothing live; `mov _alloct,r0; mov (r0),r0` is two loads where dmr reused the
-register.  *Fixable:* in `mip/regs.c`, not by a table rule.
+`mon`, `fseek`, `malloc`, `flsbuf` were left at the end of the previous round, "not understood in detail".
+They were understood by reading the assembly of the pieces dmr-cc produces:
 
-**C. A temporary whose address is taken.**  `c1 = c; write(fd, &c1, 1)`: the
-temporary is a stack slot, but its stores are chosen as register stores and the
-slot is filled in afterwards.  *Fixable:* decide the home of address-taken temporaries
-before template selection (`cstknode()` in `trees.c` creates them).
+| file | was | cause | fix |
+|---|---|---|---|
+| `libc/gen/mon.c` | +6 | a long made from a word held a register pair while the other operand was built; a word converted among `int`, `unsigned` and pointer cost a copy; **and a miscompile**: the long left shift printed the result's register instead of the pinned `r0:r1` | `SSXT` (OPTIMIZATION-TRICKS.md 56), `nopconv` (55), the template prints `r0` |
+| `libc/stdio/fseek.c` | +6 | a 32-bit value spilled to frame slots where dmr pushes and pops | `spillpush` in c2 (53) |
+| `libc/gen/malloc.c` | +12 | `*t++ = *s++` through a pointer the allocator keeps in the frame, add and use as separate steps; `(nw + BLOCK/WORD) / (BLOCK/WORD)` unsigned (a shift pair, correct) where dmr emits a signed `sxt; div` | `SSTARINC` (54) |
+| `libc/stdio/flsbuf.c` | +4 | an address-taken `char` temporary stored from a register after template selection | `narrowload` after a spill (34) |
 
 ## What was fixed on the way, with the file that showed it
 
@@ -67,25 +62,38 @@ before template selection (`cstknode()` in `trees.c` creates them).
 | codes at a join; `?:` arms into the argument slot; `clr r0` argument | c2 | fgets, getc users, endopen, filbuf, getlogin, sh |
 | char from a word in memory | `narrowload` | commands |
 | `sizeof` unsigned | `arch/pdp11/macdefs.h` | getlogin (and a miscompile, see OPTIMIZATION-TRICKS.md) |
+| autoincrement from `add $2,rN` | c2 `autoinc` | stdio, commands |
+| in-place pointer step through the frame | `SSTARINC` | malloc, realloc |
+| spilled value as push/pop | c2 `spillpush` | fseek |
+| one-word conversions retype | `nopconv` | mon |
+| long from a word pushed with `sxt` | `SSXT` | mon |
+| matcher ranks an operand already in the result register one cheaper | `findops()` in `mip/match.c` | commands -38, i386 -13, amd64 -24 |
 
 ## VAX (32V `cc -O`)
 
-libc gen+stdio: 19088 against 21976 (-13.1%).  56 command sources: 108812 against 118444
-(-8.1%).  5 of the 56 command files are bigger (it was 11): `dumpdir` +28, `deroff` +24, `cron` +24,
-`chmod` +24, `args` +12.
+libc gen+stdio: 18388 against 21976 (-16.3%); 3 of 91 files are bigger.  56 command sources:
+106272 against 118444 (-10.3%); 0 of 56 are bigger (11 were at the start of this round).
 
-What cleared the other six (`dump` was +240, `deroff` +148, `grep` +116, `ed` +60, `dd` +40,
-`dcheck` +24, `col` +20), in the order found with `tools/vaxfunsize.py`:
+| file | bytes over | cause |
+|---|---|---|
+| `libc/gen/mktemp.c` | +92 | **correctness**: `unsigned % 10` calls `__urem` (the helper is appended to the file); 32V's cc divides unsigned values as signed (`tools/dmrbugs/udiv-variable-vax.c`: 15 failing-case bits under 32V's cc, 0 under pcc) |
+| `libc/gen/modf.c` | +12 | **open**: a `double` parameter that is modified is copied to a frame slot (`movd 4(ap),r0; movq r0,-12(fp)`); 32V's cc updates `4(ap)` in place.  Needs the short-lived spill path to give a spilled parameter its own slot |
+| `libc/stdio/doscan.c` | +16 | **open**: `getc(iop)` through a spilled pointer parameter loads the slot twice in one expression (`movl 4(ap),r2; movl r2,r1; addl3 $1,4(r1),4(r2)`) where 32V's cc has `incl 4(r0)`; the same short-lived spill path |
+
+`ed` also pays 41 bytes for `__urem` and that is correctness too; it is still smaller than `cc -O` in total.
+
+What cleared the files that were bigger, in the order found with `tools/vaxfunsize.py`:
 
 | cause | where it was | fix |
 |---|---|---|
 | `map[(ino-1)/16] \|= m` computed the index three times | `dump` `mark`, `add`; `deroff` | the address of an `op=` / `++` lvalue kept once (OPTIMIZATION-TRICKS.md 36) |
-| a dense `switch` as a compare chain | `grep`, `ed` `advance` | `casel` table (17) |
+| a dense `switch` as a compare chain | `grep`, `ed` `advance` | `casel` table (17, and the flow-graph edge, 41) |
 | `y++;` as `addl3 $1,y,r0; movl r0,y` | `grep` `main` | `(x += 1) - 1` as a statement is `x += 1` (37) |
 | `iop->_ptr++` loaded the parameter twice | `getc` everywhere (`cron`, `doscan`) | pointer kept once, offset in the address (36) |
-
-`ed` also pays 41 bytes for `__urem`, and that is **correctness**: 32V's cc divides unsigned
-values as signed (shown by running it, `tools/dmrbugs/udiv-variable-vax.c`: 15 failing-case bits
-under 32V's cc, 0 under pcc).  The five that remain have not been read function by function yet;
-`vaxfunsize.py` points at `dumpdir` `readtap` and `getfile`, `cron` `init` and `number`, `deroff`
-`eqn` and `regline`, `chmod` `where`, `args` `main`.
+| parameters copied to registers for one use; loads of unused parameters | `stty`, `gtty`, `calloc`, `cfree`, `fgets` | `parmprop` for the VAX (40) |
+| `while (*s++ = *t++)` as a load, a store and a `tst` | `strcat`, `strncat`, `strcatn` | width-aware liveness and `tst` after `mov` in c2 (42, 43) |
+| `movl X,r0; movl r0,Y` in a function that returns nothing | `setbuf` | `ret # noval` (45) |
+| a dead load of the old pointer for `*p++;` | `ungetc` | dead register writes in c2 (45) |
+| `*--p->ptr = c` as `subl3`, `movl` | `ungetc` | `decl M; movl M,r` (44) |
+| `movl r10,r0; movb r0,*p` | `puts` | `movb r10,*p` (44) |
+| functions aligned to 4 | every file | `.align 1` under `-xdmr` (46): 40 bytes in libc, 396 in the commands |
