@@ -27,5 +27,18 @@ for flags in "$@"; do
 		else fail=$((fail+1)); echo "FAIL [$flags] $pair (against clang): got $got"; fi
 	done
 done
+# a 128-bit long double (the compiler built with -DA64QUAD): ARM64QUADCCOM names that ccom
+if [ -n "${ARM64QUADCCOM:-}" ]; then
+	for flags in "$@"; do
+		for t in "$here"/a64quad/q*.c; do
+			got=$(ARM64CCOM=$ARM64QUADCCOM "$here/arm64test.sh" $flags "$t" 2>&1 | tail -1)
+			if [ "$got" = 1 ]; then pass=$((pass+1))
+			else fail=$((fail+1)); echo "FAIL [$flags] $(basename "$t") (long double): got $got"; fi
+		done
+		got=$(ARM64CCOM=$ARM64QUADCCOM "$here/arm64abi.sh" $flags "$here/a64quad/ld_pcc.c" "$here/a64quad/ld_clang.c" 2>&1 | tail -1)
+		if [ "$got" = 1 ]; then pass=$((pass+1))
+		else fail=$((fail+1)); echo "FAIL [$flags] ld (long double against clang): got $got"; fi
+	done
+fi
 echo "arm64test-all: $pass passed, $fail failed"
 [ $fail -eq 0 ]

@@ -210,6 +210,13 @@ def build(a):
                 raise SystemExit('arm64run: cannot assemble "%s"' % arg)
             code += bytes(enc)
             addr += 4
+        elif kind == 'bytes':		# data in the text section (a constant pool)
+            code += arg
+            addr += len(arg)
+        elif kind == 'val':
+            v = evalexpr(arg[0], syms)
+            code += (v & ((1 << (8 * arg[1])) - 1)).to_bytes(arg[1], 'little')
+            addr += arg[1]
     return code, img, base, syms
 
 
@@ -223,6 +230,10 @@ def srcline(a, pc):
         elif kind == 'ins':
             lines.append((addr, arg))
             addr += 4
+        elif kind == 'bytes':
+            addr += len(arg)
+        elif kind == 'val':
+            addr += arg[1]
     for i, (ad, l) in enumerate(lines):
         if ad == pc:
             return ' | '.join(x[1] for x in lines[max(0, i - 2):i + 1])
