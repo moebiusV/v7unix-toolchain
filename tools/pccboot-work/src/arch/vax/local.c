@@ -486,6 +486,15 @@ defzero(struct symtab *sp)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#if defined(VAX_AS_32V)
+	/* 32V's as has no .quad: two longwords, the low one first */
+	if ((p->n_type == LONGLONG || p->n_type == ULONGLONG) && p->n_sp == NULL) {
+		unsigned long long v = (unsigned long long)glval(p);
+
+		printf("\t.long\t0x%llx,0x%llx\n", v & 0xffffffffULL, v >> 32);
+		return 1;
+	}
+#endif
 	return 0;
 }
 /*

@@ -1278,6 +1278,17 @@ optdump(struct interpass *ip)
  * that contain which label.
  */
 
+/*
+ * A casel (VAX jump-table switch) is an XASM followed by a table of offsets:
+ * a jump to any of the case labels that the flow graph cannot see otherwise.
+ */
+static int
+iscasel(NODE *p)
+{
+	return p->n_op == XASM && p->n_name != NULL &&
+	    strncmp(p->n_name, "casel", 5) == 0;
+}
+
 void
 bblocks_build(struct p2env *p2e)
 {
@@ -1323,7 +1334,7 @@ bblocks_build(struct p2env *p2e)
 		}
 		bb->last = ip;
 		if ((ip->type == IP_NODE) && (ip->ip_node->n_op == GOTO || 
-		    ip->ip_node->n_op == CBRANCH))
+		    ip->ip_node->n_op == CBRANCH || iscasel(ip->ip_node)))
 			bb = NULL;
 		if (ip->type == IP_PROLOG)
 			bb = NULL;
@@ -1462,6 +1473,19 @@ cfg_build(struct p2env *p2e)
 			pnode->bblock = bb;
 		}
 
+		if (bb->last->type == IP_NODE && iscasel(p)) {
+			int *l;
+
+			/* the table of a casel can reach any label of the function */
+			for (l = p2e->epp->ip_labels; *l; l++) {
+				cnode->bblock = p2e->labinfo.arr[*l - p2e->labinfo.low];
+				SLIST_INSERT_LAST(&cnode->bblock->parents, pnode, cfgelem);
+				SLIST_INSERT_LAST(&bb->child, cnode, chld);
+				cnode = tmpalloc(sizeof(struct cfgnode));
+				pnode = tmpalloc(sizeof(struct cfgnode));
+				pnode->bblock = bb;
+			}
+		}
 		cnode->bblock = DLIST_NEXT(bb, bbelem);
 		SLIST_INSERT_LAST(&cnode->bblock->parents, pnode, cfgelem);
 		SLIST_INSERT_LAST(&bb->child, cnode, chld);

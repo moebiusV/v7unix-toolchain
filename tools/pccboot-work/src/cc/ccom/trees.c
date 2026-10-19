@@ -3175,6 +3175,9 @@ ecomp(P1ND *p)
 		reached = 1;
 	}
 	p = optim(p);
+#ifdef LOWERLL
+	p = lowerll(p);
+#endif
 #ifndef FIELDOPS
 	p = rmfldops(p);
 #endif
@@ -3189,7 +3192,8 @@ ecomp(P1ND *p)
 	if (xdmr && p->n_op == COMOP && p->n_right->n_op == TEMP &&
 	    p->n_left->n_op == COMOP && p->n_left->n_left->n_op == ASSIGN &&
 	    p->n_left->n_left->n_left->n_op == TEMP &&
-	    regno(p->n_left->n_left->n_left) == regno(p->n_right)) {
+	    regno(p->n_left->n_left->n_left) == regno(p->n_right) &&
+	    p->n_right->n_type != PTR+LONGLONG && p->n_right->n_type != PTR+ULONGLONG) {
 		/*
 		 * x++; and x--; as a statement: (t = x, x += 1, t) with the
 		 * value unused is just x += 1, with no copy of the old value.

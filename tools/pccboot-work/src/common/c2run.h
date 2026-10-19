@@ -57,6 +57,9 @@ c2_filter(const char *text, FILE *out, char *flag)
 	fclose(in);
 	if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) {
 		fclose(res);
+		fprintf(stderr, "warning: c2 failed (%s %d); the code is not optimized\n",
+		    WIFEXITED(st) ? "exit" : "signal",
+		    WIFEXITED(st) ? WEXITSTATUS(st) : WTERMSIG(st));
 		return 0;
 	}
 	rewind(res);

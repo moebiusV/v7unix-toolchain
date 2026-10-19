@@ -692,9 +692,15 @@ struct optab table[] = {
 
 /* The next is class B regs */
 
-/* Clear long at address or in reg */
-{ ASSIGN,	FOREFF|INBREG,
+/* Clear long at address, or in reg (a value in memory is not a value in a register: a = b = 0) */
+{ ASSIGN,	FOREFF,
 	SNAME|SOREG|SBREG,	TLONG|TULONG,
+	SZERO,			TANY,
+		0,	RDEST,
+		"clr	AL\nclr	UL\n", },
+
+{ ASSIGN,	FOREFF|INBREG,
+	SBREG,	TLONG|TULONG,
 	SZERO,			TANY,
 		0,	RDEST,
 		"clr	AL\nclr	UL\n", },
@@ -711,7 +717,7 @@ struct optab table[] = {
 	SBREG,			TLONG|TULONG,
 	SCON|SNAME|SOREG,	TLONG|TULONG,
 		0,	RDEST,
-		"mov	AR,AL\nmov	UR,UL\n", },
+		"Zy", },
 
 { ASSIGN,	FOREFF|INBREG,
 	SNAME|SOREG,	TLONG|TULONG,
@@ -992,7 +998,7 @@ struct optab table[] = {
 	SANY,	TPOINT|TWORD,
 	SOREG,	TLONG|TULONG,
 		NBREG,	RESC1, /* |NBSL - may overwrite index reg */
-		"mov	AL,A1\nmov	UL,U1\n", },
+		"ZY", },
 
 { UMUL,	INAREG,
 	SANY,	TPOINT|TWORD,
@@ -1101,10 +1107,10 @@ struct optab table[] = {
 		0,	RNULL,
 		"ZF", },
 
-{ AND,	INBREG|FORCC,
+{ AND,	INBREG,
 	SBREG,			TLONG|TULONG,
 	SCON|SBREG|SOREG|SNAME,	TLONG|TULONG,
-		0,	RLEFT|RESCC,
+		0,	RLEFT,
 		"bic	AR,AL\nbic	UR,UL\n", },
 
 /*
@@ -1127,10 +1133,10 @@ struct optab table[] = {
 		0,	RLEFT|RESCC,
 		"bicb	AR,AL\n", },
 
-{ OR,	INBREG|FORCC,
+{ OR,	INBREG,
 	SBREG,			TLONG|TULONG,
 	SCON|SBREG|SOREG|SNAME,	TLONG|TULONG,
-		0,	RLEFT|RESCC,
+		0,	RLEFT,
 		"bis	AR,AL\nbis	UR,UL\n", },
 
 /* OR into the register of the right operand: bis AL,AR (a variable first, a computed value second) */
@@ -1162,10 +1168,10 @@ struct optab table[] = {
 		"xor	AR,AL\n", },
 
 /* XOR with char (extended insn)  */
-{ ER,	INBREG|FORCC,
+{ ER,	INBREG,
 	SBREG|SOREG|SNAME,	TLONG|TULONG,
 	SBREG,	TLONG|TULONG,
-		0,	RLEFT|RESCC,
+		0,	RLEFT,
 		"xor	AR,AL\nxor	UR,UL\n", },
 
 /*
@@ -1200,12 +1206,12 @@ struct optab table[] = {
 		NBREG,	RESC1,
 		"mov	UL,U1\nsxt	A1\n", },
 
-/* XXX - avoid OREG index register to be overwritten */
+/* the base register of an OREG may be A1: ZY loads the other word first then */
 { OPLTYPE,	INBREG,
 	SANY,	TANY,
 	SCON|SBREG|SNAME|SOREG,	TLONG|TULONG,
 		NBREG,	RESC1,
-		"mov	AL,A1\nmov	UL,U1\n", },
+		"ZY", },
 
 { OPLTYPE,	INAREG,
 	SANY,	TANY,
@@ -1247,7 +1253,7 @@ struct optab table[] = {
 		"neg	AL\n", },
 
 { UMINUS,	INBREG|FOREFF,
-	SBREG|SOREG|SNAME,	TLONG,
+	SBREG|SOREG|SNAME,	TLONG|TULONG,
 	SANY,			TANY,
 		0,	RLEFT,
 		"neg	AL\nneg	UL\nsbc	AL\n", },

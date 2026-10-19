@@ -39,6 +39,7 @@
 #define AUTOINIT	48	/* # bits below r5 where automatics start (V7 csv saves r4/r3/r2 = 6 bytes; the 4th word is the reusable jsr-pc dummy) */
 #define REGVARS		3	/* 'register' variables per function: r4, r3, r2 */
 #define REGVAR0		R4	/* first one; the next go downwards */
+#define LOWERLL		/* long long is a memory object operated on by helpers (arch/pdp11/lowerll.c) */
 #define AUTOINC		/* p++ and --p of a register pointer: (rN)+ and -(rN) */
 #define RETVALREG	R0	/* word results are assigned to r0 directly */
 #define COMM_IMMEDIATE	/* c1 emits .comm at the declaration, not at end of file */

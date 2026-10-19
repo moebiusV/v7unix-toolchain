@@ -56,6 +56,10 @@
 # define ALLONG 32
 # define ALLONGLONG 32
 # define ALSHORT 16
+/* a function starts with a word (its entry mask); only -xdmr gives up the longword alignment for size */
+#define	ARGSAFTERLABEL	/* mip/regs.c temparg: the arguments are loaded after a second label */
+extern int xdmr;
+#define	ALFTN	(xdmr ? ALSHORT : ALINT)
 # define ALPOINT 32
 # define ALSTRUCT 8
 # define  ALSTACK 32 
@@ -193,7 +197,16 @@ extern int maxargs;
 //# define R2REGS   /* permit double indexing */
 #define HELP_UDIV	1	/* the file calls __udiv */
 #define HELP_UREM	2	/* the file calls __urem */
+#define HELP_MULQ	4	/* long long helpers, see ejobcode() */
+#define HELP_DIVQ	8
+#define HELP_MODQ	16
+#define HELP_UDIVQ	32
+#define HELP_UMODQ	64
+#define HELP_LSHRQ	128
 extern int vax_helpers;
+struct qconst { int lab; unsigned long long v; };
+extern struct qconst qpool[512];
+extern int nqpool;
 #define SAVEREGS_BY_MASK	/* callee-saved registers in use go in the entry mask, not copies */
 #define REGVARS		6	/* 'register' variables per function: r11 down to r6 */
 #define REGVAR0		R11	/* first one; the next go downwards */

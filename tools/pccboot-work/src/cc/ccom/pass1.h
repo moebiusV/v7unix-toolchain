@@ -309,6 +309,11 @@ typedef struct p1node {
 
 #define NOOFFSET	(-10201)
 
+#ifdef LOWERLL
+extern P1ND *lowerll(P1ND *);
+extern P1ND *llreturn(P1ND *);
+#endif
+
 /* declarations of various functions */
 extern	P1ND
 	*buildtree(int, P1ND *, P1ND *r),

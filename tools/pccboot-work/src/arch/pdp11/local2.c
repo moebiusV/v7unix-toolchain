@@ -291,6 +291,7 @@ longaddsub(NODE *p, int sub)
 }
 
 /* helper routines a file needs (see helpers.h and ejobcode()) */
+#include <stdlib.h>
 #include "helpers.h"
 #define	HELP_UDIV	1
 #define	HELP_UREM	2
@@ -299,9 +300,33 @@ longaddsub(NODE *p, int sub)
 int helpers_used;
 
 /* write the helpers this file called, as local routines */
+extern int ll_used;
+#include "llhelpers.h"
+
+/* the long long helpers this file calls, and those they call */
+static void
+putllhelpers(void)
+{
+	int u = ll_used, v, i;
+
+	if (u == 0)
+		return;
+	do {
+		v = u;
+		for (i = 0; i < NLLH; i++)
+			if (u & (1 << i))
+				u |= llh_deps[i];
+	} while (u != v);
+	printf(".text\n");
+	for (i = 0; i < NLLH; i++)
+		if (u & (1 << i))
+			fputs(llh_text[i], stdout);
+}
+
 void
 puthelpers(void)
 {
+	putllhelpers();
 	if (helpers_used == 0)
 		return;
 	printf(".text\n");
@@ -561,6 +586,30 @@ zzzcode(NODE *p, int c)
 		printf("1: mov	(r1)+,(r0)+\n");
 		printf("sob	r2,1b\n");
 		spcoff += argsiz(p);
+		break;
+
+	case 'Y': /* a long from memory into a register pair that may hold the base register */
+		{
+			NODE *l = getlr(p, 'L');
+			int pr = DECRA(p->n_reg, 0) - R01;
+
+			if (l->n_op == OREG && !R2TEST(l->n_rval) && regno(l) == pr)
+				expand(p, FOREFF, "mov	UL,U1\nmov	AL,A1\n");
+			else
+				expand(p, FOREFF, "mov	AL,A1\nmov	UL,U1\n");
+		}
+		break;
+
+	case 'y': /* a long from memory assigned to a register pair that may hold the base register */
+		{
+			NODE *l = p->n_left, *r = p->n_right;
+
+			if (l->n_op == REG && r->n_op == OREG && !R2TEST(r->n_rval) &&
+			    regno(r) == regno(l) - R01)
+				expand(p, FOREFF, "mov	UR,UL\nmov	AR,AL\n");
+			else
+				expand(p, FOREFF, "mov	AR,AL\nmov	UR,UL\n");
+		}
 		break;
 
 	case 'M': /* a load through *(v += k) - k: the access, then v += k */

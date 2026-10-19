@@ -2995,7 +2995,12 @@ temparg(struct interpass *ipole, REGW *w)
 	while (ip->type != IP_DEFLAB)
 		ip = DLIST_NEXT(ip, qelem);
 	ip = DLIST_NEXT(ip, qelem); /* first NODE */
-	for (; ip->type != IP_DEFLAB; ip = DLIST_NEXT(ip, qelem)) {
+#ifdef ARGSAFTERLABEL
+	/* a second label comes before the arguments are loaded (the VAX) */
+	while (ip->type == IP_DEFLAB)
+		ip = DLIST_NEXT(ip, qelem);
+#endif
+	for (; ip->type != IP_DEFLAB && ip->type != IP_EPILOG; ip = DLIST_NEXT(ip, qelem)) {
 		if (ip->type == IP_ASM)
 			continue;
 		p = ip->ip_node;
@@ -3009,6 +3014,10 @@ temparg(struct interpass *ipole, REGW *w)
 
 		if (p->n_right->n_op != OREG)
 			continue; /* arg in register */
+#ifdef ARGSAFTERLABEL
+		if (regno(p->n_right) != ARGREG)
+			continue; /* not an argument */
+#endif
 		if (w != &nblock[regno(p->n_left)])
 			continue;
 		w->r_color = (int)getlval(p->n_right);

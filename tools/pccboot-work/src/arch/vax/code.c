@@ -164,6 +164,9 @@ efcode(void)
         ecomp(buildtree(ASSIGN, p, q));
 }
 
+/* the function being compiled returns a struct or union (in memory, whatever r0 holds) */
+int vax_retagg;
+
 void
 bfcode(struct symtab **sp, int n)
 {
@@ -180,6 +183,7 @@ bfcode(struct symtab **sp, int n)
 		c2_quadret = 0;
 	}
 	rt = DECREF(cftnsp->stype);
+	vax_retagg = (rt == STRTY || rt == UNIONTY);
 	if (rt == DOUBLE || rt == LDOUBLE || rt == LONGLONG || rt == ULONGLONG)
 		c2_quadret = 1;
 
@@ -250,6 +254,105 @@ static char *obuf;
 static size_t olen;
 #endif
 
+
+#ifdef VAX_AS_32V
+/*
+ * 32V's libc has no long long helpers either.  64-bit unsigned divide: 64 rounds of
+ * shift-and-subtract.  On entry the dividend is in r0:r1 and the divisor in r2:r3;
+ * the quotient is left in r0:r1 and the remainder in r2:r3.  r4-r7 are used.
+ */
+static void
+emit_udm(void)
+{
+	int l[7], i;
+
+	for (i = 0; i < 7; i++)
+		l[i] = getlab();
+	printf("\ttstl\tr3\n\tjneq\tL%d\n\ttstl\tr2\n\tjneq\tL%d\n\tdivl3\t$0,$1,r4\n", l[0], l[0]);
+	printf("L%d:\tclrq\tr6\n\tmovl\t$64,r4\n", l[0]);
+	printf("L%d:\tclrl\tr5\n\ttstl\tr7\n\tjgeq\tL%d\n\tincl\tr5\n", l[1], l[2]);
+	printf("L%d:\tashq\t$1,r6,r6\n\ttstl\tr1\n\tjgeq\tL%d\n\tbisl2\t$1,r6\n", l[2], l[3]);
+	printf("L%d:\tashq\t$1,r0,r0\n\ttstl\tr5\n\tjneq\tL%d\n", l[3], l[4]);
+	printf("\tcmpl\tr7,r3\n\tjgtru\tL%d\n\tjlssu\tL%d\n\tcmpl\tr6,r2\n\tjlssu\tL%d\n", l[4], l[5], l[5]);
+	printf("L%d:\tsubl2\tr2,r6\n\tsbwc\tr3,r7\n\tbisl2\t$1,r0\n", l[4]);
+	printf("L%d:\tsobgtr\tr4,L%d\n\tmovq\tr6,r2\n", l[5], l[1]);
+}
+
+/* r0:r1 = -r0:r1 */
+static void
+emit_negq(void)
+{
+	printf("\tmcoml\tr0,r0\n\tmcoml\tr1,r1\n\taddl2\t$1,r0\n\tadwc\t$0,r1\n");
+}
+
+/* make a quad in reg:reg+1 positive, counting a flip in r8 */
+static void
+emit_absq(int r, int flipr9)
+{
+	int l = getlab();
+
+	printf("\ttstl\tr%d\n\tjgeq\tL%d\n\tincl\tr8\n", r + 1, l);
+	if (flipr9)
+		printf("\tincl\tr9\n");
+	printf("\tmcoml\tr%d,r%d\n\tmcoml\tr%d,r%d\n\taddl2\t$1,r%d\n\tadwc\t$0,r%d\n"
+	    "L%d:\n", r, r, r + 1, r + 1, r, r + 1, l);
+}
+
+static void
+emit_qhelpers(void)
+{
+	int l1, l2, l3, i;
+
+	if (vax_helpers & HELP_MULQ) {
+		l1 = getlab(); l2 = getlab();
+		printf("\t.text\n__muldi3:\t.word\t0x4\n"
+		    "\temul\t4(ap),12(ap),$0,r0\n"
+		    "\ttstl\t4(ap)\n\tjgeq\tL%d\n\taddl2\t12(ap),r1\n"
+		    "L%d:\ttstl\t12(ap)\n\tjgeq\tL%d\n\taddl2\t4(ap),r1\n"
+		    "L%d:\tmull3\t4(ap),16(ap),r2\n\taddl2\tr2,r1\n"
+		    "\tmull3\t8(ap),12(ap),r2\n\taddl2\tr2,r1\n\tret\n", l1, l1, l2, l2);
+	}
+	if (vax_helpers & (HELP_UDIVQ | HELP_UMODQ)) {
+		for (i = 0; i < 2; i++) {
+			if (!(vax_helpers & (i ? HELP_UMODQ : HELP_UDIVQ)))
+				continue;
+			printf("\t.text\n__u%sdi3:\t.word\t0xfc\n\tmovq\t4(ap),r0\n\tmovq\t12(ap),r2\n",
+			    i ? "mod" : "div");
+			emit_udm();
+			if (i)
+				printf("\tmovq\tr2,r0\n");
+			printf("\tret\n");
+		}
+	}
+	if (vax_helpers & (HELP_DIVQ | HELP_MODQ)) {
+		for (i = 0; i < 2; i++) {
+			if (!(vax_helpers & (i ? HELP_MODQ : HELP_DIVQ)))
+				continue;
+			printf("\t.text\n__%sdi3:\t.word\t0x3fc\n\tmovq\t4(ap),r0\n\tmovq\t12(ap),r2\n"
+			    "\tclrl\tr8\n\tclrl\tr9\n", i ? "mod" : "div");
+			emit_absq(0, 1);	/* a negative dividend: remainder negative */
+			emit_absq(2, 0);
+			emit_udm();
+			if (i) {
+				printf("\tmovq\tr2,r0\n\tblbc\tr9,L%d\n", l3 = getlab());
+				emit_negq();
+				printf("L%d:\tret\n", l3);
+			} else {
+				printf("\tblbc\tr8,L%d\n", l3 = getlab());
+				emit_negq();
+				printf("L%d:\tret\n", l3);
+			}
+		}
+	}
+	if (vax_helpers & HELP_LSHRQ) {
+		printf("\t.text\n__lshrdi3:\t.word\t0x3c\n"
+		    "\tmovq\t4(ap),r0\n\tmnegl\t12(ap),r2\n\tashq\tr2,r0,r0\n"
+		    "\tsubl3\t12(ap),$64,r2\n\tmnegl\t$1,r4\n\tmnegl\t$1,r5\n\tashq\tr2,r4,r4\n"
+		    "\tbicl2\tr4,r0\n\tbicl2\tr5,r1\n\tret\n");
+	}
+}
+#endif
+
 void
 ejobcode(int flag)
 {
@@ -282,6 +385,15 @@ ejobcode(int flag)
 		    "L%d:\tclrl\tr0\n\tret\n"
 		    "L%d:\tmovl\t4(ap),r0\n\tcmpl\tr0,r1\n\tjlssu\tL%d\n\tsubl2\tr1,r0\nL%d:\tret\n",
 		    l1, l2, l2, l1, l3, l3);
+	}
+	if (!flag) {
+		int qi;
+
+		emit_qhelpers();
+		for (qi = 0; qi < nqpool; qi++)
+			printf("\t.data\n\t.align\t2\nL%d:\t.long\t0x%llx,0x%llx\n", qpool[qi].lab,
+			    qpool[qi].v & 0xffffffffULL, qpool[qi].v >> 32);
+		printf("\t.text\n");
 	}
 	if (realout != NULL) {
 		fclose(stdout);

@@ -247,6 +247,8 @@ static void arena_release(void)
 int addsob(void);
 void backjmp(struct node *ap1, struct node *ap2);
 struct node * bflow(struct node *p);
+static int pairfold(struct node *p, int r);
+static void renameload(void);
 struct node * bicopt(struct node *p);
 void bitopt(struct node *p);
 int bixprep(struct node *p, int bix);
@@ -255,7 +257,8 @@ struct optab * c2getline(void);
 int clearreg(void);
 int clearuse(void);
 static void liveall(struct node *p, int islab);
-static void findlive(void);
+static int noval(struct node *p);
+static int findlive(void);
 struct node * codemove(struct node *ap);
 int comjump(void);
 int compare(int op, char *acp1, char *acp2);
@@ -263,6 +266,7 @@ char * copy(char *ap);
 int decref(struct node *p);
 int delnode(struct node *p);
 int dest(char *s, int type);
+static void cvtcc(int subop);
 int equop(struct node *p1, struct node *p2);
 int equstr(char *p1, char *p2);
 int equtype(int t1, int t2);
@@ -296,7 +300,7 @@ int xjump(struct node *p1);
 
 int main(int argc, char **argv)
 {
-	register int niter, maxiter, isend;
+	register int niter, maxiter, isend, nbm;
 	int nflag,infound;
 
 	nflag = 0; infound=0; argc--; argv++;
@@ -325,15 +329,25 @@ int main(int argc, char **argv)
 		niter = 0;
 		bmove();
 		do {
-			refcount();
 			do {
-				iterate();
-				clearreg();
-				niter++;
-			} while (nchange);
-			comjump();
-			rmove();
-		} while (nchange || jumpsw());
+				refcount();
+				do {
+					iterate();
+					clearreg();
+					niter++;
+				} while (nchange);
+				comjump();
+				rmove();
+			} while (nchange || jumpsw());
+			/*
+			 * The backward pass ran once, before iterate() made copies of copies
+			 * (movl 4(ap),r1 became movl r2,r1); once more finds what they allow.
+			 */
+			nbm = redunm;
+			renameload();
+			bmove();
+			nchange = redunm != nbm;
+		} while (nchange);
 		addsob();
 		output();
 		if (niter > maxiter)
@@ -851,7 +865,8 @@ int comjump(void)
 	for (p1 = first.forw; p1!=0; p1 = p1->forw)
 		if (p1->op==JBR && ((p2 = p1->ref) && p2->refc > 1 || p1->subop==RET))
 			for (p3 = p1->forw; p3!=0; p3 = p3->forw)
-				if (p3->op==JBR && p3->ref == p2)
+				if (p3->op==JBR && p3->ref == p2 &&
+				    (p1->subop!=RET || noval(p1)==noval(p3)))
 					backjmp(p1, p3);
 }
 
@@ -872,6 +887,7 @@ void backjmp(struct node *ap1, struct node *ap2)
 			decref(p2->ref);
 			p2->combop = JBR; /* to handle RET */
 			p2->pop=0;
+			p2->code = 0;	/* a ret's `# noval' is not a jump's operand */
 			p2->labno = p3->labno;
 			p2->ref = p3;
 			nchange++;
@@ -917,11 +933,39 @@ int redun3(struct node *p, int split){
 	} return(0);
 }
 
+/*
+ * mov r,x; tst r; jcc: the move set the codes from the value of r (what
+ * `while (*s++ = *t++)' tests); a signed test cannot see C.  Deletes the tst.
+ */
+static int
+tstaftermov(struct node *p)
+{
+	char *c = p->code;
+	size_t n;
+
+	if (p->op!=TST || p->back->op!=MOV || p->back->subop!=p->subop
+	  || !p->back->code || !c || isreg(c)<0)
+		return 0;
+	n = strlen(c);
+	if (strncmp(p->back->code, c, n)!=0 || p->back->code[n]!=',')
+		return 0;
+	if (!p->forw || p->forw->op!=CBR || p->forw->subop>JGT)
+		return 0;
+	delnode(p);
+	return 1;
+}
+
 int bmove(void){
 	register struct node *p, *lastp; register char *cp1,*cp2; register int r;
 	refcount();
 	for (p=lastp= &first; 0!=(p=p->forw); lastp=p);
-	clearreg(); clearuse(); findlive();
+	for (p= &first; 0!=(p=p->forw); )
+		if (p->op==TST && p->back!= &first && tstaftermov(p)) {
+			nrtst++; p=p->back;
+		}
+	for (p=lastp= &first; 0!=(p=p->forw); lastp=p);
+	clearreg(); clearuse();
+	if (findlive()) { refcount(); findlive(); }
 	for (p=lastp; p!= &first; p=p->back) {
 	if (debug) {
 		for (r=NUSE;--r>=0;) if (uses[r]) printf("%d: %s\n",r,uses[r]->code);
@@ -962,7 +1006,10 @@ int bmove(void){
 	default: std:
 		p=bflow(p); break;
 	case JBR:
-		if (p->subop==RET) {uses[0]=p; regs[0][0]= -1; break;}
+		if (p->subop==RET) {
+			if (!noval(p)) {uses[0]=p; regs[0][0]= -1;}
+			break;
+		}
 		else if (p->ref->ref!=0) for (r=NUSE;--r>=0;)
 			if (biti[r] & (uintptr_t)p->ref->ref) {uses[r]=p; regs[r][0]= -1;}
 		liveall(p, 0); break;
@@ -1008,6 +1055,8 @@ int rmove(void)
 		r = isreg(regs[RT1]);
 		r1 = isreg(regs[RT2]);
 		dest(regs[RT2],p->subop);
+		if (p->op==CVT && ccloc[0])
+			cvtcc(p->subop);
 		if (r >= 0)
 			if (r1 >= 0) savereg(r1, regs[r]+1, p->subop);
 			else savereg(r, regs[RT2], p->subop);
@@ -1037,6 +1086,8 @@ int rmove(void)
 		repladdr(p);
 		dest(lastrand,p->subop);
 		if (p->op==INSV) ccloc[0]=0;
+		if (p->op==MOVZ && ccloc[0])
+			cvtcc(p->subop);
 		break;
 
 /* .mx or .wx */
@@ -1072,6 +1123,11 @@ int rmove(void)
 		  && p->forw->op==CBR && p->forw->subop<=JGT) {
 			delnode(p); p = p->back; nrtst++; nchange++;
 			setcc(regs[RT1],p->subop); ccarith = 1;
+			break;
+		}
+		if (p->op==TST && tstaftermov(p)) {
+			p = p->back; nrtst++; nchange++;
+			ccloc[0]=0;
 			break;
 		}
 		if (p->op==TST && equstr(lastrand=regs[RT1], ccloc+1)
@@ -1198,9 +1254,111 @@ fwdaddr(struct node *p, int rb, int ra)
 	return 1;
 }
 
+/*
+ * movl S,rA; movl d(rA),rA; movl S,rB  with S a plain memory operand (a stack slot):
+ * the first load may as well go to rB, so that the third is redundant and rB, not rA,
+ * is the base of what follows:  movl S,rB; movl d(rB),rA.  (*p++ through a pointer in
+ * its slot: the old pointer overwrote the pointer.)
+ */
+static void
+renameload(void)
+{
+	struct node *a, *b, *c;
+	char ca[80], cb[80], cc[80], *s1, *s2, *s3, src[80], buf[80];
+	int ra, rb;
+
+	for (a = first.forw; a && (b = a->forw) && (c = b->forw); a = a->forw) {
+		if (a->op != MOV || b->op != MOV || c->op != MOV || a->subop != LONG ||
+		    b->subop != LONG || c->subop != LONG || !a->code || !b->code || !c->code)
+			continue;
+		snprintf(ca, sizeof ca, "%s", a->code);
+		snprintf(cb, sizeof cb, "%s", b->code);
+		snprintf(cc, sizeof cc, "%s", c->code);
+		/* S,rA */
+		if ((s1 = strrchr(ca, ',')) == 0 || (ra = isreg(s1+1)) < 0 || ra >= NUSE)
+			continue;
+		*s1 = 0;
+		snprintf(src, sizeof src, "%s", ca);
+		if (strchr(src, 'r') && (strstr(src, "(r") || src[0] == 'r' || strchr(src, '[')))
+			continue;
+		if (strchr(src, '+') || strchr(src, '*') || strchr(src, '$') || isreg(src) >= 0)
+			continue;
+		/* d(rA),rA */
+		if ((s2 = strrchr(cb, ',')) == 0 || isreg(s2+1) != ra)
+			continue;
+		*s2 = 0;
+		snprintf(buf, sizeof buf, "(r%d)", ra);
+		if (!strstr(cb, buf) || strchr(cb, '+') || strchr(cb, '[') || strchr(cb, '*'))
+			continue;
+		/* S,rB */
+		if ((s3 = strrchr(cc, ',')) == 0 || (rb = isreg(s3+1)) < 0 || rb >= NUSE || rb == ra)
+			continue;
+		*s3 = 0;
+		if (strcmp(cc, src) != 0)
+			continue;
+		/* rA is the old value of rB nowhere; the new first load must not disturb rB's readers */
+		snprintf(buf, sizeof buf, "r%d", rb);
+		if (strstr(cb, buf))
+			continue;
+		snprintf(buf, sizeof buf, "%s,r%d", src, rb);
+		a->code = copy(buf); a->pop = 0;
+		snprintf(buf, sizeof buf, "%s,r%d", cb, ra);
+		{ char *q = strstr(cb, "(r"); (void)q; }
+		{
+			char nb[80], *t = cb;
+			char pat[16];
+			int n = 0;
+
+			snprintf(pat, sizeof pat, "(r%d)", ra);
+			while (*t && n < (int)sizeof nb - 8) {
+				if (strncmp(t, pat, strlen(pat)) == 0) {
+					n += snprintf(nb+n, sizeof nb - n, "(r%d)", rb);
+					t += strlen(pat);
+				} else
+					nb[n++] = *t++;
+			}
+			nb[n] = 0;
+			snprintf(buf, sizeof buf, "%s,r%d", nb, ra);
+		}
+		b->code = copy(buf); b->pop = 0;
+		nchange++;
+	}
+}
+
+/*
+ * A double computed into r0:r1 by an instruction that only writes it (a three-operand
+ * form, mov, neg, cvt) and then moved as a quad, `muld3 a,b,r0; movq r0,Y': the result can
+ * go to Y if nothing reads the other half, r1.  (pcc moves doubles with movq; the bits are
+ * the same as movd's.)
+ */
+static int
+pairfold(struct node *p, int r)
+{
+	int t;
+
+	if (p->forw->op != MOV || (regs[r][0] & 0xF) != QUAD || r + 1 >= NUSE || uses[r+1] != 0)
+		return 0;
+	switch (p->op) {
+	case ADD: case SUB: case MUL: case DIV:
+		if ((p->subop >> 4) != OP3)
+			return 0;
+		t = p->subop & 0xF;
+		break;
+	case MOV: case NEG:
+		t = p->subop & 0xF;
+		break;
+	case CVT:
+		t = (p->subop >> 4) & 0xF;
+		break;
+	default:
+		return 0;
+	}
+	return t == DOUBLE;
+}
+
 struct node * bflow(struct node *p){
 	register char *cp1,*cp2,**preg; register int r;
-	int i_ra;
+	int i_ra, narrowfold;
 	splitrand(p);
 	/* movab sym,r is moval sym,r unless it is indexed: an address is an address */
 	if (p->op==MOVA && p->subop==BYTE && !indexa(regs[RT1])) {
@@ -1214,9 +1372,38 @@ struct node * bflow(struct node *p){
 	  uses[r]==p->forw && (regs[r][0]==(char)(OPB<<4) || regs[r][0]==(char)(OPX<<4)) &&
 	  0<=(i_ra=isreg(regs[RT1])) && i_ra!=r && i_ra<NUSE+6 && fwdaddr(p,r,i_ra))
 		p=p->forw;
+	/*
+	 * movl X,rN followed only by movb/movw rN,Y reads just the low part of
+	 * rN: movb X,Y (not for a constant, an index or a side effect in X, which
+	 * would scale or step by the longword).
+	 */
+	narrowfold = 0;
+	if (p->op==MOV && p->subop==LONG && 0<=(r=isreg(lastrand)) && r<NUSE
+	  && uses[r]==p->forw && p->forw->op==MOV
+	  && ((p->forw->subop&0xF)==BYTE || (p->forw->subop&0xF)==WORD)
+	  && p->forw->subop==regs[r][0] && regs[r][0]!= -1
+	  && *regs[RT1]!='$' && !strchr(regs[RT1],'[') && !source(regs[RT1])
+	  && p->forw->code && strncmp(p->forw->code, lastrand, strlen(lastrand))==0
+	  && p->forw->code[strlen(lastrand)]==',') {
+		char *dst = p->forw->code+strlen(lastrand)+1;
+
+		if (!strstr(dst, lastrand)) {
+			char buf[80];
+
+			snprintf(buf, sizeof buf, "%s,%s", regs[RT1], dst);
+			p->forw->code = copy(buf);
+			p->forw->pop = 0;
+			delnode(p);
+			p = p->forw;
+			redunm++; uses[r]=0; (void)memset(regs[r],0,2);
+			narrowfold = 1;
+			splitrand(p);
+		}
+	}
+	if (!narrowfold)
 	if (0<=(r=isreg(lastrand)) && r<NUSE && p->op!=PUSH &&
 	  uses[r]==p->forw && p->subop &&
-	  (equtype(regs[r][0],p->subop) ||
+	  (equtype(regs[r][0],p->subop) || pairfold(p, r) ||
 	  /* cvtbl/movzbl: what is written is the destination type, not the source's */
 	  ((p->op==CVT || p->op==MOVZ) && ((p->subop>>4)&0xF)==(regs[r][0]&0xF)))) {
 		if (regs[r][1]!=0) {/* send directly to destination */
@@ -1328,6 +1515,35 @@ struct node * bflow(struct node *p){
 			*regs[RT2]=0;
 			p->op=PUSH; p->subop=LONG; p->pop=0;
 			newcode(p); redunm++;
+		}
+	}
+	/*
+	 * subl3 $1,M,rD; movl rD,M  is  decl M; movl M,rD  (two bytes less when M
+	 * has a displacement), the usual `*--p->ptr = c'.
+	 */
+	if ((p->op==ADD || p->op==SUB) && p->subop==(LONG|(OP3<<4)) && p->forw
+	  && p->forw->op==MOV && p->forw->subop==LONG) {
+		splitrand(p);
+		if (equstr(regs[RT1],"$1") && 0<=isreg(regs[RT3]) && *regs[RT2]
+		  && !strchr(regs[RT2],'[') && !source(regs[RT2]) && isreg(regs[RT2])<0
+		  && !strstr(regs[RT2], regs[RT3]) && p->forw->code
+		  && uses[isreg(regs[RT3])]!=p->forw) {	/* rD still wanted: else the move is folded away */
+			char want[80];
+
+			snprintf(want, sizeof want, "%s,%s", regs[RT3], regs[RT2]);
+			if (equstr(p->forw->code, want)) {
+				char buf[80], buf2[80];
+
+				snprintf(buf, sizeof buf, "%s", regs[RT2]);
+				snprintf(buf2, sizeof buf2, "%s,%s", regs[RT2], regs[RT3]);
+				p->op = (p->op==ADD ? INC : DEC);
+				p->subop = LONG; p->pop = 0;
+				p->code = copy(buf);
+				p->forw->code = copy(buf2);
+				p->forw->pop = 0;
+				redunm++;
+				splitrand(p);
+			}
 		}
 	}
 	/* addX2 $1,dst and subX2 $1,dst are incX dst and decX dst (cc.: 32V's
@@ -1656,25 +1872,36 @@ simpleop(struct node *p)	/* operands are single registers: no pairs */
 }
 
 /* the registers p reads and the ones it certainly writes */
+/*
+ * What p reads and writes of r0..r5.  rd: registers read whole (a long, or the
+ * base of an address); rn: read as a byte or word only; wr: written whole, so
+ * what was there is gone; wn: a byte or word moved in, the rest of the register
+ * stays (so the old value is still live to anything that reads it whole).
+ */
 static void
-insrw(struct node *p, int *rd, int *wr)
+insrw(struct node *p, int *rd, int *wr, int *rn, int *wn)
 {
 	char *c, *last, *end;
-	int r;
+	int r, narrow;
 
-	*rd = *wr = 0;
+	*rd = *wr = *rn = *wn = 0;
 	if (p->op == 0) {
 		*rd = ALLREGS;
 		return;
 	}
 	if (p->op == JBR && p->subop == RET) {
-		*rd = 3;
+		*rd = noval(p) ? 0 : 3;
 		return;
 	}
 	if ((c = p->code) == 0)
 		return;
+	narrow = (p->subop & 0xF) == BYTE || (p->subop & 0xF) == WORD;
+	narrow = narrow && (p->op == MOV || p->op == TST || p->op == CMP);
 	last = 0;
 	if (simplew(p)) {
+		last = c + strlen(c);
+		while (last > c && last[-1] != ',') last--;
+	} else if (narrow && p->op == MOV) {
 		last = c + strlen(c);
 		while (last > c && last[-1] != ',') last--;
 	}
@@ -1690,16 +1917,31 @@ insrw(struct node *p, int *rd, int *wr)
 		}
 		if (isalnum((unsigned char)*end) || *end == '_')
 			continue;
-		if (last && c == last && c[2] == 0)
+		if (last && c == last && c[2] == 0 && !narrow)
 			continue;		/* the register written */
+		if (narrow && (c == p->code || c[-1] == ',') && (c[2] == 0 || c[2] == ',')) {
+			/* the whole operand is this register: a narrow read or write */
+			if (c == last && c[2] == 0) {
+				if (r < NUSE) *wn |= 1 << r;
+			} else if (r < NUSE)
+				*rn |= 1 << r;
+			continue;
+		}
 		if (r < NUSE) *rd |= 1 << r;
 		if (!simpleop(p) && r + 1 < NUSE) *rd |= 1 << (r + 1);
 	}
-	if (last && last[0] == 'r' && isdigit((unsigned char)last[1]) && last[2] == 0
+	if (!narrow && last && last[0] == 'r' && isdigit((unsigned char)last[1]) && last[2] == 0
 	    && last[1] - '0' < NUSE)
 		*wr |= 1 << (last[1] - '0');
 	if (p->op == CALLS)
 		*wr |= 3;
+}
+
+/* ccom writes `ret # noval' for a function that returns nothing in r0 */
+static int
+noval(struct node *p)
+{
+	return p->code != 0 && strstr(p->code, "noval") != 0;
 }
 
 static int
@@ -1724,6 +1966,14 @@ isdatanode(struct node *p)
 	return 0;
 }
 
+/*
+ * Liveness is kept as two masks in one int: the low byte, registers whose whole
+ * value is still needed; bits 8 and up, registers of which anything is needed
+ * (a byte or word read counts there only).  The second is what the rest of c2 asks.
+ */
+#define LIVEPK(x)	((x) | ((x) << 8))
+#define LIVEANY(m)	(((m) >> 8) & ALLREGS)
+
 /* the registers live where branch p goes */
 static int
 liveto(struct node *p)
@@ -1731,18 +1981,41 @@ liveto(struct node *p)
 	int n;
 
 	if (p->op == JBR && p->subop == RET)
-		return c2_quadret ? 3 : 1;	/* r1 only if some function returns a quad */
-	if (p->op == CASE || p->ref == 0 || p->ref->op != LABEL)
-		return ALLREGS;
+		return noval(p) ? 0 : LIVEPK(c2_quadret ? 3 : 1);	/* r1 only if some function returns a quad */
+	/* a casel reads its selector; where it goes is the table that follows it, a jump node per case */
+	if (p->op == CASE)
+		return 0;
+	if (p->ref == 0 || p->ref->op != LABEL)
+		return LIVEPK(ALLREGS);
 	n = p->ref->labno;
-	return n > 0 && n < nlabin ? labin[n] : ALLREGS;
+	return n > 0 && n < nlabin ? labin[n] : LIVEPK(ALLREGS);
 }
 
-static void
+/* does p write only a register that is not live after it, with nothing else to its credit? */
+static int
+deadwrite(struct node *q, int any)
+{
+	int r, t;
+
+	if ((q->op != MOV && q->op != CVT && q->op != MOVZ) || q->code == 0 ||
+	    q->forw == 0 || q->forw->op == CBR)
+		return 0;
+	t = q->op == MOV ? q->subop & 0xF : (q->subop >> 4) & 0xF;
+	if (t < BYTE || t > LONG)
+		return 0;
+	splitrand(q);
+	if (*regs[RT3] || (r = isreg(regs[RT2])) < 0 || r >= NUSE || (any & (1 << r)))
+		return 0;
+	if (source(regs[RT1]))
+		return 0;
+	return 1;
+}
+
+static int
 findlive(void)
 {
 	struct node *p, *q, **bs = 0;
-	int nb = 0, cap = 0, b, changed, live, rd, wr, mx = 0, *bin;
+	int nb = 0, cap = 0, b, changed, live, rd, wr, rn, wn, mx = 0, *bin, nd;
 
 	for (p = first.forw; p != 0; p = p->forw) {
 		if (p->op == LABEL && p->labno > mx) mx = p->labno;
@@ -1773,12 +2046,15 @@ findlive(void)
 					live = liveto(q);
 					continue;
 				}
-				if (q->op == CASE)
-					live = ALLREGS;
-				else if (isbranch(q))
+				if (isbranch(q))
 					live |= liveto(q);
-				insrw(q, &rd, &wr);
-				live = (live & ~wr) | rd;
+				insrw(q, &rd, &wr, &rn, &wn);
+				{
+					int whole = ((live & ALLREGS) & ~wr) | rd;
+					int any = (((live >> 8) & ALLREGS) & ~wr & ~wn) | rn | rd | whole;
+
+					live = whole | (any << 8);
+				}
 			}
 			if (bin[b] != live) {
 				bin[b] = live;
@@ -1788,17 +2064,54 @@ findlive(void)
 			}
 		}
 	} while (changed);
+	/*
+	 * A mov, cvt or movz into a register that nothing reads afterwards, from a
+	 * source with no side effect (`*p++;' loads the old pointer for nothing), is
+	 * deleted unless the codes it sets are what the next instruction branches on.
+	 */
+	nd = 0;
+	for (b = nb; --b >= 0;) {
+		struct node *end = b + 1 < nb ? bs[b + 1] : 0, *pq;
+
+		for (q = bs[b]; q->forw != end && q->forw != 0; q = q->forw);
+		live = b + 1 < nb ? bin[b + 1] : 0;
+		for (; q != bs[b]; q = pq) {
+			pq = q->back;
+			if (isdatanode(q))
+				continue;
+			if (q->op == JBR) {
+				live = liveto(q);
+				continue;
+			}
+			if (isbranch(q))
+				live |= liveto(q);
+			if (deadwrite(q, LIVEANY(live))) {
+				delnode(q);
+				nd++;
+				continue;
+			}
+			insrw(q, &rd, &wr, &rn, &wn);
+			{
+				int whole = ((live & ALLREGS) & ~wr) | rd;
+				int any = (((live >> 8) & ALLREGS) & ~wr & ~wn) | rn | rd | whole;
+
+				live = whole | (any << 8);
+			}
+		}
+	}
 	free(bin);
 	free(bs);
+	return nd;
 }
 
 /* at a branch (islab == 0) or a label (islab != 0): mark what is live there */
 static void liveall(struct node *p, int islab){
 	register int r, m;
 	if (islab)
-		m = p->op == LABEL && p->labno > 0 && p->labno < nlabin ? labin[p->labno] : ALLREGS;
+		m = p->op == LABEL && p->labno > 0 && p->labno < nlabin ? labin[p->labno] : LIVEPK(ALLREGS);
 	else
 		m = liveto(p);
+	m = LIVEANY(m);
 	for (r=NUSE; --r>=0;) {
 		if (m & (1 << r)) {uses[r]=p; regs[r][0]= -1;}
 		else if (islab) uses[r]=0;
@@ -1828,6 +2141,18 @@ void savereg(int ai, char *s, int type)
 	*p++ = type;
 	while (*p++ = *s)
 		if (*s=='[' || *s++=='(' && *s!='a' && *s!='f') {*sp = 0; return;}
+}
+
+/*
+ * cvt and movz leave the codes of what they store, which is the destination
+ * type (U(from,to) holds `to' in the high nibble); dest() recorded the pair.
+ */
+static void
+cvtcc(int subop)
+{
+	ccloc[0] = (subop >> 4) & 0xF;
+	/* V and C may differ from a tst's: the same restriction as incX */
+	ccarith = 1;
 }
 
 int dest(char *s, int type)

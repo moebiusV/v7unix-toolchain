@@ -999,6 +999,15 @@ statement:	   e ';' { ecomp(eve($1)); symclear(blevel); }
 			}
 #endif
 			p = buildtree(RETURN, p, q);
+#ifdef LOWERLL
+			if (p->n_type == LONGLONG || p->n_type == ULONGLONG) {
+				/* a long long comes back as the address of a static copy */
+				p->n_right = llreturn(p->n_right);
+				p->n_type = PTR+LONGLONG;
+				p->n_df = NULL;
+				p->pss = NULL;
+			}
+#endif
 			if (p->n_type == VOID) {
 				ecomp(p->n_right);
 			} else {

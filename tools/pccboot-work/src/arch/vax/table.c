@@ -743,7 +743,7 @@ struct optab  table[] = {
 		NAREG,	RESC1,
 		"	divl3	AR,AL,A1\n	mull2	AR,A1\n	subl3	A1,AL,A1\n", },
 
-{ PLUS,	INBREG|FORCC,
+{ PLUS,	INBREG,
 	SBREG,		TLL,
 	SBREG|AWD,	TLL,
 		0,	RLEFT,
@@ -762,7 +762,7 @@ struct optab  table[] = {
 		0,	RLEFT|RESCC,
 		"	decZL	AL\n", },
 
-{ MINUS,	INBREG|FORCC,
+{ MINUS,	INBREG,
 	SBREG,		TLL,
 	SBREG|AWD,	TLL,
 		0,	RLEFT,

@@ -105,6 +105,8 @@ makeimm(NODE *q, unsigned int w)
  * in addition, any special features (such as rewriting
  * exclusive or) are easily handled here as well
  */
+extern P1ND *llulshr(P1ND *, P1ND *);
+
 NODE *
 clocal(NODE *p)
 {
@@ -122,6 +124,17 @@ clocal(NODE *p)
 	}
 #endif
 	switch( o = p->n_op ){
+
+	case RS:
+		/* ashc is an arithmetic shift: an unsigned long >> n is a call (lowerll.c) */
+		if (p->n_type == ULONG && !(p->n_right->n_op == ICON && p->n_right->n_sp == NULL &&
+		    glval(p->n_right) == 0)) {
+			r = p->n_right;
+			l = p->n_left;
+			p1nfree(p);
+			return llulshr(l, r);
+		}
+		break;
 
 	case NAME:
 		if ((q = p->n_sp) == NULL)
@@ -445,9 +458,9 @@ andable(NODE *p)
 int
 cisreg(TWORD t)
 {
-//	if (t == FLOAT || t == DOUBLE || t == LDOUBLE ||
-//	    t == LONGLONG || t == ULONGLONG)
-//		return 0; /* not yet */
+	/* a long long lives in memory: it is addressed, never held in a register */
+	if (t == LONGLONG || t == ULONGLONG)
+		return 0;
 	return 1;
 }
 
@@ -542,12 +555,14 @@ ninval(CONSZ off, int fsz, NODE *p)
 	switch (t) {
 	case LONGLONG:
 	case ULONGLONG:
-		i = (glval(p) >> 32);
-		slval(p, glval(p) & 0xffffffff);
-		p->n_type = INT;
-		ninval(off, 32, p);
-		slval(p, i);
-		ninval(off+32, 32, p);
+		/* four words, the most significant first */
+		{
+			CONSZ v = glval(p);
+
+			printf("%o ; %o ; %o ; %o\n", (int)((v >> 48) & 0177777),
+			    (int)((v >> 32) & 0177777), (int)((v >> 16) & 0177777),
+			    (int)(v & 0177777));
+		}
 		break;
 	case LONG:
 	case ULONG:
@@ -611,13 +626,6 @@ ctype(TWORD type)
 		MODTYPE(type,DOUBLE);
 		break;
 
-	/* XXX remove as soon as 64-bit is added */
-	case LONGLONG:
-		MODTYPE(type,LONG);
-		break;
-	case ULONGLONG:
-		MODTYPE(type,ULONG);
-		break;
 	}
 	return (type);
 }
@@ -715,3 +723,5 @@ void
 pass1_lastchance(struct interpass *ip)
 {
 }
+
+#include "lowerll.c"
