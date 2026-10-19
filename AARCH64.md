@@ -26,6 +26,7 @@ Not done, and diagnosed rather than miscompiled where the front end can tell:
 * Apple Silicon (`./configure --target=aarch64-apple-darwin`): the output is Mach-O assembler (underscore names, `L` labels,
   `.const_data`/`.cstring`, `@PAGE`/`@PAGEOFF`) and the 67 test programs assemble with `clang --target=arm64-apple-macos`, with and
   without `-xdmr`; nothing was run; variables defined elsewhere are reached through the GOT,
+  variable arguments follow Apple's convention (the arguments of the `...` in 8-byte stack slots, `va_list` a `char *`);
   functions are called directly (the linker makes stubs), and their addresses are taken directly.  (The preprocessor's own Mach-O branch does not compile; build `cc/ccom` alone.)
 * `long double` is `double` (`ctype()` maps it), `long long` is `long`.  A real 128-bit `long double` needs a quad-precision
   value that lives in a `q` register or in memory behind library calls (`__addtf3` and the rest); PR #47 declares one (16 bytes,
