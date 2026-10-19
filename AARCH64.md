@@ -13,25 +13,31 @@ carries the dmr-cc ideas that make sense on this machine over to it.
 Works: `char`/`short`/`int`/`long`/pointers, `float`/`double`, structs and unions (by value as
 arguments and results, assigned, nested), arrays, bit-fields, `switch` (as compare chains),
 function pointers, static data of every kind, large frames, large offsets and constants,
-calls with any number of arguments.  All of the LP64 corpus (`tools/a64tests`, 60 programs,
-five flag sets) passes, and so do the 127 programs of `x86tests` and `pcctests` that are valid
-on an LP64 machine.  The V7 libc and 29 of the commands compile and assemble.
+calls with any number of arguments, `<stdarg.h>` (`va_list`, `va_arg`, `va_copy`).  All of the LP64
+corpus (`tools/a64tests`, 67 programs, five flag sets) passes, and so do the 127 programs of `x86tests` and `pcctests` that are valid
+on an LP64 machine.  The calling convention is checked against clang: `tools/arm64abi.sh` compiles one file with pcc
+and one with clang, lets each call the other's functions (structs of every size and class by value, as results,
+around other arguments, with the registers running out, and through `...`), and runs them on the emulator.  The V7 libc and 29 of the commands compile and assemble.
 
 Not done, and diagnosed rather than miscompiled where the front end can tell:
 
 * `alloca` and variable-length arrays: `spalloc()` gives an error message.
-* `<stdarg.h>`: `__builtin_va_list` is not defined yet.
+* `va_arg` of a struct whose members are all floating-point (a diagnostic is given).
 * `long double` is `double` (`ctype()` maps it), `long long` is `long`.
 * jump tables for `switch` (`mygenswitch` returns 0, so the generic compare chain is used).
-* `-xssa`: one test (`structcopy`) fails with it.  The standing rule is that `-xssa` stays off.
+* `-xssa`: `structcopy` and the varargs tests fail with it, so `pcc -O` leaves it off for this target (it is on for the other Linux targets).  Asking for it explicitly is unsupported.
 
-Where it differs from the AAPCS64 standard (so code from this compiler does not call code from
-another compiler when the call passes a struct by value or returns one):
+Structs follow AAPCS64 (since 18 October 2026): up to 16 bytes in one or two `x` registers, one to four
+`float`s or `double`s (also inside nested structs and arrays) in as many `v` registers, anything larger copied by the
+caller and passed by address, a result of up to 16 bytes back in `x0`/`x1` (or `v0`..`v3`), a larger result written
+through the address in `x8`.  A struct that does not fit the registers left goes to the stack and takes the remaining
+registers with it, as the standard says.
 
-* a struct argument is always copied into the argument area in memory, never passed in `x0`..`x7`
-  and never by reference;
-* a struct result comes back through a pointer passed in `x8` and returned in `x0`, whatever the
-  size;
+Where it still differs from the standard:
+
+* a register pair is not aligned to an even register for a 16-byte-aligned type (no such type exists here);
+* `long double` is `double`, so `long double` arguments and the 128-bit floating-point aggregates the standard
+  describes are not what this compiler passes;
 * plain `char` is signed (Apple's arm64 does the same; AAPCS64 proper has it unsigned).
 
 ## Registers and the frame

@@ -1,7 +1,8 @@
 #!/bin/sh
 #
 # arm64test-all -- run tools/a64tests/*.c (the LP64 tests; first line "/* expect: N */")
-# with the aarch64 ccom on the emulator (arm64test.sh).  ARM64CCOM must be set.
+# with the aarch64 ccom on the emulator (arm64test.sh), then the struct-passing tests against
+# clang (arm64abi.sh, tools/a64abi).  ARM64CCOM must be set.
 #
 set -u
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -16,6 +17,14 @@ for flags in "$@"; do
 		got=$("$here/arm64test.sh" $flags "$t" 2>&1 | tail -1)
 		if [ "$got" = "$want" ]; then pass=$((pass+1))
 		else fail=$((fail+1)); echo "FAIL [$flags] $(basename "$t"): want $want, got $got"; fi
+	done
+done
+# the calling convention against clang: a pcc-compiled and a clang-compiled file call each other
+for flags in "$@"; do
+	for pair in abi abiva; do
+		got=$("$here/arm64abi.sh" $flags "$here/a64abi/${pair}_pcc.c" "$here/a64abi/${pair}_clang.c" 2>&1 | tail -1)
+		if [ "$got" = 1 ]; then pass=$((pass+1))
+		else fail=$((fail+1)); echo "FAIL [$flags] $pair (against clang): got $got"; fi
 	done
 done
 echo "arm64test-all: $pass passed, $fail failed"

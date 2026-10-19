@@ -263,9 +263,12 @@ def fingerprint(arch, key):
 ALLKEYS = ('clang-O0', 'clang-Os', 'gcc-O0', 'gcc-Os', 'stock-O0', 'stock-O', 'ours-O0', 'ours-O', 'pr47-O0', 'pr47-O')
 
 
+NOSSA_OURS = ('aarch64',)       # the fork's pcc -O leaves -xssa off there (it breaks varargs); stock's does not
+
+
 def ccomflags(arch, ours):
     f = '-xtemps -xdeljumps -xinline -xdce'      # what -O passes to ccom in both
-    if ARCH[arch]['ssa']:
+    if ARCH[arch]['ssa'] and not (ours and arch in NOSSA_OURS):
         f += ' -xssa'
     return ('-xdmr ' + f) if ours else f
 
