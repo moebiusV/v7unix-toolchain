@@ -27,7 +27,10 @@ Not done, and diagnosed rather than miscompiled where the front end can tell:
   `.const_data`/`.cstring`, `@PAGE`/`@PAGEOFF`) and the 67 test programs assemble with `clang --target=arm64-apple-macos`, with and
   without `-xdmr`; nothing was run; variables defined elsewhere are reached through the GOT,
   functions are called directly (the linker makes stubs), and their addresses are taken directly.  (The preprocessor's own Mach-O branch does not compile; build `cc/ccom` alone.)
-* `long double` is `double` (`ctype()` maps it), `long long` is `long`.
+* `long double` is `double` (`ctype()` maps it), `long long` is `long`.  A real 128-bit `long double` needs a quad-precision
+  value that lives in a `q` register or in memory behind library calls (`__addtf3` and the rest); PR #47 declares one (16 bytes,
+  16-byte aligned) but computes it as a 64-bit `double` in `d` registers, and its `long double` constants come out as `ERR`, so there is
+  nothing to take from it.
 * jump tables for `switch` (`mygenswitch` returns 0, so the generic compare chain is used).
 * `-xssa`: `structcopy` and the varargs tests fail with it, so `pcc -O` leaves it off for this target (it is on for the other Linux targets).  Asking for it explicitly is unsupported.
 
