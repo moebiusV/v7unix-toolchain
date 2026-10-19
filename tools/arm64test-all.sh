@@ -31,7 +31,11 @@ done
 if [ -n "${ARM64QUADCCOM:-}" ]; then
 	for flags in "$@"; do
 		for t in "$here"/a64quad/q*.c; do
-			got=$(ARM64CCOM=$ARM64QUADCCOM "$here/arm64test.sh" $flags "$t" 2>&1 | tail -1)
+			case $(basename "$t") in
+			q[4-9]*)	# arithmetic: with the quad runtime (tf.c) built by clang
+				got=$(ARM64CCOM=$ARM64QUADCCOM "$here/arm64abi.sh" $flags "$t" "$here/a64quad/tf.c" 2>&1 | tail -1) ;;
+			*)	got=$(ARM64CCOM=$ARM64QUADCCOM "$here/arm64test.sh" $flags "$t" 2>&1 | tail -1) ;;
+			esac
 			if [ "$got" = 1 ]; then pass=$((pass+1))
 			else fail=$((fail+1)); echo "FAIL [$flags] $(basename "$t") (long double): got $got"; fi
 		done

@@ -28,17 +28,20 @@ Not done, and diagnosed rather than miscompiled where the front end can tell:
   without `-xdmr`; nothing was run; variables defined elsewhere are reached through the GOT,
   variable arguments follow Apple's convention (the arguments of the `...` in 8-byte stack slots, `va_list` a `char *`);
   functions are called directly (the linker makes stubs), and their addresses are taken directly.  (The preprocessor's own Mach-O branch does not compile; build `cc/ccom` alone.)
-* `long double` is `double` (`ctype()` maps it), `long long` is `long`.  A 128-bit `long double` (IEEE binary128, as
-  Linux AArch64 has it) is under way and is off by default: build the compiler with `-DA64QUAD`
-  (`make CFLAGS=-DA64QUAD` in `cc/ccom`) to get stages 1 and 2 of it.  Done with it: size 16, alignment 16,
-  `float.h` limits, constants (checked against the host's `__float128`, `tools/a64quad/consts.py`), loads, stores,
-  copies, arrays and members, arguments and results in `q0`..`q7` and in 16-byte stack slots, aggregates of long
-  doubles as floating-point aggregates, `va_arg`, and the whole thing against clang's code in both directions
-  (`tools/a64quad/`, run by `arm64test-all.sh` when `ARM64QUADCCOM` names such a compiler).  Not done: arithmetic,
-  conversions and compares, which are library calls (`__addtf3`, `__extenddftf2`, `__lttf2` and the rest) and still
-  stop with "Cannot generate code" in the A64QUAD build; no floating-point register survives a call there, because
-  `d8`..`d15` keep only their low 64 bits.  PR #47 declares a 16-byte `long double` but computes it as a 64-bit
-  `double` in `d` registers, and its `long double` constants come out as `ERR`, so there is nothing to take from it.
+* `long double` is `double` (`ctype()` maps it), `long long` is `long`.  A 128-bit `long double` (IEEE binary128, as Linux AArch64 has it) is done and off by default: build the compiler with `-DA64QUAD`
+  (`make CFLAGS=-DA64QUAD` in `cc/ccom`).  Size 16, alignment 16, `float.h` limits, constants (checked against the host's
+  `__float128`, `tools/a64quad/consts.py`), loads, stores, copies, arrays and members, arguments and results in
+  `q0`..`q7` and in 16-byte stack slots, aggregates of long doubles as floating-point aggregates, `va_arg`, and all
+  the arithmetic: `+ - * /`, unary minus, the six comparisons, `op=`, `++`, `--`, `!`, `&&`, `||`, and conversions to and
+  from `float`, `double`, `int`, `unsigned`, `long` and `unsigned long`.  The operations are calls to libgcc
+  (`__addtf3`, `__lttf2`, `__extenddftf2` and the rest), made in pass 1, so a program that uses them needs `-lgcc` at
+  link time (the `pcc` driver does not add it yet; there is a `__pcc_negtf` helper for unary minus, which libgcc lacks).
+  No floating-point register survives a call in this build, because `d8`..`d15` keep only their low 64 bits.  It is
+  tested on the emulator against clang's code in both directions (calling convention) and against the host's
+  `__float128` (arithmetic, with a quad runtime `tools/a64quad/tf.c` that is itself checked against the host's libgcc
+  on 8.8 million cases by `tf-check.sh`); `arm64test-all.sh` runs these when `ARM64QUADCCOM` names such a compiler.
+  PR #47 declares a 16-byte `long double` but computes it as a 64-bit `double` in `d` registers, and its `long double`
+  constants come out as `ERR`, so there is nothing to take from it.
 * jump tables for `switch` (`mygenswitch` returns 0, so the generic compare chain is used).
 * `-xssa`: `structcopy` and the varargs tests fail with it, so `pcc -O` leaves it off for this target (it is on for the other Linux targets).  Asking for it explicitly is unsupported.
 
