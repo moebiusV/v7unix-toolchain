@@ -243,6 +243,33 @@ def main():
         w('')
         w('</details>')
         w('')
+    # PR #47: the open upstream pull request that overhauls the old AArch64 back end
+    rs47 = [r for r in R if r['arch'] == 'aarch64' and r['corp'] in C99]
+    if any('pr47-O' in r['size'] or 'pr47-O' in r['fail'] for r in rs47):
+        w('### AArch64 against upstream pull request #47')
+        w('')
+        w('PortableCC pull request #47 (hakanrw, open since February 2026) overhauls the old AArch64 back end; its code is')
+        w('built here as a third compiler (`pr47`) beside stock and the fork, on the same files and with the same assembler.')
+        w('')
+        w('| | compiled and assembled, `-O` | `-O0` |')
+        w('|---|---|---|')
+        for lab, k0, k in (('stock', 'stock-O0', 'stock-O'), ('PR #47', 'pr47-O0', 'pr47-O'), ('the fork', 'ours-O0', 'ours-O')):
+            w('| %s | %d / %d | %d / %d |' % (lab, ncomp(rs47, k), len(rs47), ncomp(rs47, k0), len(rs47)))
+        w('')
+        for lab, k0, kO in (('`-O`', 'pr47-O0', 'pr47-O'),):
+            ok = [r for r in rs47 if all(x in r['size'] for x in ('stock-O', 'pr47-O', 'ours-O', 'clang-Os'))]
+            ok2 = [r for r in rs47 if all(x in r['size'] for x in ('pr47-O', 'ours-O', 'clang-Os'))]
+            S = lambda rr, x: sum(r['size'][x] for r in rr)
+            w('Sizes at `-O`, on the %d files stock, PR #47, the fork and clang all compiled: stock %s, PR #47 %s (%s against stock),' % (
+                len(ok), '{:,}'.format(S(ok, 'stock-O')), '{:,}'.format(S(ok, 'pr47-O')), pct(S(ok, 'pr47-O'), S(ok, 'stock-O'))))
+            w('the fork %s (%s against stock); on the %d files PR #47, the fork and clang all compiled, the fork is %s PR #47' % (
+                '{:,}'.format(S(ok, 'ours-O')), pct(S(ok, 'ours-O'), S(ok, 'stock-O')), len(ok2), rel(S(ok2, 'ours-O'), S(ok2, 'pr47-O'))))
+            w('and %s clang `-Os` (PR #47: %s clang).' % (rel(S(ok2, 'ours-O'), S(ok2, 'clang-Os')), rel(S(ok2, 'pr47-O'), S(ok2, 'clang-Os'))))
+        w('')
+        c = collections.Counter(r['fail']['pr47-O'][0] for r in rs47 if 'pr47-O' in r['fail'])
+        w('Why PR #47 stops (`-O`): %s.  Its indirect calls are written `mov lr,pc`, which is not an AArch64 instruction.' % (
+            ', '.join('%d at the %s stage' % (n, st) for st, n in c.most_common())))
+        w('')
     w('### Which back ends compile the corpus at all')
     w('')
     w('Files (of %d) compiled and assembled, optimized, and the most common reason the rest stop:' % total)
