@@ -10,7 +10,7 @@ Reads
   OLD/vax-ours-O0.txt     vaxdiff.py: the real 32V cc and cc -O on the 32V sources
 Every number in the tables and in the summary sentences is computed here.
 """
-import argparse, collections, importlib.util, json, os, re, sys
+import argparse, collections, importlib.util, json, os, re, subprocess, sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 
@@ -110,7 +110,11 @@ def main():
     ap.add_argument('--results', default='/tmp/co-final')
     ap.add_argument('--oldtargets', default='/tmp/oldtargets')
     ap.add_argument('--out', default=os.path.expanduser('~/claude/pcc/doc/SIZE-REPORT.md'))
+    ap.add_argument('--no-refresh', action='store_true', help='use the results as they are')
+    ap.add_argument('-j', default='2')
     a = ap.parse_args()
+    if not a.no_refresh:
+        refresh(a)
     R = [json.loads(l) for l in open(os.path.join(a.results, 'results.jsonl'))]
     old.OUT = a.oldtargets
     C99 = [k for k in corpus.CORPORA if k not in OLDCORP]
@@ -178,7 +182,12 @@ def main():
         rel(o6['ours-O'], o6['stock-O']), rel(o6['ours-O'], o6['clang-Os']), rel(s6['ours-O'], s6['clang-Os'])))
     w('* **The other back ends** (arm, m68k, mips, mips64, sparc64) compile only part of the corpus, in stock and in the')
     w('  fork alike, riscv64 and powerpc nothing: they are unfinished ports the fork did not work on.')
-    w('* **Where the fork compiles less than stock** (found by this run, not fixed): see "What this run found".')
+    rem = {arch: fail_reasons(R, arch, 'ours-O', 'stock-O', C99)[1] for arch in ('amd64', 'i386', 'aarch64', 'pdp11', 'vax')}
+    more = {arch: sum(1 for r in R if r['arch'] == arch and r['corp'] in C99 and 'ours-O' in r['size'] and 'stock-O' not in r['size'])
+            for arch in ('amd64', 'i386', 'aarch64', 'pdp11', 'vax')}
+    w('* **Reliability**: files stock compiles and the fork does not: ' + ', '.join('%s %d' % (k, v) for k, v in rem.items()) +
+      '; files the fork compiles and stock does not: ' + ', '.join('%s %d' % (k, v) for k, v in more.items()) +
+      '.  The corpus found three bugs in the fork that made the first set of these numbers worse (all fixed, see "What this run found").')
     w('')
     w('## What was measured')
     w('')
@@ -293,26 +302,35 @@ def main():
     w('')
     w('## What this run found')
     w('')
-    w('Running a new corpus on every back end turned up things the V7 and 32V sources never did.  None of these was')
-    w('fixed to make the numbers look better.  The one exception is the case-range hang below, which was fixed because it')
-    w('hangs the compiler; every measurement here uses the compiler with that fix.')
+    w('Running a new corpus on every back end turned up things the V7 and 32V sources never did.  The measurements were')
+    w('taken first with the fork as it stood, and the problems below were fixed afterwards, one commit each; the tables')
+    w('are the re-measurement with the fixes (only the fork\'s columns were recompiled, the others are unchanged).')
     w('')
-    rows = []
-    for arch, key, other, corps in (('amd64', 'ours-O', 'stock-O', C99), ('pdp11', 'ours-O', 'stock-O', C99), ('vax', 'ours-O', 'stock-O', C99)):
-        tops, n = fail_reasons(R, arch, key, other, corps)
-        rows.append((arch, n, tops))
-    for arch, n, tops in rows:
-        w('* **%s, `-O`: %d files that stock compiles and the fork does not.**  %s' % (
-            arch, n, '; '.join('%d x "%s"' % (c, m) for m, c in tops)))
+    w('**Found by the corpus and fixed:**')
     w('')
-    w('  * `cannot initialise function` is the scanner\'s K&R initializer rule (`int a[] { 1, 2 };`, added for the V7')
-    w('    sources) misreading a function definition that returns a pointer to an array, `T (*f(args))[N] { ... }`:')
-    w('    at file scope a `{` after a `]` is taken for an initializer.  Introduced by the second commit of the series')
-    w('    ("pdp11: dmr-cc style addressing ...", `cc/ccom/scan.l`); found by bisection; stock parses it.')
-    w('  * `compiler error: strmemb` is an internal error in pass 1 under `-O` on the PDP-11 (the same file compiles')
-    w('    without `-O`); not yet analysed.')
-    w('  * `no computed goto in inlined functions` is the VAX `casel` switch (a computed jump) making the inliner')
-    w('    refuse a function, as an error instead of simply not inlining it.')
+    w('* **`cannot initialise function`** on 17 mbedTLS files (amd64, i386; 12 more on the PDP-11): the scanner\'s K&R')
+    w('  initializer rule (`int a[] { 1, 2 };`, added for the V7 sources) read the `{` of a function that returns a')
+    w('  pointer to an array, `T (*f(args))[N] { ... }`, as an initializer.  Commit "scan: a function definition that')
+    w('  returns a pointer to an array is not a K&R initializer".')
+    w('* **`compiler error: strmemb`** on 280 PDP-11 files under `-O` (BearSSL, mbedTLS): with `-xdmr` a word result')
+    w('  is returned in `r0` directly, and the inliner reads "temporary 0" as "no return value" (r0 is register 0).')
+    w('  Commit "ccom: -xdmr does not return through r0 inside a function that is being saved for inlining".')
+    w('* **`no computed goto in inlined functions`** on 32 VAX files (and an internal error on the PDP-11): an inline')
+    w('  function is saved as intermediate code, and the jump table of a dense `switch` (on the VAX the label list that')
+    w('  `casel` adds) is not copied with it.  Inside such a function the switch is now compare code, so the function')
+    w('  is still expanded at its call sites.  Commit "pdp11, vax: no jump table in a function saved for inlining".')
+    w('* **`ccom` hung on the GNU `case LOW ... HIGH:` range with a huge range**, in stock and in the fork on amd64,')
+    w('  i386, VAX and PDP-11: `case 1000000000000000000ULL ... 9999999999999999999ULL:` never finished (`gcccase()`')
+    w('  added one switch entry per value and compared signed for an unsigned switch).  A long range is now one range')
+    w('  test.  Stock still hangs on that file and is counted as a failure (a 90-second limit) for every target.')
+    w('')
+    w('**What is still different from stock** (files stock compiles and the fork does not, optimized):')
+    w('')
+    for arch in ('amd64', 'i386', 'aarch64', 'pdp11', 'vax'):
+        tops, n = fail_reasons(R, arch, 'ours-O', 'stock-O', C99)
+        w('* %s: %d%s' % (arch, n, ''.join('; %d x "%s"' % (c, m) for m, c in tops[:3]) if n else ''))
+    w('')
+    w('**Other findings:**')
     w('')
     lz = [r for r in R if r['arch'] == 'amd64' and r['corp'] == 'lz4' and all(k in r['size'] for k in ('stock-O0', 'stock-O', 'ours-O0', 'ours-O', 'clang-Os', 'gcc-Os'))]
     if lz:
@@ -325,11 +343,6 @@ def main():
         w('  the likely reason is that clang and gcc fold those constants after inlining and drop the dead branches, which pcc\'s')
         w('  inliner does not (not verified here).  This one corpus is why the lz4 row looks so bad; leaving it out changes no')
         w('  conclusion above.')
-    w('* **ccom hung on the GNU `case LOW ... HIGH:` range with a huge range.**  `case 1000000000000000000ULL ...')
-    w('  9999999999999999999ULL:` never finished, in stock and in the fork on amd64, i386, VAX and PDP-11: `gcccase()`')
-    w('  added one switch entry per value (and compared signed for an unsigned switch).  The fork now keeps a long range')
-    w('  as one range test and compiles that file (commit "ccom: GNU case ranges ..."); stock still hangs and is counted as')
-    w('  a failure (a 90-second limit) on that file for every target.')
     w('* **Stock\'s powerpc back end does not build** (`sz =  = p2autooff` in `arch/powerpc/local2.c`, since August 2023)')
     w('  and riscv64 compiles nothing: every file stops with "invalid function definition".')
     w('* SQLite\'s amalgamation does not compile with any pcc here: it needs the `__atomic_*` builtins and `__ATOMIC_*`')
@@ -361,6 +374,19 @@ def main():
     w('mix correctness differences (the fork has a 64-bit `long long`, stock does not) with code quality.')
     open(a.out, 'w').write('\n'.join(L) + '\n')
     print('wrote', a.out, len(L), 'lines')
+
+
+def refresh(a):
+    """bring the measurements up to date before writing: rebuild whichever compilers' source changed (an
+    unchanged tree is not rebuilt), then recompile only the configurations whose compiler binary, flags or
+    source changed.  If only the fork's pcc changed, only its columns are measured again."""
+    print('== compilers'); sys.stdout.flush()
+    subprocess.run([os.path.join(here, 'corpus-build.sh')], check=False)
+    print('== measurements'); sys.stdout.flush()
+    p = subprocess.run([sys.executable, '-I', os.path.join(here, 'corpus.py'), '-j', a.j, '--out', a.results],
+                       stderr=subprocess.PIPE, text=True)
+    last = [l for l in p.stderr.strip().split('\n') if 'changed' in l or 'jobs' in l]
+    print('\n'.join(last)); sys.stdout.flush()
 
 
 def old_vax(R, oldt):

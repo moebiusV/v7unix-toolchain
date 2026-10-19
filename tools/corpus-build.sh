@@ -24,6 +24,19 @@ for kind in ${KINDS:-stock ours}; do
 		[ $kind = stock ] && [ $a = vax ] && t=vax-unknown-bsd
 		case " $want " in *" all "*|*" $a "*) ;; *) continue ;; esac
 		d=$B/$kind/$a
+		# the source this build would be made from; an unchanged tree is not rebuilt
+		if [ $kind = stock ]; then
+			id=$(cd "$PCC" && git rev-parse "$STOCKREF")
+		else
+			# only what this target is built from: the shared compiler and this target's own directory
+			# (and, for the two old targets, the c2 that comes with it)
+			ad=$a; [ $a = riscv64 ] && ad=riscv
+			id=$(cd "$PCC" && git ls-files -z -- cc mip common os configure.ac "arch/$ad" cc2 f77 2>/dev/null | grep -zv 'pdp11-bsd-' | xargs -0 sha1sum 2>/dev/null | sha1sum | cut -c1-40)
+		fi
+		if [ -x "$d/ccom" ] && [ "$(cat "$d/.srcid" 2>/dev/null)" = "$id-$t" ]; then
+			echo "$kind/$a: unchanged"
+			continue
+		fi
 		rm -rf "$d"; mkdir -p "$d"
 		if [ $kind = stock ]; then
 			(cd "$PCC" && git archive "$STOCKREF") | tar xf - -C "$d"
@@ -40,6 +53,7 @@ for kind in ${KINDS:-stock ours}; do
 			c=$(ls -t "$d"/cc/ccom/*-ccom 2>/dev/null | head -1)
 			if [ -n "$c" ] && [ -x "$c" ]; then
 				ln -sf "$c" "$d/ccom"
+				echo "$id-$t" > "$d/.srcid"
 				echo "$kind/$a: ok"
 			else
 				echo "$kind/$a: FAILED ($(grep -m1 -E 'error' "$d/cfg.log" "$d/cc/ccom/mk.log" 2>/dev/null | head -1))"

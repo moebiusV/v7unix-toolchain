@@ -15,7 +15,7 @@ line of the message, grouped.
 Needs: the ccoms from tools/corpus-build.sh (stock = PortableCC master, ours = this branch), the
 corpora under ~/claude/corpora, and musl headers installed in ~/claude/corpora/sysroot/<arch>.
 """
-import os, re, sys, glob, json, shutil, subprocess, tempfile, argparse, collections
+import os, re, sys, glob, json, shutil, hashlib, subprocess, tempfile, argparse, collections
 import concurrent.futures as cf
 
 ROOT = os.environ.get('CORPORA', os.path.expanduser('~/claude/corpora'))
@@ -211,6 +211,50 @@ def shorten_symbols(path):
     open(path, 'w').write(t)
 
 
+_FP = {}
+
+
+def _hash_file(p):
+    if p not in _FP:
+        try:
+            _FP[p] = hashlib.sha1(open(p, 'rb').read()).hexdigest()[:12]
+        except OSError:
+            _FP[p] = 'missing'
+    return _FP[p]
+
+
+def _version(cmd):
+    k = ' '.join(cmd)
+    if k not in _FP:
+        r = run(cmd + ['--version'])
+        _FP[k] = hashlib.sha1((r.stdout + r.stderr).encode()).hexdigest()[:12]
+    return _FP[k]
+
+
+def fingerprint(arch, key):
+    """what the result for this configuration depends on: the compiler binary and its flags, the
+    assembler, the peephole c2, the reference compiler's version.  A rerun compiles a configuration again
+    only when this changed."""
+    a = ARCH[arch]
+    if key.startswith(('stock', 'ours')):
+        kind = key.split('-')[0]
+        fl = ccomflags(arch, kind == 'ours') if key.endswith('-O') else ''
+        parts = [_hash_file(os.path.join(BUILDS, kind, arch, 'ccom')), fl]
+        if a['asm'] is None:
+            parts.append(_hash_file(TOOL + '/modern/usr/src/cmd/as/as' if arch == 'pdp11' else TOOL + '/modern/usr/src/cmd/as32v/as32v'))
+            if a['c2']:
+                parts.append(_hash_file(TOOL + '/modern/usr/src/cmd/c/c2' if arch == 'pdp11' else os.path.join(BUILDS, a['c2'])))
+        else:
+            parts.append(_version(a['asm'][:1]))
+        return ':'.join(parts)
+    if key.startswith('clang'):
+        return _version(a['clang'][:1]) if a['clang'] else 'none'
+    return _version(a['gcc'][:1]) if a['gcc'] and shutil.which(a['gcc'][0]) else 'none'
+
+
+ALLKEYS = ('clang-O0', 'clang-Os', 'gcc-O0', 'gcc-Os', 'stock-O0', 'stock-O', 'ours-O0', 'ours-O')
+
+
 def ccomflags(arch, ours):
     f = '-xtemps -xdeljumps -xinline -xdce'      # what -O passes to ccom in both
     if ARCH[arch]['ssa']:
@@ -218,10 +262,33 @@ def ccomflags(arch, ours):
     return ('-xdmr ' + f) if ours else f
 
 
-def one(job):
+def one(job, prev=None):
     corp, arch, src = job
     a, c = ARCH[arch], CORPORA[corp]
     res = dict(corp=corp, arch=arch, src=src.replace(ROOT + '/', ''), size={}, fail={})
+    # configurations whose compiler, flags and source are unchanged keep their earlier result
+    srcfp = _hash_file(src)
+    fps = {k: fingerprint(arch, k) + '|' + srcfp for k in ALLKEYS}
+    res['fp'] = fps
+    stale = set(ALLKEYS)
+    if prev:
+        # results from before fingerprints existed: stock, clang and gcc are what they were then (their
+        # binaries have not changed since); the fork's compiler is not, so its configurations are redone
+        adopt = not prev.get('fp')
+        if 'all' in prev['fail'] and (adopt or prev['fp'].get('src') == srcfp):
+            prev['fp'] = dict(fps, src=srcfp)
+            return prev
+        for k in ALLKEYS:
+            same = (not k.startswith('ours')) if adopt else prev['fp'].get(k) == fps[k]
+            if same:
+                stale.discard(k)
+                if k in prev['size']:
+                    res['size'][k] = prev['size'][k]
+                if k in prev['fail']:
+                    res['fail'][k] = prev['fail'][k]
+        if not stale:
+            return prev
+    res['fp']['src'] = srcfp
     with tempfile.TemporaryDirectory() as w:
         if src.endswith('.gz'):
             import gzip
@@ -257,11 +324,15 @@ def one(job):
         if a['gcc'] and shutil.which(a['gcc'][0]):
             refs += [('gcc-O0', a['gcc'] + common + ['-O0']), ('gcc-Os', a['gcc'] + common + ['-Os'])]
         for key, cmd in refs:
+            if key not in stale:
+                continue
             o = os.path.join(w, key + '.o')
             if run(cmd + ['-c', '-x', 'c', '-o', o, i]).returncode == 0:
                 res['size'][key] = size_of(o, a.get('gccsize', 'size') if key.startswith('gcc') else 'size')
         for key, kind, fl in (('stock-O0', 'stock', ''), ('stock-O', 'stock', ccomflags(arch, False)),
                               ('ours-O0', 'ours', ''), ('ours-O', 'ours', ccomflags(arch, True))):
+            if key not in stale:
+                continue
             ccom = os.path.join(BUILDS, kind, arch, 'ccom')
             if not os.path.exists(ccom):
                 res['fail'][key] = ('build', 'no ccom for %s/%s' % (kind, arch))
@@ -343,18 +414,33 @@ def main():
                 done[(r['corp'], r['arch'], r['src'])] = r
             except Exception:
                 pass
-    todo = [j for j in jobs if (j[0], j[1], j[2].replace(ROOT + '/', '')) not in done]
-    sys.stderr.write('%d jobs, %d already done\n' % (len(jobs), len(jobs) - len(todo)))
+    key = lambda j: (j[0], j[1], j[2].replace(ROOT + '/', ''))
+    sys.stderr.write('%d jobs, %d with an earlier result\n' % (len(jobs), sum(1 for j in jobs if key(j) in done)))
+    changed = 0
     with cf.ThreadPoolExecutor(max_workers=a.j) as ex, open(jl, 'a') as out:
-        futs = [ex.submit(one, j) for j in todo]
+        def safe(j):
+            try:
+                return one(j, done.get(key(j)))
+            except Exception as e:      # one bad job must not lose the others
+                sys.stderr.write('job %s failed: %r\n' % (key(j), e))
+                return done.get(key(j)) or dict(corp=j[0], arch=j[1], src=key(j)[2], size={}, fail={'all': ('harness', repr(e)[:150])})
+        futs = [ex.submit(safe, j) for j in jobs]
         for n, f in enumerate(cf.as_completed(futs)):
             r = f.result()
+            k = (r['corp'], r['arch'], r['src'])
+            if done.get(k) is not r:
+                out.write(json.dumps(r) + '\n')
+                out.flush()
+                changed += 1
+            done[k] = r
+            if n % 500 == 0:
+                sys.stderr.write('%d / %d (%d recompiled)\n' % (n, len(jobs), changed))
+    sys.stderr.write('%d results changed\n' % changed)
+    results = [done[key(j)] for j in jobs]
+    with open(jl + '.tmp', 'w') as out:      # compact: one line per job
+        for r in results:
             out.write(json.dumps(r) + '\n')
-            out.flush()
-            done[(r['corp'], r['arch'], r['src'])] = r
-            if n % 200 == 0:
-                sys.stderr.write('%d / %d\n' % (n, len(todo)))
-    results = [done[(j[0], j[1], j[2].replace(ROOT + '/', ''))] for j in jobs]
+    os.replace(jl + '.tmp', jl)
     json.dump(results, open(os.path.join(a.out, 'results.json'), 'w'), indent=1)
     report(results, a.out)
 
