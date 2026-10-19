@@ -214,6 +214,14 @@ def shorten_symbols(path):
 _FP = {}
 
 
+def c2_for(arch, kind):
+    """the peephole c2 that each compiler's own -O runs: stock has only V7's c2 on the PDP-11 (and the 32V-derived
+    one on the VAX); the fork ships its own (cc2/cc2.pdp11.c), as `pcc -O` does"""
+    if arch == 'pdp11':
+        return os.path.join(BUILDS, 'c2pdp11') if kind == 'ours' else TOOL + '/modern/usr/src/cmd/c/c2'
+    return os.path.join(BUILDS, ARCH[arch]['c2'])
+
+
 def _hash_file(p):
     if p not in _FP:
         try:
@@ -242,8 +250,8 @@ def fingerprint(arch, key):
         parts = [_hash_file(os.path.join(BUILDS, kind, arch, 'ccom')), fl]
         if a['asm'] is None:
             parts.append(_hash_file(TOOL + '/modern/usr/src/cmd/as/as' if arch == 'pdp11' else TOOL + '/modern/usr/src/cmd/as32v/as32v'))
-            if a['c2']:
-                parts.append(_hash_file(TOOL + '/modern/usr/src/cmd/c/c2' if arch == 'pdp11' else os.path.join(BUILDS, a['c2'])))
+            if a['c2'] and key.endswith('-O'):
+                parts.append(_hash_file(c2_for(arch, kind)))
         else:
             parts.append(_version(a['asm'][:1]))
         return ':'.join(parts)
@@ -360,9 +368,7 @@ def one(job, prev=None):
                 if fl and a['c2']:
                     # optimized output goes through the target's peephole c2, the same program for both compilers
                     s2 = os.path.join(w, key + '.c2.s')
-                    c2 = os.path.join(BUILDS, a['c2'])
-                    if arch == 'pdp11':
-                        c2 = TOOL + '/modern/usr/src/cmd/c/c2'
+                    c2 = c2_for(arch, kind)
                     q = run([c2, s, s2], timeout=CCOM_TIMEOUT)
                     if q.returncode or not os.path.exists(s2):
                         res['fail'][key] = ('c2', (q.stderr or q.stdout).strip().split('\n')[0][:200] or 'c2 failed')
@@ -437,8 +443,8 @@ def main():
                 sys.stderr.write('%d / %d (%d recompiled)\n' % (n, len(jobs), changed))
     sys.stderr.write('%d results changed\n' % changed)
     results = [done[key(j)] for j in jobs]
-    with open(jl + '.tmp', 'w') as out:      # compact: one line per job
-        for r in results:
+    with open(jl + '.tmp', 'w') as out:      # compact: one line per job (including jobs outside this run's --arch/--only)
+        for r in done.values():
             out.write(json.dumps(r) + '\n')
     os.replace(jl + '.tmp', jl)
     json.dump(results, open(os.path.join(a.out, 'results.json'), 'w'), indent=1)
