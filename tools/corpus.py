@@ -256,7 +256,7 @@ def fingerprint(arch, key):
     if key.startswith(('stock', 'ours', 'pr47')):
         kind = key.split('-')[0]
         fl = ccomflags(arch, kind == 'ours') if key.endswith('-O') else ''
-        parts = [_hash_file(os.path.join(BUILDS, kind, arch, 'ccom')), fl]
+        parts = [_hash_file(os.path.join(BUILDS, kind, arch, 'ccom')), fl + ('n64' if arch == 'pdp11' and kind == 'ours' else '')]
         if a['asm'] is None:
             parts.append(_hash_file(TOOL + '/modern/usr/src/cmd/as/as' if arch == 'pdp11' else TOOL + '/modern/usr/src/cmd/as32v/as32v'))
             if a['c2'] and key.endswith('-O'):
@@ -377,6 +377,11 @@ def one(job, prev=None):
                 msg = re.sub(r'0x[0-9a-f]+', '0x', msg)
                 res['fail'][key] = ('ccom', msg[:200] + (' (signal %d)' % -p.returncode if p.returncode < 0 else ''))
                 continue
+            if arch == 'pdp11' and kind == 'ours' and key == 'ours-O':
+                # stock pcc has no 64-bit integers on the PDP-11 (it computes with 32 bits), so a file whose
+                # fork output calls a long long helper is not a file stock gets right: left out of the fair sums
+                txt = open(s, errors='replace').read()
+                res['needs64'] = bool(re.search(r'jsr\tpc,\*\$__ll(?!ulr)', txt))
             o = os.path.join(w, key + '.o')
             if a['asm'] is None:
                 if arch == 'vax':

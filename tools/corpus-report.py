@@ -45,7 +45,9 @@ def ncomp(rs, k):
 
 
 def sums(rs, need, add=()):
-    ok = [r for r in rs if all(k in r['size'] for k in need)]
+    # the fair set: every compiler in the row compiled it, and stock pcc gets it right (it has no 64-bit integers on
+    # the PDP-11, so a file the fork needs a long long helper for is left out: see doc/SIZE-NOTES.md)
+    ok = [r for r in rs if all(k in r['size'] for k in need) and not r.get('needs64')]
     s = collections.Counter()
     for r in ok:
         for k in tuple(need) + tuple(add):
