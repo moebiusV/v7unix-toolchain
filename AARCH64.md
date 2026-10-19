@@ -23,6 +23,10 @@ Not done, and diagnosed rather than miscompiled where the front end can tell:
 
 * `alloca` and variable-length arrays: `spalloc()` gives an error message.
 * `va_arg` of a struct whose members are all floating-point (a diagnostic is given).
+* Apple Silicon (`./configure --target=aarch64-apple-darwin`): the output is Mach-O assembler (underscore names, `L` labels,
+  `.const_data`/`.cstring`, `@PAGE`/`@PAGEOFF`) and the 67 test programs assemble with `clang --target=arm64-apple-macos`, with and
+  without `-xdmr`; nothing was run, and externs are addressed with `adrp` directly rather than through the GOT, so data from
+  another dylib does not link.  (The preprocessor's own Mach-O branch does not compile; build `cc/ccom` alone.)
 * `long double` is `double` (`ctype()` maps it), `long long` is `long`.
 * jump tables for `switch` (`mygenswitch` returns 0, so the generic compare chain is used).
 * `-xssa`: `structcopy` and the varargs tests fail with it, so `pcc -O` leaves it off for this target (it is on for the other Linux targets).  Asking for it explicitly is unsupported.
