@@ -244,7 +244,7 @@ def fingerprint(arch, key):
     assembler, the peephole c2, the reference compiler's version.  A rerun compiles a configuration again
     only when this changed."""
     a = ARCH[arch]
-    if key.startswith(('stock', 'ours')):
+    if key.startswith(('stock', 'ours', 'pr47')):
         kind = key.split('-')[0]
         fl = ccomflags(arch, kind == 'ours') if key.endswith('-O') else ''
         parts = [_hash_file(os.path.join(BUILDS, kind, arch, 'ccom')), fl]
@@ -260,7 +260,7 @@ def fingerprint(arch, key):
     return _version(a['gcc'][:1]) if a['gcc'] and shutil.which(a['gcc'][0]) else 'none'
 
 
-ALLKEYS = ('clang-O0', 'clang-Os', 'gcc-O0', 'gcc-Os', 'stock-O0', 'stock-O', 'ours-O0', 'ours-O')
+ALLKEYS = ('clang-O0', 'clang-Os', 'gcc-O0', 'gcc-Os', 'stock-O0', 'stock-O', 'ours-O0', 'ours-O', 'pr47-O0', 'pr47-O')
 
 
 def ccomflags(arch, ours):
@@ -338,9 +338,12 @@ def one(job, prev=None):
             if run(cmd + ['-c', '-x', 'c', '-o', o, i]).returncode == 0:
                 res['size'][key] = size_of(o, a.get('gccsize', 'size') if key.startswith('gcc') else 'size')
         for key, kind, fl in (('stock-O0', 'stock', ''), ('stock-O', 'stock', ccomflags(arch, False)),
-                              ('ours-O0', 'ours', ''), ('ours-O', 'ours', ccomflags(arch, True))):
+                              ('ours-O0', 'ours', ''), ('ours-O', 'ours', ccomflags(arch, True)),
+                              ('pr47-O0', 'pr47', ''), ('pr47-O', 'pr47', ccomflags(arch, False))):
             if key not in stale:
                 continue
+            if kind == 'pr47' and not os.path.exists(os.path.join(BUILDS, kind, arch, 'ccom')):
+                continue                      # a third compiler, built only for the target it covers
             ccom = os.path.join(BUILDS, kind, arch, 'ccom')
             if not os.path.exists(ccom):
                 res['fail'][key] = ('build', 'no ccom for %s/%s' % (kind, arch))

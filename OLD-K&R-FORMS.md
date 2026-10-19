@@ -8,9 +8,19 @@ lists every form we found that pcc rejects, what it means, where the original
 sources use it, what supporting it would take, and what supporting it would break
 for programs that are valid C99.
 
-**The C dialect was deliberately not changed** (no `-xknr` mode exists).  Nothing
-here is implemented; the last column of each section says what it would cost, so
-the decision can be made with the numbers in front of it.
+**Status, 18 October 2026.**  The C dialect was deliberately not changed with a mode switch (no
+`-xknr` exists), with two exceptions that are in the compiler now:
+
+| form | status |
+|---|---|
+| 2. initializer written without `=` (`int sect DEFSECTION;`, `char *man { "mrxtdp" };`) | **implemented in the fork**, as a scanner rule in `cc/ccom/scan.l` that supplies the `=` (not in the grammar as proposed below).  Without it V7 `libc` compiles 88 of 89 and `cmd` 43 of 80; with it 89 of 89 and 52 of 80. |
+| declarations with no type (`x;`  `y, z = 5;`) and a scalar initializer for an array | **upstream** since 2 October 2026 (Michal Pleban, `03ecc1d5`, `4014ea11`); the fork has the merged grammar |
+| 1, 3, 4, 5, 6 below, and `static q;` / `register r;` with no type at file scope | not implemented |
+
+`tools/pcctests/knrforms.c` exercises every accepted form together, so neither mechanism can regress unnoticed.
+The rest of this file is the original analysis; where it says "nothing is implemented" for section 2 it is out of date.
+
+The last column of each section says what it would cost, so the decision can be made with the numbers in front of it.
 
 ## How the numbers were made
 

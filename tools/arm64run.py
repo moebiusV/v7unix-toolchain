@@ -121,9 +121,9 @@ def parse(src):
                 a.align('bss', 8)
                 a.label('bss', f[0])
                 a.add('bss', 'zero', num(f[1]), num(f[1]))
-            elif d in ('.byte', '.short', '.hword', '.2byte', '.word', '.long', '.4byte', '.quad', '.xword', '.8byte', '.int'):
+            elif d in ('.byte', '.short', '.hword', '.2byte', '.word', '.long', '.4byte', '.quad', '.xword', '.8byte', '.dword', '.int'):
                 w = {'.byte': 1, '.short': 2, '.hword': 2, '.2byte': 2, '.word': 4, '.long': 4, '.4byte': 4, '.int': 4,
-                     '.quad': 8, '.xword': 8, '.8byte': 8}[d]
+                     '.quad': 8, '.xword': 8, '.8byte': 8, '.dword': 8}[d]
                 for v in rest.split(','):
                     a.add(sec, 'val', (v.strip(), w), w)
             elif d in ('.zero', '.space', '.skip'):
