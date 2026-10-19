@@ -8,6 +8,7 @@ Needs the corpora and builds of tools/corpus.py.
 import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 CORPUS_PY = os.path.join(HERE, '..', 'corpus.py')
+import sys, importlib.util, random, json
 RESULTS = os.environ.get('CORPUS_RESULTS', '/tmp/co-final/results.jsonl')
 sp=importlib.util.spec_from_file_location('corpus',CORPUS_PY); m=importlib.util.module_from_spec(sp); sp.loader.exec_module(m)
 from concurrent.futures import ThreadPoolExecutor
