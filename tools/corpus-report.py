@@ -95,6 +95,37 @@ def percorp(R, a, corps, keys):
     return out
 
 
+ORIG = {'pdp11': ('dmr-O0', 'dmr-O', 'V7 dmr cc'), 'vax': ('sjpcc-O0', 'sjpcc-O', '32V pcc')}
+
+
+def origtable(R, arch, corps, opt):
+    """The original compiler of an old target (V7 dmr cc, Johnson's 32V pcc) against stock, the fork and gcc.  They
+    take K&R C only, so a row sums the files that stock, the fork and the original all compiled (and the fork's
+    output is right for: no needs64 file), and the gcc column the part of those gcc compiled too."""
+    o0, o1, name = ORIG[arch]
+    ko, st, ou, gc = (o1, 'stock-O', 'ours-O', 'gcc-Os') if opt else (o0, 'stock-O0', 'ours-O0', 'gcc-O0')
+    out = ['| corpus | files | compiled by %s | common | stock | ours | %s | ours vs stock | ours vs %s | gcc, on the common files it compiled |' % (
+        name, name, name), '|---|---|---|---|---|---|---|---|---|---|']
+    tot = []
+    for k in list(corps) + [None]:
+        rs = [r for r in R if r['arch'] == arch and (k is None or r['corp'] == k) and r['corp'] in corps]
+        if not rs:
+            continue
+        ok, s = sums(rs, (st, ou, ko))
+        if not ok and k is not None:
+            out.append('| %s | %d | %d | 0 | | | | | | |' % (k, len(rs), ncomp(rs, ko)))
+            continue
+        okg = [r for r in ok if gc in r['size']]
+        gs = sum(r['size'][gc] for r in okg)
+        gp = sum(r['size'][ou] for r in okg)
+        out.append('| %s | %d | %d | %d | %s | %s | %s | %s | %s | %s |' % (
+            '**all**' if k is None else k, len(rs), ncomp(rs, ko), len(ok),
+            '{:,}'.format(s[st]), '{:,}'.format(s[ou]), '{:,}'.format(s[ko]),
+            pct(s[ou], s[st]) if s[st] else '', pct(s[ou], s[ko]) if s[ko] else '',
+            ('%s (ours %s)' % ('{:,}'.format(gs), '{:,}'.format(gp))) if okg else ''))
+    return out
+
+
 def fail_reasons(R, a, key, other, corps, top=4):
     """why `key` fails where `other` compiled"""
     c = collections.Counter()
@@ -288,6 +319,20 @@ def main():
             return c.most_common(1)[0][0] if c else ''
         w('| %s | %d | %d | %s | %s |' % (arch, ncomp(rs, 'stock-O'), ncomp(rs, 'ours-O'), top('ours-O'), top('stock-O')))
     w('')
+    w('## Against the original compilers, on every corpus')
+    w('')
+    w('V7 dmr cc (PDP-11) and Johnson\'s 32V pcc (VAX) are measured on the same preprocessed files as everything else: dmr\'s')
+    w('`c0`, `c1` and, for `-O`, `c2`, ported to the host, and the real 32V `cc` and `cc -O` in the guest under SIMH (files over')
+    w('60 KB are not sent to the guest).  Both take K&R C only, so of the C99 corpora they compile almost nothing; each row sums only the')
+    w('files stock, the fork and the original compiler all compiled, and the gcc column the part of those that gcc')
+    w('compiled as well.  The V7 and 32V source trees themselves are in the sections below.')
+    w('')
+    for arch, title in (('pdp11', 'PDP-11 against V7 dmr cc'), ('vax', 'VAX against 32V pcc')):
+        for opt in (True, False):
+            w('### %s, %s' % (title, ('optimized (`-O`; dmr with `c2`)' if arch == 'pdp11' else 'optimized (`-O`; the guest\'s `cc -O`)') if opt else 'no `-O`'))
+            w('')
+            L += origtable(R, arch, list(corpus.CORPORA), opt)
+            w('')
     w('## PDP-11 against V7 dmr cc')
     w('')
     w('Corpus: V7\'s `usr/src/libc` and `usr/src/cmd` (K&R C).  Measured with `tools/pccdiff.sh`, which compiles every file')

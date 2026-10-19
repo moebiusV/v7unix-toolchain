@@ -264,12 +264,30 @@ def fingerprint(arch, key):
         else:
             parts.append(_version(a['asm'][:1]))
         return ':'.join(parts)
+    if key.startswith('dmr'):
+        if arch != 'pdp11':
+            return 'none'
+        return ':'.join(_hash_file(DMR + '/' + t) for t in ('c0', 'c1', 'c2')) + ':' + _hash_file(TOOL + '/modern/usr/src/cmd/as/as')
+    if key.startswith('sjpcc'):
+        d = os.environ.get('VAX32V_DISK')
+        if arch != 'vax' or not d or not os.path.exists(d):
+            return 'none'
+        return 'disk%d' % os.path.getsize(d)          # the pristine 32V disk: its cc does not change
     if key.startswith('clang'):
         return _version(a['clang'][:1]) if a['clang'] else 'none'
     return _version(a['gcc'][:1]) if a['gcc'] and shutil.which(a['gcc'][0]) else 'none'
 
 
-ALLKEYS = ('clang-O0', 'clang-Os', 'gcc-O0', 'gcc-Os', 'stock-O0', 'stock-O', 'ours-O0', 'ours-O', 'pr47-O0', 'pr47-O')
+ALLKEYS = ('clang-O0', 'clang-Os', 'gcc-O0', 'gcc-Os', 'stock-O0', 'stock-O', 'ours-O0', 'ours-O', 'pr47-O0', 'pr47-O',
+           'dmr-O0', 'dmr-O', 'sjpcc-O0', 'sjpcc-O')
+
+# the original compilers of the two old targets: Ritchie's cc of V7 (cpp, c0, c1 and, for -O, c2, ported to run on
+# the host) for the PDP-11, and Johnson's pcc of 32V (the guest's own cc and cc -O) for the VAX.  Both take K&R C
+# only, so what they compile of the C99 corpora is small; a row that includes them sums the files they compiled.
+DMR = TOOL + '/modern/usr/src/cmd/c'
+SJDIR = os.environ.get('SJPCC_DIR', '/tmp/corpus-sjpcc')     # preprocessed sources waiting for the 32V guest
+SJ_MAX = 60000                                             # bytes; the guest has little memory and time
+SJ_BATCH = 24
 
 
 NOSSA_OURS = ('aarch64',)       # the fork's pcc -O leaves -xssa off there (it breaks varargs); stock's does not
@@ -308,6 +326,8 @@ def one(job, prev=None):
                     res['size'][k] = prev['size'][k]
                 if k in prev['fail']:
                     res['fail'][k] = prev['fail'][k]
+        if prev.get('sj'):                       # the guest never reported on this file: ask again
+            stale |= {'sjpcc-O0', 'sjpcc-O'}
         if not stale:
             return prev
     res['fp']['src'] = srcfp
@@ -407,7 +427,98 @@ def one(job, prev=None):
                 res['fail'][key] = ('asm', (q.stderr.strip().split('\n') or [''])[0][:200])
                 continue
             res['size'][key] = size_of(o)
+        if arch == 'pdp11':
+            for key in ('dmr-O0', 'dmr-O'):
+                if key in stale:
+                    dmr_compile(key, i, w, res)
+        if arch == 'vax' and ('sjpcc-O0' in stale or 'sjpcc-O' in stale):
+            if os.environ.get('VAX32V_DISK') and os.environ.get('VAX780'):
+                if len(text) > SJ_MAX:
+                    res['fail']['sjpcc-O0'] = res['fail']['sjpcc-O'] = ('skip', 'preprocessed source over %d bytes' % SJ_MAX)
+                else:
+                    os.makedirs(SJDIR, exist_ok=True)
+                    open(os.path.join(SJDIR, srcfp + '.c'), 'w').write(text)
+                    res['sj'] = srcfp           # sj_run() fills in the sizes once all the files are known
     return res
+
+
+def dmr_compile(key, i, w, res):
+    """Ritchie's compiler on the host: c0 and c1, and c2 for -O; the same V7 assembler as the others"""
+    t1, t2, raw, s2, o = (os.path.join(w, n) for n in ('dt1', 'dt2', 'draw.s', 'd2.s', 'dmr.o'))
+    for stage, cmd in (('c0', [DMR + '/c0', i, t1, t2]), ('c1', [DMR + '/c1', t1, t2, raw])):
+        q = run(cmd, timeout=CCOM_TIMEOUT)
+        if q.returncode or (stage == 'c1' and not os.path.exists(raw)):
+            m = [x for x in (q.stdout + q.stderr).strip().split('\n') if x.strip()]
+            res['fail'][key] = (stage, re.sub(r'^[^:]*:\s*', '', m[0])[:200] if m else 'exit %d' % q.returncode)
+            return
+    s = raw
+    if key == 'dmr-O':
+        q = run([DMR + '/c2', raw, s2], timeout=CCOM_TIMEOUT)
+        if q.returncode or not os.path.exists(s2):
+            res['fail'][key] = ('c2', (q.stderr or q.stdout).strip().split('\n')[0][:200] or 'c2 failed')
+            return
+        s = s2
+    sz, err = old_assemble('pdp11', s, o, w)
+    if sz is None:
+        res['fail'][key] = ('asm', err or '')
+    else:
+        res['size'][key] = sz
+
+
+def sj_run(results):
+    """Johnson's compiler: the 32V guest compiles the files `one()` left in SJDIR, with cc and cc -O, a batch
+    per boot of the guest under SIMH (vaxdiff.py's way); sizes come from the guest's own `size`."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import vax32v
+    todo = [r for r in results if r.get('sj')]
+    for n in range(0, len(todo), SJ_BATCH):
+        part = todo[n:n + SJ_BATCH]
+        work = tempfile.mkdtemp(prefix='sjpcc.')
+        files = {}
+        for k, r in enumerate(part):
+            files['f%d.c' % k] = open(os.path.join(SJDIR, r['sj'] + '.c'), 'rb').read()
+        sh = 'cd /tmp\nfor t in ' + ' '.join(str(k) for k in range(len(part))) + '\ndo\n' \
+             '\tcc -c f$t.c > /dev/null 2>&1 && echo "SZ $t D `size f$t.o`"\n' \
+             '\tcc -O -c f$t.c > /dev/null 2>&1 && echo "SZ $t O `size f$t.o`"\n' \
+             '\trm -f f$t.o\ndone\necho ALLDONE\n'
+        files['run.sh'] = sh.encode()
+        disk = os.path.join(work, 'disk')
+        shutil.copyfile(os.environ['VAX32V_DISK'], disk)
+        vax32v.put_files(disk, files)
+        port = int(os.environ.get('VAX32V_PORT', '10024'))
+        ini = os.path.join(work, 'boot.ini')
+        open(ini, 'w').write(vax32v.BOOT_INI.format(disk=disk, port=port))
+        v = vax32v.Vax(ini, port)
+        sizes = {}
+        try:
+            v.poll(2.0)
+            for _ in range(60):
+                if 'file' in v.text():
+                    break
+                v.poll(0.5)
+            v.send('unix')
+            if not v.wait_for('#', 240):
+                raise RuntimeError('32V did not boot')
+            v.send('/etc/mount /dev/rp0h /usr'); v.poll(3.0)
+            v.send('cd /tmp'); v.poll(1.0)
+            start = len(v.text())
+            v.send('sh run.sh')
+            v.wait_for('ALLDONE', 60 + 60 * len(part), start)
+            for m in re.finditer(r'SZ (\d+) (\w) (\d+)\+(\d+)\+(\d+)', v.text()[start:]):
+                k, kind, t, d, b = m.groups()
+                sizes.setdefault(int(k), {})[kind] = int(t) + int(d)
+        finally:
+            v.close()
+            shutil.rmtree(work, ignore_errors=True)
+        for k, r in enumerate(part):
+            for kind, key in (('D', 'sjpcc-O0'), ('O', 'sjpcc-O')):
+                if kind in sizes.get(k, {}):
+                    r['size'][key] = sizes[k][kind]
+                    r['fail'].pop(key, None)
+                else:
+                    r['fail'][key] = ('cc', 'the 32V cc rejected it')
+            r.pop('sj')
+        sys.stderr.write('sjpcc: %d / %d\n' % (min(n + SJ_BATCH, len(todo)), len(todo)))
 
 
 def main():
@@ -465,6 +576,8 @@ def main():
                 sys.stderr.write('%d / %d (%d recompiled)\n' % (n, len(jobs), changed))
     sys.stderr.write('%d results changed\n' % changed)
     results = [done[key(j)] for j in jobs]
+    if any(r.get('sj') for r in results):
+        sj_run(results)
     with open(jl + '.tmp', 'w') as out:      # compact: one line per job (including jobs outside this run's --arch/--only)
         for r in done.values():
             out.write(json.dumps(r) + '\n')
