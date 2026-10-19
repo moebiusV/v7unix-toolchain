@@ -55,22 +55,20 @@ def sums(rs, need, add=()):
 
 
 def row(name, a, rs, keys, with_gcc=True):
+    """One row.  Every column is summed over the same files: those every compiler in the row compiled (stock,
+    the fork, and clang and gcc where the target has them), so no compiler gets credit for a file another
+    one could not compile."""
     st, ou, cl, gc = keys
     hasc = ARCH[a]['clang'] is not None
-    need = (st, ou) + ((cl,) if hasc else ())
+    hasg = bool(ARCH[a]['gcc']) and with_gcc and any(gc in r['size'] for r in rs)
+    need = (st, ou) + ((cl,) if hasc else ()) + ((gc,) if hasg else ())
     ok, s = sums(rs, need)
-    g = gp = ''
-    if ARCH[a]['gcc'] and with_gcc:
-        okg = [r for r in ok if gc in r['size']]
-        gs = sum(r['size'][gc] for r in okg)
-        go = sum(r['size'][ou] for r in okg)
-        g = '%d' % gs if gs else ''
-        gp = pct(go, gs) if gs else ''
     return ('| %s | %d | %d / %d | %d | %s | %s | %s | %s | %s | %s | %s |' % (
         name, len(rs), ncomp(rs, st), ncomp(rs, ou), len(ok),
         '{:,}'.format(s[st]) if s[st] else '-', '{:,}'.format(s[ou]) if s[ou] else '-',
-        '{:,}'.format(s[cl]) if hasc and s[cl] else '', '{:,}'.format(int(g)) if g else '',
-        pct(s[ou], s[st]) if s[st] else 'stock fails', pct(s[ou], s[cl]) if hasc and s[cl] else '', gp)), s, ok
+        '{:,}'.format(s[cl]) if hasc and s[cl] else '', '{:,}'.format(s[gc]) if hasg and s[gc] else '',
+        pct(s[ou], s[st]) if s[st] else 'stock fails', pct(s[ou], s[cl]) if hasc and s[cl] else '',
+        pct(s[ou], s[gc]) if hasg and s[gc] else '')), s, ok
 
 
 HDR = ['| %s | files | compiled: stock / ours | common | stock | ours | clang | gcc | ours vs stock | ours vs clang | ours vs gcc |',

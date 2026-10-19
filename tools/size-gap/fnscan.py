@@ -31,7 +31,7 @@ def one(x):
     for i in c['inc']: incs+=['-I',os.path.join(ROOT,i)]
     incs+=['-I',os.path.dirname(src)]
     sysinc=os.path.join(ROOT,'sysroot',a['musl'],'include')
-    cmd=['gcc','-E','-P','-undef','-nostdinc','-std=gnu99','-D__STDC_VERSION__=199901L','-D__STDC_HOSTED__=1']+a['cpp']+c['defs']+incs+['-isystem',sysinc,src,'-D__ILP32__']
+    cmd=['gcc','-E','-P','-undef','-nostdinc','-std=gnu99','-D__STDC_VERSION__=199901L','-D__STDC_HOSTED__=1']+a['cpp']+c['defs']+incs+['-isystem',sysinc,src]
     p=subprocess.run(cmd,capture_output=True,text=True,errors='replace')
     if p.returncode: return []
     t=re.sub(r'int :8\*\(sizeof\(time_t\)-sizeof\(long\)\)\*\(1234[!=]=4321\);','',p.stdout)

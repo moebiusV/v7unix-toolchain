@@ -15,6 +15,7 @@ line of the message, grouped.
 Needs: the ccoms from tools/corpus-build.sh (stock = PortableCC master, ours = this branch), the
 corpora under ~/claude/corpora, and musl headers installed in ~/claude/corpora/sysroot/<arch>.
 """
+import hashlib
 import os, re, sys, glob, json, shutil, hashlib, subprocess, tempfile, argparse, collections
 import concurrent.futures as cf
 
@@ -45,7 +46,7 @@ ARCH = {
     'riscv64': _t('riscv64-linux-gnu', ['-D__riscv', '-D__riscv_xlen=64', '-D__LP64__', '-D_LP64'], ['-fno-pic'], musl='riscv64', ssa=False),
     # the old targets: no clang or gcc, so only stock against ours.  Sizes come from the target's own
     # assembler (V7 as, 32V as as as32v) run on the host; -O output also goes through the target's c2.
-    'pdp11': dict(musl='i386', cpp=['-Dpdp11', '-D__pdp11__'], ssa=False, clang=None, asm=None, c2='c2pdp11',
+    'pdp11': dict(musl='pdp11', cpp=['-Dpdp11', '-D__pdp11__'], ssa=False, clang=None, asm=None, c2='c2pdp11',
                   gcc=[GCCX + '/bin/pdp11-aout-gcc'], gccsize=GCCX + '/bin/pdp11-aout-size'),
     'vax': dict(musl='i386', cpp=['-Dvax', '-D__vax__'], ssa=False, clang=None, asm=None, c2='c2vax',
                 gcc=[GCCX + '/bin/vax-netbsdelf-gcc'], gccsize=GCCX + '/bin/vax-netbsdelf-size'),
@@ -239,6 +240,14 @@ def _version(cmd):
     return _FP[k]
 
 
+def _sysroot_fp(a):
+    """the headers a file is preprocessed against, for the architectures whose types are not a stock musl's"""
+    h = hashlib.sha1()
+    for f in ('bits/alltypes.h', 'bits/stdint.h', 'stdint.h', 'limits.h'):
+        h.update(open(os.path.join(ROOT, 'sysroot', a['musl'], 'include', f), 'rb').read())
+    return h.hexdigest()[:8]
+
+
 def fingerprint(arch, key):
     """what the result for this configuration depends on: the compiler binary and its flags, the
     assembler, the peephole c2, the reference compiler's version.  A rerun compiles a configuration again
@@ -279,6 +288,8 @@ def one(job, prev=None):
     res = dict(corp=corp, arch=arch, src=src.replace(ROOT + '/', ''), size={}, fail={})
     # configurations whose compiler, flags and source are unchanged keep their earlier result
     srcfp = _hash_file(src)
+    if arch == 'pdp11':
+        srcfp += _sysroot_fp(a)
     fps = {k: fingerprint(arch, k) + '|' + srcfp for k in ALLKEYS}
     res['fp'] = fps
     stale = set(ALLKEYS)
@@ -315,7 +326,7 @@ def one(job, prev=None):
         sysinc = c.get('sys') or os.path.join(ROOT, 'sysroot', a['musl'], 'include')
         std = [] if c.get('sys') else ['-std=gnu99', '-D__STDC_VERSION__=199901L', '-D__STDC_HOSTED__=1']
         cppcmd = ['gcc', '-E', '-P', '-undef', '-nostdinc'] + std + a['cpp'] + c['defs'] + incs + ['-isystem', sysinc, local]
-        if arch in ('pdp11', 'vax') and not c.get('sys'):
+        if arch == 'vax' and not c.get('sys'):
             cppcmd += ['-D__ILP32__']
         r = run(cppcmd)
         if r.returncode:

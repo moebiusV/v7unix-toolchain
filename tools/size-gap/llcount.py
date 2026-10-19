@@ -21,7 +21,7 @@ def one(r):
     incs+=['-I',os.path.dirname(src)]
     sysinc=c.get('sys') or os.path.join(ROOT,'sysroot',a['musl'],'include')
     std=[] if c.get('sys') else ['-std=gnu99','-D__STDC_VERSION__=199901L','-D__STDC_HOSTED__=1']
-    cmd=['gcc','-E','-P','-undef','-nostdinc']+std+a['cpp']+c['defs']+incs+['-isystem',sysinc,src,'-D__ILP32__']
+    cmd=['gcc','-E','-P','-undef','-nostdinc']+std+a['cpp']+c['defs']+incs+['-isystem',sysinc,src]
     p=subprocess.run(cmd,capture_output=True,text=True,errors='replace')
     if p.returncode: return None
     t=re.sub(r'int :8\*\(sizeof\(time_t\)-sizeof\(long\)\)\*\(1234[!=]=4321\);','',p.stdout)
