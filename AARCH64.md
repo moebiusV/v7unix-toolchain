@@ -35,7 +35,8 @@ Not done, and diagnosed rather than miscompiled where the front end can tell:
   the arithmetic: `+ - * /`, unary minus, the six comparisons, `op=`, `++`, `--`, `!`, `&&`, `||`, and conversions to and
   from `float`, `double`, `int`, `unsigned`, `long` and `unsigned long`.  The operations are calls to libgcc
   (`__addtf3`, `__lttf2`, `__extenddftf2` and the rest), made in pass 1, so a program that uses them needs `-lgcc` at
-  link time (the `pcc` driver does not add it yet; there is a `__pcc_negtf` helper for unary minus, which libgcc lacks).
+  link time (the `pcc` driver does not add it, and libgcc is GNU's, not part of pcc: `A64QUAD` stays opt-in until pcc has a runtime of its own or
+  a decision to depend on libgcc; `tools/a64quad/tf.c` is a tested candidate but needs `__int128`, which pcc cannot compile; there is a `__pcc_negtf` helper for unary minus, which libgcc lacks).
   No floating-point register survives a call in this build, because `d8`..`d15` keep only their low 64 bits.  It is
   tested on the emulator against clang's code in both directions (calling convention) and against the host's
   `__float128` (arithmetic, with a quad runtime `tools/a64quad/tf.c` that is itself checked against the host's libgcc
