@@ -90,3 +90,8 @@ modern/usr/src/cmd/as32v/as32v
 modern/usr/src/cmd/as32v/as0.c
 modern/usr/src/cmd/as32v/as.yh
 modern/usr/src/cmd/as32v/y.tab.*
+
+# pccboot.sh regenerates its work directory
+tools/pccboot-work/
+__pycache__/
+*.dot

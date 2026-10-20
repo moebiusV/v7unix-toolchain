@@ -1,7 +1,0 @@
-#!/bin/sh
-compile=
-for a; do [ "$a" = -c ] && compile=1; done
-if [ -n "$compile" ]; then exec /home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/inst/bin/pcc -xdmr -xtemps -xdeljumps -xdce -xinline -U__GNUC__ -I/home/david/claude/facetlang/pdp11/v7unix-toolchain/tools/pccboot-work/inc -I/usr/include/x86_64-linux-gnu -I/usr/include "$@"; fi
-args=
-for a; do case $a in -x*|-U__GNUC__) ;; *) args="$args $a";; esac; done
-exec gcc $args
