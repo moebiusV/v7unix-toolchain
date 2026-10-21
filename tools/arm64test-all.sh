@@ -14,6 +14,9 @@ for flags in "$@"; do
 		want=$(sed -n '1s/.*expect: \(-\{0,1\}[0-9]*\).*/\1/p' "$t")
 		skip=$(sed -n 's/.*skip: \([^ ]*\) .*/\1/p' "$t" | head -1)
 		if [ -n "$skip" ] && [ "${flags#*$skip}" != "$flags" ]; then continue; fi
+		# "needs: FLAG (reason)" on any line: only meaningful with FLAG (the emulator has no library to call)
+		needs=$(sed -n 's/.*needs: \([^ ]*\) .*/\1/p' "$t" | head -1)
+		if [ -n "$needs" ] && [ "${flags#*$needs}" = "$flags" ]; then continue; fi
 		got=$("$here/arm64test.sh" $flags "$t" 2>&1 | tail -1)
 		if [ "$got" = "$want" ]; then pass=$((pass+1))
 		else fail=$((fail+1)); echo "FAIL [$flags] $(basename "$t"): want $want, got $got"; fi
