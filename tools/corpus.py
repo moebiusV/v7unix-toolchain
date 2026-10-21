@@ -297,6 +297,8 @@ def ccomflags(arch, ours):
     f = '-xtemps -xdeljumps -xinline -xdce'      # what -O passes to ccom in both
     if ARCH[arch]['ssa'] and not (ours and arch in NOSSA_OURS):
         f += ' -xssa'
+    if ours and arch == 'pdp11':
+        f += ' -xllib'    # the long long and divide helpers are in a library, as gcc's are in libgcc
     return ('-xdmr ' + f) if ours else f
 
 

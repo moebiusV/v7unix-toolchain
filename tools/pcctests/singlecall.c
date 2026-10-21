@@ -36,6 +36,11 @@ int (*fp)(int) = viaptr;
 
 static int in_loop(int x) { return x + 1; }
 
+/* used before it is defined: a call, never inlined, and the function must be written */
+static int later(int);
+static int user_of_later(int x) { return later(x) + 1; }
+static int later(int x) { return x * 9; }
+
 int test()
 {
 	int i, s = 0;
@@ -51,6 +56,7 @@ int test()
 	for (i = 0; i < 5; i++)
 		s = in_loop(s);
 	if (s != 5) return 9;
+	if (user_of_later(2) != 19) return 10;
 	if (count > 100)
 		return dead_only(1);
 	return 1;
