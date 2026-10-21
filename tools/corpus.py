@@ -39,7 +39,7 @@ ARCH = {
     'i386': _t('i386-linux-gnu', ['-D__i386__'], ['-fno-pic', '-fcf-protection=none'],
                asm=['gcc', '-m32', '-c', '-x', 'assembler'], gcc=['gcc', '-m32', '-fno-pie', '-fcf-protection=none'], musl='i386'),
     'arm': _t('arm-linux-gnueabi', ['-D__arm__'], ['-fno-pic', '-marm'], musl='arm'),
-    'powerpc': _t('powerpc-linux-gnu', ['-D__powerpc__', '-D_BIG_ENDIAN'], ['-fno-pic'], musl='powerpc'),
+    'powerpc': _t('powerpc-linux-gnu', ['-D__powerpc__', '-D_BIG_ENDIAN'], ['-fno-pic'], gcc=['powerpc-linux-gnu-gcc', '-fno-pie'], musl='powerpc'),
     'm68k': _t('m68k-linux-gnu', ['-D__m68k__'], ['-fno-pic'], musl='m68k'),
     'mips': _t('mips-linux-gnu', ['-D__mips__', '-D_MIPS_SIM=_MIPS_SIM_ABI32'], ['-fno-pic', '-mno-abicalls'], musl='mips'),
     'mips64': _t('mips64-linux-gnuabi64', ['-D__mips__', '-D__mips64', '-D__LP64__', '-D_LP64'], ['-fno-pic', '-mno-abicalls'], musl='mips64'),
