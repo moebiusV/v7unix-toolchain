@@ -48,6 +48,32 @@ int escaped()
 	return *(unsigned char *)&e;		/* 0 */
 }
 
+int peek(p) char *p; { return *p; }
+
+/* a char local whose address is taken twice is read as itself, never as a view of itself */
+int twice()
+{
+	char b;
+	int r;
+
+	r = 0;
+	b = 1;
+	if (peek(&b) != 1) r |= 1;
+	b = 2;
+	if (peek(&b) != 2) r |= 2;
+	return r;
+}
+
+/* a store through a byte view of a local is a store */
+int poke()
+{
+	unsigned short e;
+
+	e = 0x101;
+	*(unsigned char *)&e = 0;
+	return e != 0x101;
+}
+
 int test()
 {
 	if (fold() != 1)
@@ -58,5 +84,9 @@ int test()
 		return 4;
 	if (escaped() != 0)
 		return 5;
+	if (twice() != 0)
+		return 6;
+	if (poke() != 1)
+		return 7;
 	return 1;
 }
