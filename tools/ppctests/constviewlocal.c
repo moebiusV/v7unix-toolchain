@@ -1,4 +1,4 @@
-/* expect: 1 -- the first byte of an automatic whose constant value is known (zlib's byte-order test); folds only on the straight line */
+/* expect: 1 -- the first byte of an automatic whose constant value is known (zlib's byte-order test, big-endian: the first byte of 1 is 0); folds only on the straight line */
 int g;
 int f(p) int *p; { return *p; }
 
@@ -34,7 +34,7 @@ int loop()
 		s += *(unsigned char *)&e;
 		e = 0x100;
 	}
-	return s;				/* 1 + 0 + 0 */
+	return s;				/* 0 + 1 + 1 */
 }
 
 int escaped()
@@ -45,18 +45,18 @@ int escaped()
 	q = &e;
 	e = 1;
 	*q = 0x300;
-	return *(unsigned char *)&e;		/* 0 */
+	return *(unsigned char *)&e;		/* 3 */
 }
 
 int test()
 {
-	if (fold() != 1)
+	if (fold() != 2)
 		return 2;
-	if (later() != 1)
+	if (later() != 2)
 		return 3;
-	if (loop() != 1)
+	if (loop() != 2)
 		return 4;
-	if (escaped() != 0)
+	if (escaped() != 3)
 		return 5;
 	return 1;
 }

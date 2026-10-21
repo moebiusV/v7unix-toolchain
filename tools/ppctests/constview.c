@@ -1,4 +1,4 @@
-/* expect: 1 -- reading a const integer object: whole, and the first byte through a char pointer (the byte order of the machine) */
+/* expect: 1 -- reading a const integer object: whole, and the first byte through a char pointer (big-endian: the high byte comes first) */
 static const unsigned short det = { 0x100 };
 static const unsigned short det2 = 0x100;
 static const unsigned short one = { 1 };
@@ -17,11 +17,11 @@ int g8() { return *(const unsigned char *)&det == 1; }
 int test()
 {
 	if (g1() != 0x100 || g2() != 0x100) return 2;
-	if (g3() != 0) return 3;
-	if (g4() != 1) return 4;
-	if (g5() != 1) return 5;
+	if (g3() != 1) return 3;
+	if (g4() != 0) return 4;
+	if (g5() != 0) return 5;
 	if (g6() != -3) return 6;
-	if (g7() != 1) return 7;
-	if (g8() != 0) return 8;
+	if (g7() != 0) return 7;
+	if (g8() != 1) return 8;
 	return 1;
 }
