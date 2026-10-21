@@ -21,5 +21,5 @@ cat > "$tmp/main.c" <<'EOT'
 int test(void);
 int main(void) { printf("%d\n", test()); return 0; }
 EOT
-gcc -m64  -w -o "$tmp/t" "$tmp/main.c" "$tmp/t.s"
+gcc -m64 -no-pie -w -o "$tmp/t" "$tmp/main.c" "$tmp/t.s"
 "$tmp/t"

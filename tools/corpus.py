@@ -299,6 +299,8 @@ def ccomflags(arch, ours):
         f += ' -xssa'
     if ours and arch == 'pdp11':
         f += ' -xllib'    # the long long and divide helpers are in a library, as gcc's are in libgcc
+    if ours and arch == 'amd64':
+        f += ' -xabs'     # gcc is measured with -fno-pie: addresses are 32-bit constants there too
     return ('-xdmr ' + f) if ours else f
 
 
