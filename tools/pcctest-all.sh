@@ -3,11 +3,11 @@
 # pcctest-all -- run every tools/pcctests/*.c under several pcc flag sets on
 # the simulated PDP-11 (see pcctest.sh) and compare with its "expect: N".
 #
-# usage: pcctest-all.sh [flag-set ...]     (default: "" "-xdmr" "-O" "-O -xssa")
+# usage: pcctest-all.sh [flag-set ...]     (default: "" "-xdmr" "-O" "-O -xssa" "-O -xllib")
 #
 set -u
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-[ $# -eq 0 ] && set -- "" "-xdmr" "-O" "-O -xssa"
+[ $# -eq 0 ] && set -- "" "-xdmr" "-O" "-O -xssa" "-O -xllib"
 pass=0; fail=0; skipped=0
 for flags in "$@"; do
 	for t in "$here"/pcctests/*.c; do

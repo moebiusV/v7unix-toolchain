@@ -39,7 +39,16 @@ EOS
 "$PCC" -S "$@" -o "$W/t.s"
 "$AS" -u -o "$W/t.o" "$W/t.s"
 "$AS" -u -o "$W/start.o" "$W/start.s"
-"$LD" -o "$W/t.out" "$W/start.o" "$W/t.o" -L "$top/lib" -lc
+llo=
+for a; do
+	case $a in -xllib) # the long long and divide helpers are a library, not in each file
+		echo 'int x;' >"$W/ll.c"
+		"$PCC" -S -xdmr -xllall "$W/ll.c" -o "$W/ll.s"
+		"$AS" -u -o "$W/ll.o" "$W/ll.s"
+		llo=$W/ll.o ;;
+	esac
+done
+"$LD" -o "$W/t.out" "$W/start.o" "$W/t.o" $llo -L "$top/lib" -lc
 # load text+data only: the file also carries a symbol table, and the bss
 # (which a C program may rely on being zero) lives right after the data
 python3 - "$W" <<'EOS'
