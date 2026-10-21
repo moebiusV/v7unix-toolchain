@@ -290,7 +290,7 @@ SJ_MAX = 60000                                             # bytes; the guest ha
 SJ_BATCH = 24
 
 
-NOSSA_OURS = ('aarch64',)       # the fork's pcc -O leaves -xssa off there (it breaks varargs); stock's does not
+NOSSA_OURS = ('aarch64', 'powerpc')       # the fork's pcc -O leaves -xssa off there (it breaks varargs); stock's does not
 
 
 def ccomflags(arch, ours):
