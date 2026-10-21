@@ -7,12 +7,12 @@ unsigned short tab[256];
 
 int w1(x) unsigned long x; { return (int)((x ^ b) & 0xff); }
 int w2(x) unsigned long x; { return (int)((x ^ (unsigned long)uc) & 0xff) << 1; }
-unsigned w3(x) unsigned long x; { return (unsigned)(x + b); }
-unsigned w4(x) unsigned long x; { return (unsigned)(x * 7UL + 3); }
-int w5(x) long x; { return (int)(x - (long)sc); }
-unsigned w6(x) unsigned long x; { return (unsigned)((x << 3) | (b & 0xf0f0UL)); }
-int w7(x) long x; { return (int)~x; }
-int w8(x) long x; { return (int)-x; }
+unsigned short w3(x) unsigned long x; { return (unsigned)(x + b); }
+unsigned short w4(x) unsigned long x; { return (unsigned)(x * 7UL + 3); }
+short w5(x) long x; { return (short)(x - (long)sc); }
+unsigned short w6(x) unsigned long x; { return (unsigned)((x << 3) | (b & 0xf0f0UL)); }
+short w7(x) long x; { return (short)~x; }
+short w8(x) long x; { return (short)-x; }
 unsigned long m1(x) unsigned long x; { return x & 0xffff0000UL; }
 unsigned long m2(x) unsigned long x; { return x & 0x0000ffffUL; }
 unsigned long m3(x) unsigned long x; { return x & 0xffffffffUL; }
@@ -27,14 +27,14 @@ int test()
 	if (w1(a) != (int)((a ^ b) & 0xff)) return 2;
 	if (w1(a) != (0x78 ^ 0xf0)) return 3;
 	if (w2(a) != ((0x78 ^ 0xf3) << 1)) return 4;
-	if (w3(a) != (unsigned)((a + b) & 0xffffUL)) return 5;
-	if (w3(a) != (unsigned)(0x5678U + 0xdef0U)) return 6;
-	if (w4(a) != (unsigned)((a * 7UL + 3) & 0xffffUL)) return 7;
-	if (w4(a) != (unsigned)(0x5678U * 7U + 3)) return 8;
-	if (w5(sa) != (int)((sa + 5) & 0xffffL) && w5(sa) != (int)(sa + 5)) return 9;
-	if (w6(a) != (unsigned)(((0x5678U << 3) | 0xf0f0U) & 0xffffU)) return 10;
-	if (w7(a) != (int)(~0x5678U & 0xffffU)) return 11;
-	if (w8(sa) != (int)(-sa)) return 12;
+	if (w3(a) != (unsigned short)((a + b) & 0xffffUL)) return 5;
+	if (w3(a) != (unsigned short)(0x5678U + 0xdef0U)) return 6;
+	if (w4(a) != (unsigned short)((a * 7UL + 3) & 0xffffUL)) return 7;
+	if (w4(a) != (unsigned short)(0x5678U * 7U + 3)) return 8;
+	if (w5(sa) != (short)(sa + 5)) return 9;
+	if (w6(a) != (unsigned short)(((0x5678U << 3) | 0xf0f0U) & 0xffffU)) return 10;
+	if (w7(a) != (short)(~0x5678U & 0xffffU)) return 11;
+	if (w8(sa) != (short)(-sa)) return 12;
 	if (m1(a) != 0x12340000UL) return 13;
 	if (m2(a) != 0x5678UL) return 14;
 	if (m3(a) != a) return 15;
