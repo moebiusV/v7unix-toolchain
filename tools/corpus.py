@@ -50,10 +50,6 @@ ARCH = {
                   gcc=[GCCX + '/bin/pdp11-aout-gcc'], gccsize=GCCX + '/bin/pdp11-aout-size'),
     'vax': dict(musl='i386', cpp=['-Dvax', '-D__vax__'], ssa=False, clang=None, asm=None, c2='c2vax',
                 gcc=[GCCX + '/bin/vax-netbsdelf-gcc'], gccsize=GCCX + '/bin/vax-netbsdelf-size'),
-    # pdp64 (~/claude/pdp64): LP64, little-endian, signed char, like aarch64, so the same musl headers and the same
-    # defines (the preprocessed text is the same file the aarch64 build gets); no reference compiler.  as64 is its assembler.
-    'pdp64': dict(musl='aarch64', cpp=['-D__aarch64__', '-D__LP64__', '-D_LP64'], ssa=False, clang=None, gcc=None, c2=None,
-                  asm=[os.path.expanduser('~/claude/pdp64/build/as64')]),
     'sparc64': _t('sparcv9-linux-gnu', ['-D__sparc__', '-D__sparc64__', '-D__LP64__', '-D_LP64'], ['-fno-pic'], musl='sparc64', ssa=False),
 }
 

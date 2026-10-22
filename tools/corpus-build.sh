@@ -14,7 +14,7 @@ ALL="aarch64:aarch64-unknown-linux amd64:x86_64-unknown-linux i386:i386-unknown-
 arm:arm-unknown-linux m68k:m68k-unknown-linux mips:mips-unknown-linux
 mips64:mips64-unknown-linux powerpc:powerpc-unknown-linux
 riscv64:riscv64-unknown-netbsd sparc64:sparc64-unknown-netbsd
-pdp11:pdp11-bsd vax:vax-unknown-unix32v pdp64:pdp64-unknown-linux"
+pdp11:pdp11-bsd vax:vax-unknown-unix32v"
 want=${*:-all}
 mkdir -p "$B"
 for kind in ${KINDS:-stock ours}; do
