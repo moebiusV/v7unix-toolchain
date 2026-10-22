@@ -375,8 +375,8 @@ def report(results, archs, out):
 
     def tot(keys, ar, f):
         return sum(ok[k][ar][f] for k in keys)
-    for c in corps + ['**all**']:
-        keys = [k for k in ok if c == '**all**' or k[0] == c]
+    for c in corps + ['**fair corpus (without pcctests)**', '**all**']:
+        keys = [k for k in ok if c == '**all**' or k[0] == c or (c.startswith('**fair') and k[0] != 'pcctests')]
         cells = []
         for ar in archs:
             cells += [str(tot(keys, ar, 'ins')), str(tot(keys, ar, 'image'))]
