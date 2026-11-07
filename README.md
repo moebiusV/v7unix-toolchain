@@ -1,5 +1,7 @@
 # The V7 PDP-11 C toolchain
 
+[github.com/moebiusV/v7unix-toolchain](https://github.com/moebiusV/v7unix-toolchain) | `git clone https://github.com/moebiusV/v7unix-toolchain`
+
 This project is two things.
 
 First, a port of the Seventh Edition Unix C toolchain (dmr's `cc` driver, the
