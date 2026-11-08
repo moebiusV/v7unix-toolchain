@@ -1,6 +1,6 @@
 # The V7 PDP-11 C toolchain
 
-[up](https://moebiusv.github.io/) | [github.com/moebiusV/v7unix-toolchain](https://github.com/moebiusV/v7unix-toolchain) | `git clone https://github.com/moebiusV/v7unix-toolchain`
+[project index](https://moebiusv.github.io/) | [github.com/moebiusV/v7unix-toolchain](https://github.com/moebiusV/v7unix-toolchain) | `git clone https://github.com/moebiusV/v7unix-toolchain`
 
 This project is two things.
 
